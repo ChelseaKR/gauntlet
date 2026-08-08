@@ -39,7 +39,7 @@ packages = ["src/gauntlet"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "examples"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -58,7 +58,7 @@ max-complexity = 10
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "examples"]
 
 [tool.pytest.ini_options]
 minversion = "8"

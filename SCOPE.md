@@ -1,7 +1,17 @@
-# Gauntlet — scope
+# Gauntlet: scope
 
 *Scoping document, 2026-08-07. Repo name is provisional while private; renaming
 costs nothing until first publication.*
+
+> **Correction, made by reading the source.** This document originally placed the
+> written contractor disclosure duty in SAM 4986.2. Reading the SAM 4986 series
+> during Milestone 1 showed otherwise: **SAM 4986.2 is the definitions section**,
+> where "Material Impact / Materially Impacts" is defined, and **the contractor
+> disclosure duty sits in SAM 4986.9, GenAI Procurement**. The citations below
+> have been corrected. See
+> [docs/california-mapping.md](docs/california-mapping.md) for the full account,
+> including the identifiers that could not be verified and were therefore
+> omitted rather than guessed.
 
 ## One sentence
 
@@ -11,20 +21,21 @@ and procurement framework, so "we tested it" means something a reviewer can run.
 
 ## Why this, why now
 
-California's GenAI procurement stack is now concrete and public: SAM 4986.2
-imposes a written disclosure duty when GenAI materially affects a deliverable,
+California's GenAI procurement stack is now concrete and public: SAM 4986.9
+imposes a written contractor disclosure duty when GenAI is a deliverable or
+materially impacts one, SAM 4986.2 supplies the definitions that duty turns on,
 Government Code 11549.64 defines GenAI, SIMM 5305-F (revised August 2025) is the
 required risk assessment, and genai.ca.gov publishes disclosure and contract
 language. Every vendor selling AI-adjacent work to the state must produce this
 paperwork. None of it says what adequate *testing* looks like, and no public
 tooling maps continuous-integration evaluation gates to the state's own forms.
 
-The author has run this discipline in production on a statewide platform: a
-merge-blocking adversarial suite (~79 cases, English and Spanish), grounding
-assertions that fail a release when an answer cannot cite its source, golden-
-answer regression, refusal and crisis-routing drills, and cost guards. The
-shared safety infrastructure shipped; the assistant it protected did not launch
-to residents, because the gates said it was not ready. That judgment is the
+This discipline comes from team-scale platform work on a statewide platform: a
+merge-blocking adversarial suite in English and Spanish, grounding assertions
+that fail a release when an answer cannot cite its source, golden-answer
+regression, refusal and crisis-routing drills, and cost guards. The shared
+safety infrastructure shipped; the assistant it protected did not launch to
+residents, because the gates said it was not ready. That judgment is the
 product. This repo makes it reusable and inspectable.
 
 ## What it is
@@ -53,7 +64,7 @@ product. This repo makes it reusable and inspectable.
 3. **An evidence-pack generator**: `gauntlet report` emits a machine-readable
    result set plus a human-readable document that cross-references each gate
    outcome to the sections of SIMM 5305-F it informs and to the disclosure
-   content SAM 4986.2 requires. The mapping table itself is Milestone 1 work,
+   content SAM 4986.9 requires. The mapping table itself is Milestone 1 work,
    built by reading the August 2025 SIMM 5305-F line by line; no section
    reference ships until it has been read against the source.
 
@@ -77,20 +88,20 @@ product. This repo makes it reusable and inspectable.
 - **Covered California**: CalHEERS solicitations name AI features; an
   evidence-pack-producing vendor is a different conversation.
 - **ODI** and any department buying GenAI under the state framework.
-- **The author's own bids**: SAM 4986.2 disclosures become a strength; the
+- **The author's own bids**: SAM 4986.9 disclosures become a strength; the
   harness output *is* the disclosure evidence.
 
 ## Milestones and effort (part-time, sequenced)
 
 | Milestone | Contents | Effort |
 |---|---|---|
-| **M1 — Mapping and skeleton** | Read SIMM 5305-F (Aug 2025) and the genai.ca.gov disclosure/contract language; produce the section-by-section mapping table (gate type → risk-assessment item → disclosure content); package skeleton, case-file schema, CI | 2–3 days |
-| **M2 — Core gates + toy target** | Grounding, adversarial (EN/ES), refusal, false-positive guard, golden-answer; the breakable RAG toy; every gate demonstrated failing | 4–5 days |
-| **M3 — Evidence pack** | `gauntlet report`: JSON + human document with the M1 mapping applied; drift between runs | 2–3 days |
-| **M4 — Publication polish** | GitHub Action, docs, README with claim rules, bilingual case coverage stated as coverage (counts, not vibes) | 2–3 days |
+| **M1, mapping and skeleton** | Read SIMM 5305-F (Aug 2025) and the genai.ca.gov disclosure/contract language; produce the section-by-section mapping table (gate type → risk-assessment item → disclosure content); package skeleton, case-file schema, CI | 2 to 3 days |
+| **M2, core gates plus toy target** | Grounding, adversarial (EN/ES), refusal, false-positive guard, golden-answer; the breakable RAG toy; every gate demonstrated failing | 4 to 5 days |
+| **M3, evidence pack** | `gauntlet report`: JSON + human document with the M1 mapping applied; drift between runs | 2 to 3 days |
+| **M4, publication polish** | GitHub Action, docs, README with claim rules, bilingual case coverage stated as coverage (counts, not vibes) | 2 to 3 days |
 
-Roughly two weeks part-time. M1+M2 alone are demonstrable; publication decision
-(and any renaming) sits with the owner at end of M2 or later.
+Roughly two weeks part-time. All four milestones are implemented. The
+publication decision, and any renaming, sits with the owner.
 
 ## Claim rules (carried from the author's standing discipline)
 
@@ -108,3 +119,6 @@ Roughly two weeks part-time. M1+M2 alone are demonstrable; publication decision
 2. License: Apache-2.0 assumed (matches exitdrill and portfolio convention).
 3. Whether M1's mapping table should be reviewed by a procurement-side reader
    (an advocate contact or the DGS webinar Q&A) before the repo goes public.
+4. Whether to publish at all, and if so whether to cut a release tag so the
+   GitHub Action can be referenced by tag rather than by commit SHA. No package
+   has been published to any registry, and no badge implies one has.

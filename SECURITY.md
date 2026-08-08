@@ -27,6 +27,20 @@ report.
 - **Adversarial cases embed injection payloads, including zero-width and
   homoglyph characters, as data.** They are compromise markers a gate checks
   for, never instructions the harness executes.
+- **`--callable` is arbitrary code execution, by design.** The operator names a
+  module and Gauntlet imports it, with the working directory placed on the
+  import path so a consumer's own target module is reachable without installing
+  it. Point it only at code you would run yourself. `--http-url` is the option
+  that imports nothing.
+- **The GitHub Action runs inside the caller's job, with the caller's token.**
+  It requests no permissions of its own, pins every action it uses to a full
+  commit SHA, and passes every input to bash through the environment rather than
+  interpolating it into a command, so a crafted input cannot become code. It
+  writes only to the paths the caller names.
+- **An evidence pack contains whatever the target answered.** The `observed`
+  field carries response text verbatim, so a pack from a real target can hold
+  anything that target emitted. Treat published packs the way you would treat
+  production logs, and review one before attaching it to a procurement file.
 
 ## What a gate result is and is not
 

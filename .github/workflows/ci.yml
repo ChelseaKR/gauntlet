@@ -35,6 +35,62 @@ jobs:
       - name: Run the gates against the toy and render a report
         run: make demo
 
+  # Exercises the published composite action the way an external consumer would,
+  # from a checkout that is not on PATH and with no local environment set up.
+  # A gate failure must block, so this job also proves the blocking path.
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the action against the built-in suites
+        id: gauntlet
+        uses: ./
+        with:
+          job-summary: "false"
+      - name: The action reported counts the harness produced
+        env:
+          PASSED: ${{ steps.gauntlet.outputs.passed }}
+          GATES_TOTAL: ${{ steps.gauntlet.outputs.gates-total }}
+          GATES_FAILED: ${{ steps.gauntlet.outputs.gates-failed }}
+          CASES_TOTAL: ${{ steps.gauntlet.outputs.cases-total }}
+          REPORT: ${{ steps.gauntlet.outputs.report-path }}
+          JSON: ${{ steps.gauntlet.outputs.json-path }}
+        run: |
+          set -euo pipefail
+          test "$PASSED" = "true"
+          test "$GATES_FAILED" = "0"
+          test "$GATES_TOTAL" -ge 1
+          test "$CASES_TOTAL" -ge 1
+          test -s "$REPORT"
+          test -s "$JSON"
+          grep -q "not approved or endorsed by, the State of California" "$REPORT"
+      - name: Run the action against the deliberately broken example target
+        id: broken
+        uses: ./
+        with:
+          working-directory: examples
+          cases: cases
+          target-callable: broken_target:make_target
+          results-path: broken-results.json
+          report-path: broken-evidence.md
+          json-path: broken-evidence.json
+          fail-on-gate-failure: "false"
+          job-summary: "false"
+      - name: The failing run is reported as failing, not swallowed
+        working-directory: examples
+        env:
+          PASSED: ${{ steps.broken.outputs.passed }}
+          GATES_FAILED: ${{ steps.broken.outputs.gates-failed }}
+          CASES_FAILED: ${{ steps.broken.outputs.cases-failed }}
+        run: |
+          set -euo pipefail
+          test "$PASSED" = "false"
+          test "$GATES_FAILED" -ge 1
+          test "$CASES_FAILED" -ge 1
+          grep -q "uncited answer" broken-evidence.md
+
   package:
     runs-on: ubuntu-latest
     steps:
@@ -92,7 +148,7 @@ jobs:
           version: "0.11.29"
           python-version: "3.12"
       - name: Semgrep
-        run: uvx --from semgrep==1.168.0 semgrep scan --error --metrics off --config p/python src tests
+        run: uvx --from semgrep==1.168.0 semgrep scan --error --metrics off --config p/python src tests examples
 
   zizmor:
     runs-on: ubuntu-latest

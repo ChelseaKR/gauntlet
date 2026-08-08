@@ -1,0 +1,222 @@
+# A merge-blocking evaluation gate for repositories that are not this one.
+#
+# Usage lives in README.md. Every action this composite depends on is pinned to
+# a full 40-character commit SHA with its version in a trailing comment, and no
+# input is interpolated into a shell command: values reach bash through env, so
+# a crafted input cannot become code.
+name: Gauntlet evaluation gates
+description: >-
+  Run Gauntlet's evaluation gates against an AI feature, emit an evidence pack in
+  both machine-readable and human-readable form, and fail the build when a gate fails.
+author: Chelsea Kelly-Reif
+
+branding:
+  icon: shield
+  color: gray-dark
+
+inputs:
+  cases:
+    description: >-
+      Directory of *.yaml case files. Leave empty to use the built-in bilingual suites,
+      which evaluate the in-repo toy target and are useful mainly for trying the action out.
+    required: false
+    default: ""
+  target-url:
+    description: >-
+      HTTP endpoint to evaluate. It receives POST {"prompt","language"} and must answer with
+      {"text","citations","context_ids","refused","escalated"}. Mutually exclusive with
+      target-callable.
+    required: false
+    default: ""
+  target-callable:
+    description: >-
+      Python target as "module.path:factory", where the factory returns an object with a
+      name attribute and an ask(prompt, language) method. The module must be importable from
+      working-directory. Mutually exclusive with target-url.
+    required: false
+    default: ""
+  baseline:
+    description: >-
+      Path to an earlier results JSON. When present, the evidence pack reports whole-run
+      drift against it: gates added or removed, pass-rate deltas per gate and per language,
+      and the cases that newly fail or newly pass. A missing file is reported, not fatal.
+    required: false
+    default: ""
+  results-path:
+    description: Path the results JSON is written to.
+    required: false
+    default: gauntlet-results.json
+  report-path:
+    description: Path the human-readable evidence document is written to.
+    required: false
+    default: gauntlet-evidence.md
+  json-path:
+    description: Path the machine-readable evidence pack is written to.
+    required: false
+    default: gauntlet-evidence.json
+  fail-on-gate-failure:
+    description: Fail the step when any gate fails. Set to "false" to report without blocking.
+    required: false
+    default: "true"
+  job-summary:
+    description: Write the evidence document to the GitHub job summary.
+    required: false
+    default: "true"
+  python-version:
+    description: Python version used to run the harness.
+    required: false
+    default: "3.12"
+  uv-version:
+    description: uv version installed to run the harness.
+    required: false
+    default: 0.11.29
+  working-directory:
+    description: Directory the gates run from. Relative paths above are resolved against it.
+    required: false
+    default: "."
+
+outputs:
+  passed:
+    description: '"true" when every gate met its threshold.'
+    value: ${{ steps.pack.outputs.passed }}
+  results-path:
+    description: Path of the results JSON that was written.
+    value: ${{ inputs.results-path }}
+  report-path:
+    description: Path of the human-readable evidence document that was written.
+    value: ${{ inputs.report-path }}
+  json-path:
+    description: Path of the machine-readable evidence pack that was written.
+    value: ${{ inputs.json-path }}
+  results-digest:
+    description: sha256 of what the run observed, excluding the clock. Equal digests mean equal runs.
+    value: ${{ steps.pack.outputs.results-digest }}
+  gates-total:
+    description: Number of gates that ran.
+    value: ${{ steps.pack.outputs.gates-total }}
+  gates-passed:
+    description: Number of gates that met their threshold.
+    value: ${{ steps.pack.outputs.gates-passed }}
+  gates-failed:
+    description: Number of gates that did not meet their threshold.
+    value: ${{ steps.pack.outputs.gates-failed }}
+  cases-total:
+    description: Number of cases that ran.
+    value: ${{ steps.pack.outputs.cases-total }}
+  cases-passed:
+    description: Number of cases that passed.
+    value: ${{ steps.pack.outputs.cases-passed }}
+  cases-failed:
+    description: Number of cases that failed.
+    value: ${{ steps.pack.outputs.cases-failed }}
+  drift-computed:
+    description: '"true" when a baseline was supplied and whole-run drift was computed.'
+    value: ${{ steps.pack.outputs.drift-computed }}
+  drift-newly-failing:
+    description: Cases that passed in the baseline and fail now.
+    value: ${{ steps.pack.outputs.drift-newly-failing }}
+  drift-newly-passing:
+    description: Cases that failed in the baseline and pass now.
+    value: ${{ steps.pack.outputs.drift-newly-passing }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      with:
+        version: ${{ inputs.uv-version }}
+        python-version: ${{ inputs.python-version }}
+
+    - name: Run the gates
+      id: gates
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GAUNTLET_ACTION_PATH: ${{ github.action_path }}
+        GAUNTLET_CASES: ${{ inputs.cases }}
+        GAUNTLET_URL: ${{ inputs.target-url }}
+        GAUNTLET_CALLABLE: ${{ inputs.target-callable }}
+        GAUNTLET_RESULTS: ${{ inputs.results-path }}
+      run: |
+        set -euo pipefail
+        if [ -n "$GAUNTLET_URL" ] && [ -n "$GAUNTLET_CALLABLE" ]; then
+          echo "::error::set at most one of target-url or target-callable"
+          exit 2
+        fi
+        args=(run)
+        if [ -n "$GAUNTLET_CASES" ]; then args+=(--cases "$GAUNTLET_CASES"); fi
+        if [ -n "$GAUNTLET_URL" ]; then args+=(--http-url "$GAUNTLET_URL"); fi
+        if [ -n "$GAUNTLET_CALLABLE" ]; then args+=(--callable "$GAUNTLET_CALLABLE"); fi
+        args+=(--out "$GAUNTLET_RESULTS")
+        # A failing gate is the expected outcome of a working gate, so the
+        # non-zero exit must not abort this step: the evidence pack that
+        # explains the failure has not been built yet. GitHub runs composite
+        # steps under bash -e, so errexit is turned off around this call and
+        # back on immediately after.
+        set +e
+        uv tool run --from "$GAUNTLET_ACTION_PATH" gauntlet "${args[@]}"
+        run_status=$?
+        set -e
+        # 0 is a clean run, 1 is a gate failure, anything else is the harness
+        # itself failing and must not be reported as a gate result.
+        if [ "$run_status" -gt 1 ]; then
+          echo "::error::gauntlet run could not complete (exit $run_status)"
+          exit "$run_status"
+        fi
+        echo "gates-exit=$run_status" >> "$GITHUB_OUTPUT"
+
+    - name: Build the evidence pack
+      id: pack
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GAUNTLET_ACTION_PATH: ${{ github.action_path }}
+        GAUNTLET_RESULTS: ${{ inputs.results-path }}
+        GAUNTLET_REPORT: ${{ inputs.report-path }}
+        GAUNTLET_JSON: ${{ inputs.json-path }}
+        GAUNTLET_BASELINE: ${{ inputs.baseline }}
+      run: |
+        set -euo pipefail
+        args=(report "$GAUNTLET_RESULTS")
+        if [ -n "$GAUNTLET_BASELINE" ]; then
+          if [ -f "$GAUNTLET_BASELINE" ]; then
+            args+=(--baseline "$GAUNTLET_BASELINE")
+          else
+            echo "::notice::baseline $GAUNTLET_BASELINE not found; whole-run drift not computed"
+          fi
+        fi
+        uv tool run --from "$GAUNTLET_ACTION_PATH" gauntlet "${args[@]}" \
+          --format md --out "$GAUNTLET_REPORT" --github-output "$GITHUB_OUTPUT"
+        uv tool run --from "$GAUNTLET_ACTION_PATH" gauntlet "${args[@]}" \
+          --format json --out "$GAUNTLET_JSON"
+
+    - name: Write the evidence document to the job summary
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GAUNTLET_REPORT: ${{ inputs.report-path }}
+        GAUNTLET_JOB_SUMMARY: ${{ inputs.job-summary }}
+      run: |
+        set -euo pipefail
+        if [ "$GAUNTLET_JOB_SUMMARY" != "true" ]; then exit 0; fi
+        if [ ! -f "$GAUNTLET_REPORT" ]; then exit 0; fi
+        # The job summary caps at 1 MiB. Truncate rather than lose the summary.
+        head -c 800000 "$GAUNTLET_REPORT" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Block the merge when a gate failed
+      shell: bash
+      env:
+        GAUNTLET_EXIT: ${{ steps.gates.outputs.gates-exit }}
+        GAUNTLET_FAIL: ${{ inputs.fail-on-gate-failure }}
+        GAUNTLET_REPORT: ${{ inputs.report-path }}
+        GAUNTLET_FAILED: ${{ steps.pack.outputs.gates-failed }}
+      run: |
+        set -euo pipefail
+        if [ "$GAUNTLET_EXIT" = "0" ]; then exit 0; fi
+        if [ "$GAUNTLET_FAIL" != "true" ]; then
+          echo "::warning::$GAUNTLET_FAILED gate(s) failed; not blocking because fail-on-gate-failure is not true"
+          exit 0
+        fi
+        echo "::error::$GAUNTLET_FAILED gate(s) failed; see $GAUNTLET_REPORT"
+        exit 1

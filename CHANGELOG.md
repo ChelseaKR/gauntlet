@@ -26,17 +26,46 @@ All notable changes will be documented here.
 - A deliberately breakable grounded-RAG toy target and a paired self-test for
   every gate that injects the defect the gate exists to catch and asserts the
   gate fails.
-- Bilingual built-in suites: grounding (6 EN / 6 ES), adversarial (12 EN /
-  12 ES), refusal (5 EN / 5 ES), false-positive (6 EN / 6 ES), golden
-  (4 EN / 4 ES).
+- Bilingual built-in suites for every gate. The counts are emitted by
+  `gauntlet inventory` rather than restated here.
 - CI (SHA-pinned actions): `make verify` with a 90% coverage gate, wheel build,
   dependency audit, secret scan, SAST, and workflow static analysis. Dependabot
   with a 7-day cooldown, CODEOWNERS, SECURITY, CONTRIBUTING, and a PR template.
+- Evidence pack (`gauntlet report`): one versioned structure rendered as
+  machine-readable JSON and as a human-readable document suitable for attaching
+  to a risk assessment. It states what was tested, what passed, what failed and
+  why, case counts per language, and what the harness does not establish, and it
+  carries the aligned-to-not-approved-by framing in the artifact itself. A run
+  with failures renders through the same sections as a clean one.
+- Framework cross-reference inside the pack: each gate outcome is linked to the
+  specific SIMM 5305-F items its results inform, from `src/gauntlet/mapping.py`.
+  Only identifiers verified in Milestone 1 are cited, the unverified list is
+  reproduced in every pack, and a gate that maps to nothing verified is reported
+  as unmapped rather than given an invented link.
+- Whole-run drift (`gauntlet report --baseline`): gates added and removed,
+  pass-rate deltas per gate and per language, cases newly failing and newly
+  passing, cases added and removed, and threshold changes. Deterministic and
+  free of timestamps, plus a `results_digest` that fingerprints behavior while
+  excluding the clock.
+- `gauntlet inventory`: the gate inventory counted from the loaded suites, in
+  Markdown or JSON, with `--update` to regenerate the README's generated block.
+  A test fails if that block goes stale.
+- A composite GitHub Action (`action.yml`) usable from any repository, with
+  documented inputs and outputs, SHA-pinned internals, no interpolation of
+  inputs into shell commands, and a CI job that exercises it on both the passing
+  and the failing path.
+- `examples/`: a minimal external case file and a target factory, serving as
+  documentation and as the action's failure-path fixture.
+
+### Fixed
+
+- SCOPE.md placed the contractor GenAI disclosure duty in SAM 4986.2. It is in
+  SAM 4986.9; 4986.2 is the definitions section. Corrected, with the correction
+  recorded in the document rather than quietly applied.
 
 ### Notes
 
-- Not a compliance certification. The State of California has not reviewed or
-  endorsed this project.
-- Milestone 3 (evidence-pack report cross-referencing gate outcomes to specific
-  SIMM 5305-F items, with run-to-run drift) and Milestone 4 (publication polish)
-  are not yet implemented.
+- Not a compliance certification. The State of California has not reviewed,
+  approved, endorsed, or certified this project.
+- Nothing has been published to any package registry, and no badge implies
+  otherwise. Publication and any rename remain the owner's decision.

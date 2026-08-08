@@ -10,3 +10,9 @@ coverage.xml
 .pytest_cache/
 .ruff_cache/
 demo-results.json
+demo-evidence.md
+demo-evidence.json
+demo-evidence-drift.md
+gauntlet-results.json
+gauntlet-evidence.md
+gauntlet-evidence.json

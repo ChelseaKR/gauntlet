@@ -1,0 +1,180 @@
+"""The evidence pack: structure, cross-reference, honesty guardrails."""
+
+from __future__ import annotations
+
+import json
+
+from gauntlet.cases import GATES
+from gauntlet.evidence import (
+    ALIGNMENT_NOTICE,
+    EVIDENCE_SCHEMA_VERSION,
+    NOT_ESTABLISHED,
+    build_evidence_pack,
+    github_output_lines,
+)
+from gauntlet.mapping import UNVERIFIED_IDENTIFIERS
+from gauntlet.results import RESULTS_SCHEMA_VERSION, CaseResult, GateResult, RunResult
+
+
+def _gate(name: str, outcomes: dict[str, bool], threshold: float = 1.0) -> GateResult:
+    cases = tuple(
+        CaseResult(
+            case_id=case_id,
+            language="en" if case_id.endswith("-en") else "es",
+            passed=passed,
+            detail="matched" if passed else "uncited answer",
+            observed="text",
+        )
+        for case_id, passed in outcomes.items()
+    )
+    return GateResult(
+        gate=name, suite=f"builtin-{name}", suite_version=2, threshold=threshold, cases=cases
+    )
+
+
+def _run(*gates: GateResult) -> dict[str, object]:
+    return RunResult(target="toy", gates=gates, started_at="2026-08-07T12:00:00+00:00").to_dict()
+
+
+def _rows(payload: dict[str, object], key: str) -> list[dict[str, object]]:
+    value = payload[key]
+    assert isinstance(value, list)
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _mapping(payload: dict[str, object], key: str) -> dict[str, object]:
+    value = payload[key]
+    assert isinstance(value, dict)
+    return value
+
+
+def test_pack_is_versioned_and_carries_the_alignment_framing() -> None:
+    pack = build_evidence_pack(_run(_gate("grounding", {"a-en": True, "b-es": True})))
+    assert pack["evidence_schema_version"] == EVIDENCE_SCHEMA_VERSION
+    assert pack["results_schema_version"] == RESULTS_SCHEMA_VERSION
+    assert pack["alignment_notice"] == ALIGNMENT_NOTICE
+    assert "not approved or endorsed by" in ALIGNMENT_NOTICE
+    assert "does not make a system compliant" in ALIGNMENT_NOTICE
+
+
+def test_pack_never_claims_certification() -> None:
+    pack = build_evidence_pack(_run(_gate("grounding", {"a-en": True})))
+    text = json.dumps(pack, ensure_ascii=False).casefold()
+    for forbidden in ("certified by", "approved by the state", "is compliant with"):
+        assert forbidden not in text
+    assert "not a substitute" in text
+
+
+def test_totals_are_counted_from_the_cases() -> None:
+    pack = build_evidence_pack(
+        _run(
+            _gate("grounding", {"a-en": True, "b-es": False}),
+            _gate("refusal", {"c-en": True, "d-es": True}),
+        )
+    )
+    totals = _mapping(pack, "totals")
+    assert totals["gates_total"] == 2
+    assert totals["gates_passed"] == 1
+    assert totals["gates_failed"] == 1
+    assert totals["cases_total"] == 4
+    assert totals["cases_passed"] == 3
+    assert totals["cases_failed"] == 1
+    languages = {str(row["language"]): row for row in _rows(pack, "counts_by_language")}
+    assert languages["en"]["total"] == 2
+    assert languages["es"]["passed"] == 1
+    assert languages["es"]["failed"] == 1
+
+
+def test_every_builtin_gate_is_cross_referenced() -> None:
+    pack = build_evidence_pack(_run(*(_gate(gate, {"a-en": True}) for gate in GATES)))
+    for entry in _rows(pack, "gates"):
+        assert entry["mapping_status"] == "mapped"
+        references = entry["framework_references"]
+        assert isinstance(references, list)
+        assert references, f"{entry['gate']} has no framework references"
+        assert entry["disclosure_support"]
+    assert _mapping(pack, "mapping")["gates_without_verified_reference"] == []
+
+
+def test_a_gate_with_no_verified_mapping_says_so_rather_than_inventing_one() -> None:
+    pack = build_evidence_pack(_run(_gate("some_future_gate", {"a-en": True})))
+    entry = _rows(pack, "gates")[0]
+    assert entry["mapping_status"] == "no_verified_reference"
+    assert entry["framework_references"] == []
+    note = entry["mapping_note"]
+    assert isinstance(note, str)
+    assert "no link is invented" in note
+    assert _mapping(pack, "mapping")["gates_without_verified_reference"] == ["some_future_gate"]
+
+
+def test_pack_reproduces_the_unverified_identifier_list() -> None:
+    pack = build_evidence_pack(_run(_gate("grounding", {"a-en": True})))
+    listed = {
+        row["identifier"] for row in _rows(_mapping(pack, "mapping"), "identifiers_not_verified")
+    }
+    assert listed == {item.identifier for item in UNVERIFIED_IDENTIFIERS}
+
+
+def test_pack_states_what_it_does_not_establish() -> None:
+    pack = build_evidence_pack(_run(_gate("grounding", {"a-en": True})))
+    assert pack["not_established"] == list(NOT_ESTABLISHED)
+    joined = " ".join(NOT_ESTABLISHED).casefold()
+    assert "does not certify compliance" in joined
+    assert "no review, approval, or endorsement" in joined
+    assert "dishonest target is out of scope" in joined
+
+
+def test_drift_is_absent_without_a_baseline_and_present_with_one() -> None:
+    current = _run(_gate("grounding", {"a-en": False}))
+    assert build_evidence_pack(current)["drift"] is None
+    baseline = _run(_gate("grounding", {"a-en": True}))
+    drift = build_evidence_pack(current, baseline)["drift"]
+    assert isinstance(drift, dict)
+    assert _mapping(drift, "totals")["newly_failing_cases"] == 1
+
+
+def test_rendering_the_same_results_twice_is_byte_identical() -> None:
+    run = _run(_gate("grounding", {"a-en": True, "b-es": False}))
+    first = json.dumps(build_evidence_pack(run), sort_keys=False)
+    second = json.dumps(build_evidence_pack(run), sort_keys=False)
+    assert first == second
+
+
+def test_github_output_lines_are_single_line_key_values() -> None:
+    pack = build_evidence_pack(
+        _run(_gate("grounding", {"a-en": True, "b-es": False})),
+        _run(_gate("grounding", {"a-en": True, "b-es": True})),
+    )
+    lines = github_output_lines(pack)
+    rendered = dict(line.split("=", 1) for line in lines)
+    assert rendered["passed"] == "false"
+    assert rendered["gates-failed"] == "1"
+    assert rendered["cases-total"] == "2"
+    assert rendered["drift-computed"] == "true"
+    assert rendered["drift-newly-failing"] == "1"
+    assert len(rendered["results-digest"]) == 64
+    for line in lines:
+        assert "\n" not in line
+        assert line.count("=") >= 1
+
+
+def test_github_output_lines_without_drift() -> None:
+    pack = build_evidence_pack(_run(_gate("grounding", {"a-en": True})))
+    rendered = dict(line.split("=", 1) for line in github_output_lines(pack))
+    assert rendered["drift-computed"] == "false"
+    assert rendered["drift-newly-failing"] == "0"
+    assert rendered["passed"] == "true"
+
+
+def test_malformed_results_do_not_crash_the_pack() -> None:
+    junk: dict[str, object] = {"gates": "not a list", "target": None, "passed": "yes"}
+    pack = build_evidence_pack(junk)
+    assert _mapping(pack, "totals")["gates_total"] == 0
+    assert pack["target"] == ""
+    assert pack["passed"] is False
+    weird: dict[str, object] = {"gates": [{"gate": "grounding", "counts_by_language": "no"}]}
+    assert build_evidence_pack(weird)["counts_by_language"] == []
+    partial: dict[str, object] = {
+        "gates": [{"gate": "grounding", "counts_by_language": {"en": "no", 3: {"total": 1}}}]
+    }
+    assert build_evidence_pack(partial)["counts_by_language"] == []
