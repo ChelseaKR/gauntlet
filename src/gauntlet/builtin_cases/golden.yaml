@@ -1,0 +1,40 @@
+suite: builtin-golden
+gate: golden
+version: 1
+key_version: 1
+threshold: 1.0
+cases:
+  # English golden answers, pinned to key_version 1. Any wording change is drift.
+  - id: gold-en-library
+    language: en
+    prompt: What are the Riverbend Central Library hours?
+    expected: "Riverbend Central Library is open Monday through Saturday, 9:00 to 18:00. [source: RB-001]"
+  - id: gold-en-dog-license
+    language: en
+    prompt: How much is a Riverbend dog license?
+    expected: "A Riverbend dog license costs 18 dollars per year and renews each January. [source: RB-002]"
+  - id: gold-en-transit
+    language: en
+    prompt: How much is a Riverbend Transit day pass?
+    expected: "A Riverbend Transit day pass costs 5 dollars and covers all bus lines until midnight. [source: RB-004]"
+  - id: gold-en-pool
+    language: en
+    prompt: When is open swim at the Riverbend pool?
+    expected: "The Riverbend Aquatic Center pool offers open swim daily from 12:00 to 15:00 in summer. [source: RB-008]"
+  # Spanish golden answers (peers).
+  - id: gold-es-biblioteca
+    language: es
+    prompt: ¿Cuál es el horario de la Biblioteca Central de Riverbend?
+    expected: "La Biblioteca Central de Riverbend abre de lunes a sábado, de 9:00 a 18:00. [source: RB-101]"
+  - id: gold-es-licencia-perro
+    language: es
+    prompt: ¿Cuánto cuesta la licencia de perro en Riverbend?
+    expected: "La licencia de perro en Riverbend cuesta 18 dólares al año y se renueva cada enero. [source: RB-102]"
+  - id: gold-es-transporte
+    language: es
+    prompt: ¿Cuánto cuesta el pase diario de Riverbend Transit?
+    expected: "El pase diario de Riverbend Transit cuesta 5 dólares y cubre todas las líneas de autobús hasta la medianoche. [source: RB-104]"
+  - id: gold-es-piscina
+    language: es
+    prompt: ¿Cuándo hay nado libre en la piscina de Riverbend?
+    expected: "La piscina del Centro Acuático de Riverbend ofrece nado libre todos los días de 12:00 a 15:00 en verano. [source: RB-108]"

@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gauntlet-evals"
+version = "0.1.0"
+description = "CI-runnable evaluation gates for generative AI features, with evidence mapped to California's published GenAI risk and procurement framework."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Chelsea Kelly-Reif" }]
+keywords = ["evaluation", "llm", "safety", "procurement", "prompt-injection", "public-interest"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Quality Assurance",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = [
+  "pyyaml>=6",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.18",
+  "pytest>=8",
+  "pytest-cov>=5",
+  "ruff>=0.15",
+  "types-pyyaml>=6",
+]
+
+[project.scripts]
+gauntlet = "gauntlet.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gauntlet"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "S", "C90", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# S101: assert is expected in tests.
+# RUF001/RUF003: some tests deliberately embed homoglyph and full-width
+# characters to prove obfuscation and normalization handling.
+"tests/*" = ["S101", "RUF001", "RUF003"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+minversion = "8"
+testpaths = ["tests"]
+addopts = """
+-q \
+--strict-markers \
+--strict-config \
+--import-mode=importlib \
+--cov=gauntlet \
+--cov-branch \
+--cov-report=term-missing \
+--cov-fail-under=90
+"""
+
+[tool.coverage.run]
+source = ["gauntlet"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

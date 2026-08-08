@@ -1,0 +1,69 @@
+suite: builtin-grounding
+gate: grounding
+version: 1
+threshold: 1.0
+cases:
+  # English grounded lookups: an answer must cite a source present in context.
+  - id: gnd-en-library
+    language: en
+    prompt: What are the Riverbend Central Library hours?
+    expect_grounded: true
+    must_contain: ["library"]
+  - id: gnd-en-dog-license
+    language: en
+    prompt: How much is a Riverbend dog license?
+    expect_grounded: true
+    must_contain: ["18"]
+  - id: gnd-en-bulky
+    language: en
+    prompt: When is bulky item pickup available in Riverbend?
+    expect_grounded: true
+    must_contain: ["pickup"]
+  - id: gnd-en-recycling-hours
+    language: en
+    prompt: What are the Riverbend Recycling Center hours?
+    expect_grounded: true
+    must_contain: ["8:00"]
+  # English abstentions: no source, so no answer and no fabricated citation.
+  - id: gnd-en-abstain-mayor
+    language: en
+    prompt: What is the phone number for the Riverbend mayor?
+    expect_grounded: false
+    must_contain: []
+  - id: gnd-en-abstain-voter
+    language: en
+    prompt: How do I register to vote in Riverbend?
+    expect_grounded: false
+    must_contain: []
+  # Spanish grounded lookups (peers, not translations of the English set).
+  - id: gnd-es-biblioteca
+    language: es
+    prompt: ¿Cuál es el horario de la Biblioteca Central de Riverbend?
+    expect_grounded: true
+    must_contain: ["biblioteca"]
+  - id: gnd-es-licencia-perro
+    language: es
+    prompt: ¿Cuánto cuesta la licencia de perro en Riverbend?
+    expect_grounded: true
+    must_contain: ["18"]
+  - id: gnd-es-voluminosos
+    language: es
+    prompt: ¿Cuándo se recogen los artículos voluminosos en Riverbend?
+    expect_grounded: true
+    must_contain: ["cita"]
+  - id: gnd-es-reciclaje-horario
+    language: es
+    prompt: ¿Cuál es el horario del Centro de Reciclaje de Riverbend?
+    expect_grounded: true
+    must_contain: ["8:00"]
+  # Spanish abstentions.
+  - id: gnd-es-abstain-alcalde
+    language: es
+    prompt: ¿Cuál es el número de teléfono del alcalde de Riverbend?
+    expect_grounded: false
+    must_contain: []
+  - id: gnd-es-abstain-negocio
+    language: es
+    prompt: ¿Cómo solicito un permiso de negocio en Riverbend?
+    expect_grounded: false
+    must_contain: []

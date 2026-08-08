@@ -1,5 +1,12 @@
 __pycache__/
 *.pyc
+*.py[cod]
 .venv/
 .DS_Store
 dist/
+.coverage
+coverage.xml
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+demo-results.json
