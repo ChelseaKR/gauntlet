@@ -138,7 +138,7 @@ runs:
         GAUNTLET_CALLABLE: ${{ inputs.target-callable }}
         GAUNTLET_RESULTS: ${{ inputs.results-path }}
       run: |
-        set -uo pipefail
+        set -euo pipefail
         if [ -n "$GAUNTLET_URL" ] && [ -n "$GAUNTLET_CALLABLE" ]; then
           echo "::error::set at most one of target-url or target-callable"
           exit 2
@@ -148,8 +148,15 @@ runs:
         if [ -n "$GAUNTLET_URL" ]; then args+=(--http-url "$GAUNTLET_URL"); fi
         if [ -n "$GAUNTLET_CALLABLE" ]; then args+=(--callable "$GAUNTLET_CALLABLE"); fi
         args+=(--out "$GAUNTLET_RESULTS")
+        # A failing gate is the expected outcome of a working gate, so the
+        # non-zero exit must not abort this step: the evidence pack that
+        # explains the failure has not been built yet. GitHub runs composite
+        # steps under bash -e, so errexit is turned off around this call and
+        # back on immediately after.
+        set +e
         uv tool run --from "$GAUNTLET_ACTION_PATH" gauntlet "${args[@]}"
         run_status=$?
+        set -e
         # 0 is a clean run, 1 is a gate failure, anything else is the harness
         # itself failing and must not be reported as a gate result.
         if [ "$run_status" -gt 1 ]; then

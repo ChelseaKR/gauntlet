@@ -217,3 +217,17 @@ def test_workflow_pins_every_action_to_a_commit_sha() -> None:
                 continue
             _, _, pin = reference.partition("@")
             assert len(pin) == 40, f"{reference} is not pinned to a full commit SHA"
+
+
+def test_action_survives_a_failing_gate_long_enough_to_report_it() -> None:
+    # GitHub runs composite steps under `bash -e`. A failing gate exits non-zero,
+    # which would abort the step before the evidence pack explaining the failure
+    # exists. The gate-running step must turn errexit off around that call.
+    action = yaml.safe_load(ACTION.read_text(encoding="utf-8"))
+    gates_step = next(step for step in action["runs"]["steps"] if step.get("id") == "gates")
+    script = gates_step["run"]
+    disable = script.index("set +e")
+    invoke = script.index("uv tool run")
+    capture = script.index("run_status=$?")
+    restore = script.index("set -e\n", disable)
+    assert disable < invoke < capture < restore, "errexit is not disabled around the run"
