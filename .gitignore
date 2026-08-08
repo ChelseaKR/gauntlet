@@ -16,3 +16,7 @@ demo-evidence-drift.md
 gauntlet-results.json
 gauntlet-evidence.md
 gauntlet-evidence.json
+
+# The documentation site is a build artifact, rendered by `make site`.
+site/
+node_modules/

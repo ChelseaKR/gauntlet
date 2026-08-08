@@ -39,6 +39,10 @@ PROSE_FILES = sorted(
 SOURCE_FILES = sorted(
     [*ROOT.glob("src/gauntlet/**/*.py"), *ROOT.glob("tests/*.py"), *ROOT.glob("examples/*.py")]
 )
+# The documentation site is published prose that happens to live in a .py file, so it
+# is held to the claim rules the .md files are held to. The pages themselves are
+# checked again after rendering, in tests/test_site.py.
+PUBLISHED_PROSE_FILES = sorted([*PROSE_FILES, ROOT / "src" / "gauntlet" / "site.py"])
 
 
 def _readme_block() -> str:
@@ -68,7 +72,7 @@ def test_no_em_dashes_in_source_prose(path: Path) -> None:
     assert EM_DASH not in text, f"{path} contains an em dash"
 
 
-@pytest.mark.parametrize("path", PROSE_FILES, ids=lambda p: str(p.name))
+@pytest.mark.parametrize("path", PUBLISHED_PROSE_FILES, ids=lambda p: str(p.name))
 def test_no_state_endorsement_claims(path: Path) -> None:
     text = path.read_text(encoding="utf-8").casefold()
     for forbidden in (
@@ -77,8 +81,15 @@ def test_no_state_endorsement_claims(path: Path) -> None:
         "certified by cdt",
         "california-compliant",
         "simm 5305-f compliant",
+        "state-approved",
+        "officially recognized",
     ):
         assert forbidden not in text, f"{path} claims {forbidden!r}"
+
+
+def test_the_sites_source_is_scanned_for_claims() -> None:
+    # Guard against the site source dropping out of the scan unnoticed.
+    assert ROOT / "src" / "gauntlet" / "site.py" in PUBLISHED_PROSE_FILES
 
 
 def test_readme_carries_the_alignment_framing_and_no_registry_badge() -> None:
@@ -208,15 +219,48 @@ def test_action_never_interpolates_input_into_a_shell_command() -> None:
         assert "${{" not in script, f"step {step.get('name')!r} interpolates into run"
 
 
-def test_workflow_pins_every_action_to_a_commit_sha() -> None:
-    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text("utf-8"))
+WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+
+def test_the_workflows_were_found() -> None:
+    names = {path.name for path in WORKFLOWS}
+    assert {"ci.yml", "pages.yml"} <= names
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: str(p.name))
+def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
+    workflow = yaml.safe_load(path.read_text("utf-8"))
     for job in workflow["jobs"].values():
-        for step in job["steps"]:
+        for step in job.get("steps", []):
             reference = step.get("uses")
             if reference is None or reference.startswith("./"):
                 continue
             _, _, pin = reference.partition("@")
-            assert len(pin) == 40, f"{reference} is not pinned to a full commit SHA"
+            assert len(pin) == 40, f"{path.name}: {reference} is not pinned to a full commit SHA"
+            assert all(char in "0123456789abcdef" for char in pin), f"{reference} is not a SHA"
+
+
+def test_the_pages_workflow_grants_no_permission_it_does_not_need() -> None:
+    """Empty at the top, scoped per job: the build job cannot deploy, and the
+    deploy job cannot read the repository."""
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "pages.yml").read_text("utf-8"))
+    assert workflow["permissions"] == {}
+    jobs = workflow["jobs"]
+    assert jobs["build"]["permissions"] == {"contents": "read"}
+    assert jobs["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
+    assert jobs["deploy"]["needs"] == "build"
+    # Deploying is for the default branch only. A pull request builds and checks
+    # the site in ci.yml; it never publishes.
+    assert workflow[True]["push"]["branches"] == ["main"]
+
+
+def test_the_pages_workflow_publishes_what_the_site_command_renders() -> None:
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "pages.yml").read_text("utf-8"))
+    steps = workflow["jobs"]["build"]["steps"]
+    render = next(step for step in steps if "gauntlet site" in step.get("run", ""))
+    assert "--out site" in render["run"]
+    upload = next(step for step in steps if "upload-pages-artifact" in step.get("uses", ""))
+    assert upload["with"]["path"] == "site"
 
 
 def test_action_survives_a_failing_gate_long_enough_to_report_it() -> None:

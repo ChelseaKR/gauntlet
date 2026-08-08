@@ -35,6 +35,40 @@ jobs:
       - name: Run the gates against the toy and render a report
         run: make demo
 
+  # The documentation site, built and then checked without a browser: HTML
+  # conformance and the markup-level accessibility rules through html-validate,
+  # and the WCAG 2.0/2.1/2.2 A and AA rule sets through axe-core in a headless
+  # DOM. Nothing is served and nothing is deployed here; both checkers read files
+  # off disk. Deploying is a separate workflow that runs only on main.
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.29"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked environment
+        run: uv sync --frozen
+      - name: Build the site and check it (html-validate, axe-core, npm audit)
+        run: make pages
+      - name: The site build must produce byte-identical output twice
+        run: |
+          set -euo pipefail
+          find site -type f | sort | xargs shasum -a 256 > /tmp/site-first.txt
+          rm -rf site
+          make site
+          find site -type f | sort | xargs shasum -a 256 > /tmp/site-second.txt
+          diff /tmp/site-first.txt /tmp/site-second.txt
+
   # Exercises the published composite action the way an external consumer would,
   # from a checkout that is not on PATH and with no local environment set up.
   # A gate failure must block, so this job also proves the blocking path.

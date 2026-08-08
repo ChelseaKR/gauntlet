@@ -105,6 +105,27 @@ class RunResult:
         path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=False) + "\n", "utf-8")
 
 
+def run_summary_lines(run: RunResult) -> list[str]:
+    """The per-gate summary the CLI prints, as lines.
+
+    The CLI prints these, and the documentation site shows them as real output.
+    What a reader is told the command prints is therefore what it prints.
+    """
+    lines = [f"target: {run.target}"]
+    for gate in run.gates:
+        status = "PASS" if gate.passed else "FAIL"
+        counts = ", ".join(
+            f"{language} {bucket['passed']}/{bucket['total']}"
+            for language, bucket in gate.counts_by_language().items()
+        )
+        lines.append(
+            f"  [{status}] {gate.gate}: {gate.passed_count}/{gate.total} "
+            f"(threshold {gate.threshold:g}; {counts})"
+        )
+    lines.append("overall: " + ("PASS" if run.passed else "FAIL"))
+    return lines
+
+
 def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
