@@ -6,9 +6,14 @@ changes.
 
 ```sh
 make install
-make verify
-make demo
+make verify     # ruff format check, ruff lint, mypy strict, pytest with the coverage gate
+make demo       # gates against the toy, then both forms of the evidence pack
+make inventory  # regenerate the gate inventory block in the README
 ```
+
+Run `make verify` before pushing. CI runs the same thing, plus a wheel build, a
+dependency audit, a secret scan, SAST, workflow static analysis, and a job that
+uses the GitHub Action the way an external consumer would.
 
 ## Rules that are not negotiable
 
@@ -20,12 +25,22 @@ make demo
   bolt a translation onto an English-first suite.
 - **Counts are counted.** Case totals, pass thresholds, and coverage are emitted
   by the harness. Do not assert a count in prose that the harness does not
-  produce.
-- **No em dashes in prose.**
+  produce. The README's gate inventory is generated: change a suite, then run
+  `make inventory`. A test fails if the block is stale.
+- **The evidence pack stays honest under failure.** A run with failures has to
+  read as easily as a clean one, and every section present in one must be
+  present in the other. `tests/test_report.py` enforces that.
+- **Drift output stays deterministic.** No timestamps and no unstable ordering:
+  two runs that behaved identically must produce a byte-identical comparison.
+- **No em dashes in prose.** A test scans the Markdown and the source for them.
 - **No unverified framework citations.** Any SIMM 5305-F, SAM, or Government Code
   identifier added to the docs must be read against the source first. If you
   cannot verify it, omit it and say so, the way `docs/california-mapping.md`
-  already does.
+  already does. Add it to `UNVERIFIED_IDENTIFIERS` in
+  `src/gauntlet/mapping.py`, which a test then keeps out of every mapping row
+  and every evidence pack.
+- **A gate that maps to nothing verified says so.** Do not invent a framework
+  link to make the cross-reference look complete.
 - **No California approval or compliance claims.** The language is "aligned to",
   never "approved by" or "compliant with".
 - **No network in tests.** The toy runs locally; the HTTP adapter is tested

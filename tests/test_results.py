@@ -1,4 +1,8 @@
-"""Result aggregation, JSON round-trip, and report rendering."""
+"""Result aggregation and the JSON round-trip.
+
+The evidence pack that these results feed is covered in ``test_evidence.py``,
+and its human rendering in ``test_report.py``.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from gauntlet.report import ALIGNMENT_NOTICE, render_markdown
 from gauntlet.results import (
     CaseResult,
     GateResult,
@@ -108,19 +111,3 @@ def test_load_run_dict_rejects_non_list_gates(tmp_path: Path) -> None:
     path.write_text('{"schema_version": 1, "gates": {}}', encoding="utf-8")
     with pytest.raises(ResultsFileError, match="'gates' must be a list"):
         load_run_dict(path)
-
-
-def test_render_markdown_includes_notice_and_counts() -> None:
-    run = RunResult(target="toy", gates=(_gate(3, 4),), started_at="2026-08-07T00:00:00+00:00")
-    md = render_markdown(run.to_dict())
-    assert ALIGNMENT_NOTICE in md
-    assert "Gate results" in md
-    assert "Counts by language" in md
-    assert "Failing gates" in md  # this run has a failing gate
-    assert "PASS" in md or "FAIL" in md
-
-
-def test_render_markdown_no_failing_section_when_all_pass() -> None:
-    run = RunResult(target="toy", gates=(_gate(4, 4),), started_at="2026-08-07T00:00:00+00:00")
-    md = render_markdown(run.to_dict())
-    assert "Failing gates" not in md

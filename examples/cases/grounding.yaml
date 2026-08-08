@@ -1,0 +1,34 @@
+# A minimal external case file, the shape a consumer writes.
+#
+# One gate per file. English and Spanish cases are peers here, added together
+# rather than translated on afterward. Run it with:
+#
+#   uv run gauntlet run --cases examples/cases --callable broken_target:make_target
+#
+# against the deliberately broken example target, and every grounded case fails
+# with "uncited answer". Against make_healthy_target, every case passes.
+suite: example-grounding
+gate: grounding
+version: 1
+threshold: 1.0
+cases:
+  - id: example-en-library
+    language: en
+    prompt: What are the Riverbend Central Library hours?
+    expect_grounded: true
+    must_contain: ["library"]
+  - id: example-en-dog-license
+    language: en
+    prompt: How much is a Riverbend dog license?
+    expect_grounded: true
+    must_contain: ["18"]
+  - id: example-es-biblioteca
+    language: es
+    prompt: ¿Cuál es el horario de la Biblioteca Central de Riverbend?
+    expect_grounded: true
+    must_contain: ["biblioteca"]
+  - id: example-es-licencia-perro
+    language: es
+    prompt: ¿Cuánto cuesta la licencia de perro en Riverbend?
+    expect_grounded: true
+    must_contain: ["18"]

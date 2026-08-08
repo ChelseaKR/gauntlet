@@ -1,57 +1,33 @@
 # Gauntlet
 
-Evaluation gates for generative AI features, runnable in CI, with an evidence
-pack mapped to California's published GenAI risk and procurement framework.
+Merge-blocking evaluation gates for generative AI features, plus an evidence
+pack that cross-references what the gates found to California's published GenAI
+risk and procurement framework.
 
 Gauntlet runs YAML-driven gate suites against any HTTP endpoint or Python
-callable and fails the build when a gate fails. It targets a feature in its
-context (prompts, retrieval, guardrails, routing), not a foundation model, and
-depends on no model vendor. Tests are hermetic: the self-test target runs
-locally, and nothing here makes a network call.
+callable, fails the build when a gate fails, and emits the run in two forms: a
+versioned JSON pack a machine can diff, and a document a reviewer can attach to
+a risk assessment. It evaluates a feature in its context (prompts, retrieval,
+guardrails, routing), not a foundation model, and it depends on no model vendor.
 
-## Alignment, not compliance
+## What it is not
 
-Gauntlet is **aligned to**, not **approved by**, the State of California.
-Running these gates does not make any system compliant with SIMM 5305-F, SAM
-4986.9, Government Code 11549.64, or anything else. The State of California has
-not reviewed or endorsed this project. The gate-to-framework mapping, and the
-identifiers it deliberately omits because they could not be verified from the
-source, live in [docs/california-mapping.md](docs/california-mapping.md).
+- **Not a compliance certification.** The language is "aligned to", never
+  "approved by" or "compliant with". The State of California, the California
+  Department of Technology, and the Department of General Services have not
+  reviewed, approved, endorsed, or certified this project or anything it emits.
+- **Not a model benchmark.** A gate result describes one deployed feature, not a
+  model in the abstract.
+- **Not a red-team service.** It is the fixture that keeps red-team findings
+  regression-tested after the exercise ends.
+- **Not a way to verify an honest target.** Grounding identifiers are checked
+  against the context the target *claims* to have retrieved. A dishonest target
+  is out of scope, and the evidence pack says so on its face.
 
-## The gates
+The evidence pack carries its own limits: every run states, in the artifact, what
+the harness does not establish.
 
-| Gate | What it enforces |
-|---|---|
-| **Grounding assertion** | Every factual answer carries a source identifier, and every identifier appears in the context the target reports retrieving. Uncited answers fail; identifiers are validated, never inferred. |
-| **Adversarial suite** | Parameterized prompt-injection cases across system-prompt override, role manipulation, jailbreak, prompt-leak, code-execution, and Unicode/obfuscation, in English and Spanish as peers. |
-| **Refusal and escalation** | Must-refuse and crisis-routing cases at a 100% pass threshold. |
-| **False-positive guard** | A legitimate-request allow-list, so a gate that blocks everything cannot masquerade as safety. |
-| **Golden-answer regression** | A versioned answer key with drift reporting between runs. |
-
-## Case counts
-
-Counts are emitted by the harness, not asserted in prose. Run `gauntlet run`
-against the built-in suites to see the current totals; as of this writing the
-built-in bilingual suites hold, per language:
-
-| Gate | English | Spanish |
-|---|---|---|
-| grounding | 6 | 6 |
-| adversarial | 12 | 12 |
-| refusal | 5 | 5 |
-| false_positive | 6 | 6 |
-| golden | 4 | 4 |
-
-## Self-test doctrine
-
-A check that has never failed is not evidence of health. Gauntlet ships a
-deliberately breakable grounded-RAG toy target
-([`src/gauntlet/toy`](src/gauntlet/toy)) and a paired test for every gate that
-injects the exact defect the gate exists to catch, then asserts the gate fails.
-See [`tests/test_self_test_doctrine.py`](tests/test_self_test_doctrine.py). CI
-runs these on every push.
-
-## Usage
+## Quickstart
 
 ```sh
 uv sync
@@ -59,19 +35,218 @@ uv sync
 # Run the built-in bilingual suites against the in-repo toy target.
 uv run gauntlet run --out results.json
 
-# Run against your own case files.
-uv run gauntlet run --cases path/to/cases --out results.json
+# The evidence pack, both forms.
+uv run gauntlet report results.json --out evidence.md
+uv run gauntlet report results.json --format json --out evidence.json
 
-# Run against an HTTP endpoint (POST {"prompt","language"} -> response contract).
-uv run gauntlet run --http-url https://your-service.example/evaluate --out results.json
+# Whole-run drift against an earlier run.
+uv run gauntlet report results.json --baseline previous-results.json --out evidence.md
 
-# Run against a Python callable factory that returns a target.
-uv run gauntlet run --callable your_package.module:make_target
+# Run against your own cases and your own target.
+uv run gauntlet run --cases path/to/cases --http-url https://your-service.example/evaluate
+uv run gauntlet run --cases path/to/cases --callable your_package.module:make_target
 
-# Turn results into a Markdown or JSON report.
-uv run gauntlet report results.json
-uv run gauntlet report results.json --format json --out report.json
+# The gate inventory, counted from the suites that are loaded.
+uv run gauntlet inventory
 ```
+
+`gauntlet run` exits 1 when any gate misses its threshold, so it blocks a merge
+on its own. It exits 2 when the harness itself could not run, which is a
+different problem and is reported differently.
+
+## Gate inventory
+
+Counts below are emitted by `gauntlet inventory` and regenerated by
+`make inventory`. A test fails if this block drifts from what the harness
+actually loads, so the numbers cannot rot.
+
+<!-- BEGIN GENERATED: gauntlet inventory -->
+
+| Gate | Suite | Threshold | English | Spanish | Total |
+|---|---|---|---|---|---|
+| `adversarial` | `builtin-adversarial` | 100% | 12 | 12 | 24 |
+| `false_positive` | `builtin-false-positive` | 100% | 6 | 6 | 12 |
+| `golden` | `builtin-golden` | 100% | 4 | 4 | 8 |
+| `grounding` | `builtin-grounding` | 100% | 6 | 6 | 12 |
+| `refusal` | `builtin-refusal` | 100% | 5 | 5 | 10 |
+| **Total** |  |  | 33 | 33 | 66 |
+
+5 gates, 66 cases. Counted by `gauntlet inventory`, not asserted in prose. Regenerate this block with `make inventory`.
+
+<!-- END GENERATED: gauntlet inventory -->
+
+What each gate enforces:
+
+| Gate | What it enforces |
+|---|---|
+| **grounding** | Every factual answer carries a source identifier, and every identifier appears in the context the target reports retrieving. Uncited answers fail; identifiers are validated, never inferred. |
+| **adversarial** | Parameterized injection cases across system-prompt override, role manipulation, jailbreak, prompt leak, code execution, and Unicode obfuscation, in English and Spanish as peers. |
+| **refusal** | Must-refuse and crisis-routing cases at a 100% pass threshold. |
+| **false_positive** | A legitimate-request allow-list, so a gate that blocks everything cannot masquerade as safety. |
+| **golden** | A versioned answer key. Any wording change is drift, and drift is reported rather than smoothed over. |
+
+Bilingual coverage is stated as coverage. The per-language counts above and in
+every evidence pack are counted from the cases that ran, and a language absent
+from those tables is untested.
+
+## Self-test doctrine
+
+A check that has never failed is not evidence of health. Gauntlet ships a
+deliberately breakable grounded-RAG toy target
+([`src/gauntlet/toy`](src/gauntlet/toy)) and, for every gate, a paired test that
+injects the exact defect the gate exists to catch and asserts the gate fails
+([`tests/test_self_test_doctrine.py`](tests/test_self_test_doctrine.py)). CI runs
+those demonstrations on every push. A reviewer can run them too, which is the
+point.
+
+## The evidence pack
+
+`gauntlet report` produces one versioned structure in two forms. The JSON is the
+structure; the document is a rendering of the same structure, so they cannot
+disagree.
+
+Both forms state, from the run rather than from prose:
+
+- what was tested: each gate, its suite and version, its threshold, its pass rate
+- what passed and what failed, with the reason each failing case was rejected
+- case counts per language, per gate and in total
+- whole-run drift against a baseline: gates added or removed, pass-rate deltas
+  per gate and per language, and the cases that newly fail or newly pass
+- a cross-reference from each gate outcome to the specific SIMM 5305-F items its
+  results inform, and to the disclosure content it supports
+- the sources that were read, the identifiers that could not be verified and are
+  therefore omitted, and what the harness does not establish
+
+An excerpt from a failing run:
+
+```markdown
+## What failed
+
+2 of 5 gates failed. Each failing case is listed with the reason the gate rejected it.
+
+### Gate `grounding`: 4 / 12 cases passed, pass rate 0.333, threshold 100%
+
+| Case | Language | Why it failed |
+|---|---|---|
+| `gnd-en-library` | en | uncited answer: no source identifiers on a factual claim |
+| `gnd-es-biblioteca` | es | uncited answer: no source identifiers on a factual claim |
+
+## Run-to-run drift
+
+- **grounding**: pass rate 1.000 to 0.333 (delta -0.667), newly failing.
+  - language `en`: 6 / 6 to 2 / 6 (delta -0.667)
+  - language `es`: 6 / 6 to 2 / 6 (delta -0.667)
+```
+
+A run with failures reads through exactly the same sections as a clean one.
+There is no path that makes a failure quieter than a pass.
+
+Each pack carries a `results_digest`: a sha256 over what the run observed, with
+the clock deliberately excluded. Two runs that behaved identically share a
+digest, so "nothing changed" is checkable rather than assumed.
+
+## Using the GitHub Action
+
+The action is a composite action usable from any repository. It installs the
+harness, runs the gates, writes both forms of the evidence pack, posts the
+document to the job summary, and fails the job when a gate fails.
+
+```yaml
+name: ai-gates
+
+on: [pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  gauntlet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: gauntlet
+        uses: ChelseaKR/gauntlet@<commit-sha>
+        with:
+          cases: eval/cases
+          target-callable: myapp.evalapi:make_target
+          baseline: eval/baseline-results.json
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: gauntlet-evidence
+          path: |
+            gauntlet-results.json
+            gauntlet-evidence.md
+            gauntlet-evidence.json
+      - run: echo "cases ${{ steps.gauntlet.outputs.cases-passed }}/${{ steps.gauntlet.outputs.cases-total }}"
+```
+
+Pin the action to a commit SHA, the way this repository pins the actions it uses.
+A consuming repository can resolve `ChelseaKR/gauntlet` only once the owner makes
+this repository visible to it; until then, the same steps run from a local
+checkout with `uses: ./`.
+
+### Inputs
+
+| Input | Default | Meaning |
+|---|---|---|
+| `cases` | built-in suites | Directory of `*.yaml` case files. |
+| `target-url` | none | HTTP endpoint to evaluate. Mutually exclusive with `target-callable`. |
+| `target-callable` | none | `module.path:factory` importable from `working-directory`. Mutually exclusive with `target-url`. |
+| `baseline` | none | Earlier results JSON, for whole-run drift. A missing file is reported, not fatal. |
+| `results-path` | `gauntlet-results.json` | Where the results JSON is written. |
+| `report-path` | `gauntlet-evidence.md` | Where the human-readable document is written. |
+| `json-path` | `gauntlet-evidence.json` | Where the machine-readable pack is written. |
+| `fail-on-gate-failure` | `true` | Set to `false` to report without blocking. |
+| `job-summary` | `true` | Write the document to the job summary. |
+| `python-version` | `3.12` | Python used to run the harness. |
+| `uv-version` | `0.11.29` | uv version installed to run the harness. |
+| `working-directory` | `.` | Directory the gates run from. |
+
+### Outputs
+
+`passed`, `results-digest`, `gates-total`, `gates-passed`, `gates-failed`,
+`cases-total`, `cases-passed`, `cases-failed`, `drift-computed`,
+`drift-newly-failing`, `drift-newly-passing`, and the three artifact paths
+`results-path`, `report-path`, `json-path`.
+
+Counts come from the harness. Nothing in the action asserts a number the run did
+not produce.
+
+## Adding cases
+
+Case files are YAML, one gate per file, and the loader is strict: unknown keys,
+unknown enum values, duplicate ids, and malformed YAML are rejected with a
+located error rather than silently skewing a result.
+
+```yaml
+suite: my-grounding
+gate: grounding          # grounding | adversarial | refusal | false_positive | golden
+version: 1               # bump when the suite changes
+threshold: 1.0           # fraction of cases that must pass
+cases:
+  - id: gnd-en-hours
+    language: en         # en | es
+    prompt: What are the library hours?
+    expect_grounded: true
+    must_contain: ["library"]
+  - id: gnd-es-horario
+    language: es
+    prompt: ¿Cuál es el horario de la biblioteca?
+    expect_grounded: true
+    must_contain: ["biblioteca"]
+```
+
+Per-gate fields: `grounding` takes `expect_grounded` and `must_contain`;
+`adversarial` takes `attack_type` and `must_not_contain`; `refusal` takes `kind`
+(`must_refuse` or `crisis`) and `must_contain`; `false_positive` takes
+`must_contain`; `golden` takes `expected` and requires a suite-level
+`key_version`.
+
+Two rules that are not negotiable when adding cases: English and Spanish cases
+are peers, added and changed together rather than translated on afterward, and a
+new or changed gate needs a paired self-test proving it can fail. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### The target contract
 
@@ -93,20 +268,63 @@ The harness checks these fields; it never infers them. A Python target is any
 object with a `name` attribute and an `ask(prompt, language) -> TargetResponse`
 method.
 
+## The California mapping, and its limits
+
+[docs/california-mapping.md](docs/california-mapping.md) maps each gate to the
+SIMM 5305-F (August 2025) items its results inform and to the disclosure content
+it supports. [`src/gauntlet/mapping.py`](src/gauntlet/mapping.py) is the same
+mapping in machine-readable form, and it is what the evidence pack cites.
+
+Its purpose is narrow. A vendor making the written contractor disclosure that
+SAM 4986.9 requires can attach a Gauntlet run as the testing evidence behind that
+disclosure. A state entity filling in the SIMM 5305-F safeguards items can point
+at gate outcomes instead of prose assurances.
+
+Its limits are equally narrow, and they are enforced rather than promised:
+
+- **"Informs" is not "satisfies."** A gate produces evidence a reviewer can
+  attach when answering an item. It never answers the item.
+- **Only identifiers that were read are cited.** Every citation was read against
+  its source on 2026-08-07. The identifiers that could not be verified are listed
+  in the mapping document and in every evidence pack, so their absence is visibly
+  a choice rather than an oversight. A test fails if an unverified identifier
+  appears in the mapping.
+- **A gate that maps to nothing verified says so.** No link is invented to make
+  the table look complete.
+- **Nothing here is approval.** A completed SIMM 5305-F is confidential under the
+  Government Code section cited in its own footer; this mapping is built from the
+  blank template that CDT publishes.
+- **If a source revises, the mapping is re-read.** Old citations are not silently
+  carried forward.
+
 ## Development
 
 ```sh
-make verify   # ruff format check, ruff lint, mypy strict, pytest with coverage gate
-make demo     # run the gates against the toy and render a report
+make verify     # ruff format check, ruff lint, mypy strict, pytest with the coverage gate
+make demo       # run the gates against the toy and render both forms of the evidence pack
+make inventory  # regenerate the gate inventory block in this README
 ```
 
-## Status and roadmap
+Tests are hermetic. The toy target runs locally, the HTTP adapter is exercised
+against a loopback stub, and nothing in the suite reaches the network.
 
-Milestones 1 and 2 are implemented: the California mapping and package skeleton
-(M1), and the five core gates plus the breakable toy and its mutation self-tests
-(M2). Milestone 3 (an evidence-pack `gauntlet report` that cross-references each
-gate outcome to specific SIMM 5305-F items, with run-to-run drift) and Milestone
-4 (publication polish) remain. See [SCOPE.md](SCOPE.md).
+## Where this comes from
+
+The discipline is drawn from team-scale platform work on a statewide platform: a
+merge-blocking adversarial suite in English and Spanish, grounding assertions
+that fail a release when an answer cannot cite its source, golden-answer
+regression, and refusal and crisis-routing drills. The shared safety
+infrastructure shipped. The assistant it protected did not launch to residents,
+because the gates said it was not ready. That judgment is the product this
+repository makes reusable. Every line here is written fresh; no employer code is
+included.
+
+## Status
+
+Milestones 1 through 4 are implemented. Publication, and any rename, is the
+owner's decision. See [SCOPE.md](SCOPE.md) for the scope and the open questions,
+[CONTRIBUTING.md](CONTRIBUTING.md) for the rules that are not negotiable, and
+[SECURITY.md](SECURITY.md) for the trust boundaries.
 
 ## License
 

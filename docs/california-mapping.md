@@ -113,8 +113,20 @@ Gauntlet's position in that flow: a vendor making the SAM 4986.9 written
 disclosure can attach `gauntlet run` results as the testing evidence behind
 the disclosure, and a state entity filling in SIMM 5305-F Part 1 item (h) or
 the Part 2 checklists can reference gate outcomes instead of prose
-assurances. The report generator that assembles this evidence pack
-automatically is Milestone 3 work.
+assurances. `gauntlet report` assembles that evidence pack.
+
+## The same mapping, in code
+
+[`src/gauntlet/mapping.py`](../src/gauntlet/mapping.py) carries this table in
+machine-readable form, and it is what the evidence pack cites. The two are kept
+honest by tests rather than by care:
+
+- every gate the harness can run has a mapping entry, or is reported as having
+  no verified reference rather than being given an invented one;
+- no identifier from the "Identifiers not verified" list below may appear in a
+  mapping row, and a test fails if one does;
+- the "Sources read" table below is reproduced in every evidence pack, so a
+  reviewer sees what was read and what was not without opening this file.
 
 ## Identifiers not verified, therefore omitted
 
