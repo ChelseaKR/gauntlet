@@ -1,11 +1,13 @@
-"""Command-line interface: ``gauntlet run``, ``report``, and ``inventory``.
+"""Command-line interface: ``gauntlet run``, ``report``, ``inventory``, ``site``.
 
 ``run`` evaluates a target against a directory of case files (or the
 built-in bilingual suites) and writes a results JSON, exiting non-zero if
 any gate fails. ``report`` turns one results JSON (optionally with a
 baseline results JSON for whole-run drift) into the evidence pack, in
 machine-readable JSON or as a human-readable document. ``inventory`` prints
-the gate inventory with counts taken from the loaded suites.
+the gate inventory with counts taken from the loaded suites. ``site``
+renders the documentation site from the harness: the counts are the
+inventory's, and the evidence excerpts are runs made while it builds.
 
 The default target is the in-repo toy, so the CLI is demonstrable with no
 network and no configuration. Real targets are selected with ``--http-url``
@@ -31,7 +33,8 @@ from gauntlet.inventory import (
     update_marked_block,
 )
 from gauntlet.report import render_markdown
-from gauntlet.results import RunResult, load_run_dict, now_iso
+from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
+from gauntlet.site import build_site
 from gauntlet.targets import CallableTarget, HttpTarget, Target
 from gauntlet.toy import ToyRag
 
@@ -94,18 +97,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def _print_run_summary(run: RunResult) -> None:
-    print(f"target: {run.target}")
-    for gate in run.gates:
-        status = "PASS" if gate.passed else "FAIL"
-        by_lang = gate.counts_by_language()
-        lang_str = ", ".join(
-            f"{lang} {bucket['passed']}/{bucket['total']}" for lang, bucket in by_lang.items()
-        )
-        print(
-            f"  [{status}] {gate.gate}: {gate.passed_count}/{gate.total} "
-            f"(threshold {gate.threshold:g}; {lang_str})"
-        )
-    print("overall:", "PASS" if run.passed else "FAIL")
+    for line in run_summary_lines(run):
+        print(line)
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
@@ -149,12 +142,24 @@ def _cmd_inventory(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_site(args: argparse.Namespace) -> int:
+    written = build_site(
+        Path(args.out),
+        action_file=Path(args.action_file),
+        generated=args.generated or "",
+    )
+    for path in written:
+        print(f"wrote {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gauntlet", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     _add_run_parser(sub)
     _add_report_parser(sub)
     _add_inventory_parser(sub)
+    _add_site_parser(sub)
     return parser
 
 
@@ -200,6 +205,22 @@ def _add_inventory_parser(sub: argparse._SubParsersAction[argparse.ArgumentParse
         "--update", help="rewrite the generated inventory block in this Markdown file"
     )
     inventory_parser.set_defaults(func=_cmd_inventory)
+
+
+def _add_site_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    site_parser = sub.add_parser("site", help="render the documentation site from the harness")
+    site_parser.add_argument("--out", default="site", help="directory to write the pages to")
+    site_parser.add_argument(
+        "--action-file",
+        default="action.yml",
+        help="action definition the inputs and outputs tables are read from",
+    )
+    site_parser.add_argument(
+        "--generated",
+        default="",
+        help="date to print in the footer; omit to keep the build free of a clock",
+    )
+    site_parser.set_defaults(func=_cmd_site)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

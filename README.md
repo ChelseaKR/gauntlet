@@ -297,12 +297,47 @@ Its limits are equally narrow, and they are enforced rather than promised:
 - **If a source revises, the mapping is re-read.** Old citations are not silently
   carried forward.
 
+## Documentation site
+
+`gauntlet site` renders a small static documentation site: what the harness is
+and what it is not, the quickstart, the gate inventory, the evidence pack, the
+California mapping, the GitHub Action, and the self-test doctrine.
+
+```sh
+make site   # render the pages into site/
+make pages  # render, then check: html-validate, axe-core, npm audit
+```
+
+Nothing on that site is typed twice. The gate inventory is rendered from
+`build_inventory` over the suites the harness loads, the same function
+`make inventory` uses on this README, so a case added to a suite changes the site
+without anyone editing it. The evidence excerpts are real runs made against the
+toy target while the pages build, once healthy and once with a named defect
+injected, rendered through the reporter a real run uses. The action's inputs and
+outputs are read from `action.yml`. The build consults no clock unless a date is
+passed to `--generated`, so the same commit renders byte-identical pages.
+
+Accessibility is gated rather than asserted. `make pages` runs html-validate for
+HTML conformance and the markup-level rules, and axe-core in a headless DOM for
+the WCAG 2.0/2.1/2.2 A and AA rule sets. Page structure and colour contrast in
+both themes are measured again in [`tests/test_site.py`](tests/test_site.py), so
+`make verify` keeps a floor when the node toolchain is unavailable.
+
+What still needs a person: none of this looks at the pages. Layout, reflow at
+small widths, focus visibility in practice, and reading order under a real screen
+reader are not settled by any check here.
+
+The site is a build artifact and is not committed.
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes it from
+`main` once the repository's Pages source is set to GitHub Actions.
+
 ## Development
 
 ```sh
 make verify     # ruff format check, ruff lint, mypy strict, pytest with the coverage gate
 make demo       # run the gates against the toy and render both forms of the evidence pack
 make inventory  # regenerate the gate inventory block in this README
+make pages      # build the documentation site and run the conformance and WCAG checks
 ```
 
 Tests are hermetic. The toy target runs locally, the HTTP adapter is exercised

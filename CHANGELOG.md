@@ -56,6 +56,22 @@ All notable changes will be documented here.
   and the failing path.
 - `examples/`: a minimal external case file and a target factory, serving as
   documentation and as the action's failure-path fixture.
+- Documentation site (`gauntlet site`, `make site`): five static pages rendered
+  from the harness rather than typed. The gate inventory comes from
+  `build_inventory` over the suites that load, the same function `make inventory`
+  uses, so the site cannot carry a stale count. The evidence excerpts are real
+  runs made against the toy target while the pages build, healthy and with a
+  named defect injected, rendered through the same reporter a real run uses. No
+  network, no clock unless a date is passed, byte-identical on rebuild.
+- An accessibility gate over the built pages (`make pages`): html-validate for
+  HTML conformance and the markup-level rules, axe-core in a headless DOM for
+  the WCAG 2.0/2.1/2.2 A and AA rule sets, plus structure and two-theme colour
+  contrast measured in pytest so `make verify` keeps a floor with no node
+  toolchain. A CI job runs all of it and proves the build is reproducible.
+- A GitHub Pages workflow (`.github/workflows/pages.yml`) that publishes the
+  rendered site from `main`: empty top-level permissions, per-job scoping, and
+  SHA-pinned actions. Pages has to be set to build from GitHub Actions once, in
+  repository settings, before the first deploy can succeed.
 
 ### Fixed
 

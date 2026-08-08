@@ -9,11 +9,13 @@ make install
 make verify     # ruff format check, ruff lint, mypy strict, pytest with the coverage gate
 make demo       # gates against the toy, then both forms of the evidence pack
 make inventory  # regenerate the gate inventory block in the README
+make pages      # build the documentation site, then html-validate and axe-core over it
 ```
 
-Run `make verify` before pushing. CI runs the same thing, plus a wheel build, a
-dependency audit, a secret scan, SAST, workflow static analysis, and a job that
-uses the GitHub Action the way an external consumer would.
+Run `make verify` before pushing, and `make pages` as well if you touched
+`src/gauntlet/site.py`. CI runs the same things, plus a wheel build, a dependency
+audit, a secret scan, SAST, workflow static analysis, and a job that uses the
+GitHub Action the way an external consumer would.
 
 ## Rules that are not negotiable
 
@@ -42,7 +44,17 @@ uses the GitHub Action the way an external consumer would.
 - **A gate that maps to nothing verified says so.** Do not invent a framework
   link to make the cross-reference look complete.
 - **No California approval or compliance claims.** The language is "aligned to",
-  never "approved by" or "compliant with".
+  never "approved by" or "compliant with". A test scans the Markdown, the
+  documentation site's source, and the rendered pages for the phrasings that
+  would break this.
+- **The documentation site prints nothing it did not compute.** Gate counts come
+  from the inventory, evidence excerpts come from runs made while the pages
+  build, and the action's inputs and outputs are read from `action.yml`. A number
+  in site prose that no run produced fails a test unless it is added, with a
+  reason, to the reviewed list in `tests/test_site.py`.
+- **The site stays accessible.** New markup has to pass html-validate and
+  axe-core in `make pages`, and any new colour has to be a token in both palettes
+  with its contrast pair measured in `tests/test_site.py`.
 - **No network in tests.** The toy runs locally; the HTTP adapter is tested
   against a loopback stub. Do not add a test that reaches the internet.
 
