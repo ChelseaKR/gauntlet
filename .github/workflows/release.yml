@@ -1,0 +1,76 @@
+# Publishes a tagged version to PyPI through Trusted Publishing (OIDC), so no
+# API token is ever created, stored, or rotated. PyPI verifies the claim that
+# this workflow, in this repository, on this environment, produced the upload.
+#
+# The build job re-runs the same gates as `make verify` before anything is
+# uploaded: a release that cannot pass CI must not reach PyPI. Artifacts are
+# built once and handed to the publish job, so the files that were verified are
+# byte-for-byte the files that get uploaded.
+#
+# One-time setup on PyPI (nothing to do here, and no secret to add):
+#   https://pypi.org/manage/account/publishing/  ->  add a pending publisher
+#     PyPI project name:  gauntlet-evals
+#     Owner:              ChelseaKR
+#     Repository:         gauntlet
+#     Workflow name:      release.yml
+#     Environment name:   pypi
+name: release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.29"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      # `--locked` fails when uv.lock has drifted from pyproject.toml. `--frozen`
+      # (used in ci.yml) exits 0 in that case, so a release must not rely on it.
+      - name: Install locked environment, failing on lockfile drift
+        run: uv sync --locked
+      - name: Verify (ruff, mypy strict, pytest with 90% coverage gate)
+        run: make verify
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Check distribution metadata
+        run: uvx --from 'twine@latest' twine check dist/*
+      - name: Upload built distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/gauntlet-evals
+    permissions:
+      id-token: write # the OIDC claim Trusted Publishing verifies; no token needed
+    steps:
+      - name: Download built distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
