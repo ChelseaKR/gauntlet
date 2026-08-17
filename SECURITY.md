@@ -1,7 +1,9 @@
 # Security policy
 
-Gauntlet is an unreleased technical alpha. Do not use it as the sole basis for a
-compliance, procurement, safety, or production-security decision. A passing gate
+Gauntlet is a technical alpha. `v0.1.0` is tagged; nothing is published to a
+package registry, and the supported install is from a checkout. Do not use it as
+the sole basis for a compliance, procurement, safety, or production-security
+decision. A passing gate
 run is evidence for a reviewer to inspect, not a certification, and it never
 establishes California approval or compliance.
 

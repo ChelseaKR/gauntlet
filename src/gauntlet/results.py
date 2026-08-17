@@ -87,9 +87,19 @@ class RunResult:
     target: str
     gates: tuple[GateResult, ...]
     started_at: str
+    verdict_withheld: str = ""
+    """Why this run could not be scored, or "" when it could.
+
+    A run the harness refuses to score has no verdict, and "no verdict" must
+    never render as a pass. It travels with the result set rather than living
+    only in the CLI, so a results file cannot be reported later as though a
+    verdict had been reached.
+    """
 
     @property
     def passed(self) -> bool:
+        if self.verdict_withheld:
+            return False
         return all(gate.passed for gate in self.gates)
 
     def to_dict(self) -> dict[str, object]:
@@ -98,6 +108,7 @@ class RunResult:
             "target": self.target,
             "started_at": self.started_at,
             "passed": self.passed,
+            "verdict_withheld": self.verdict_withheld,
             "gates": [gate.to_dict() for gate in self.gates],
         }
 
@@ -105,11 +116,15 @@ class RunResult:
         path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=False) + "\n", "utf-8")
 
 
-def run_summary_lines(run: RunResult) -> list[str]:
+def run_summary_lines(run: RunResult, verdict: str | None = None) -> list[str]:
     """The per-gate summary the CLI prints, as lines.
 
     The CLI prints these, and the documentation site shows them as real output.
     What a reader is told the command prints is therefore what it prints.
+
+    ``verdict`` replaces the computed overall word. The caller passes it when
+    the run cannot be scored, so the summary never prints "overall: PASS" above
+    an exit code that is not a pass.
     """
     lines = [f"target: {run.target}"]
     for gate in run.gates:
@@ -122,7 +137,7 @@ def run_summary_lines(run: RunResult) -> list[str]:
             f"  [{status}] {gate.gate}: {gate.passed_count}/{gate.total} "
             f"(threshold {gate.threshold:g}; {counts})"
         )
-    lines.append("overall: " + ("PASS" if run.passed else "FAIL"))
+    lines.append("overall: " + (verdict or ("PASS" if run.passed else "FAIL")))
     return lines
 
 

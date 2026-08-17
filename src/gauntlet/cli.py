@@ -11,7 +11,13 @@ inventory's, and the evidence excerpts are runs made while it builds.
 
 The default target is the in-repo toy, so the CLI is demonstrable with no
 network and no configuration. Real targets are selected with ``--http-url``
-or, for a Python callable, ``--callable path.to:factory``.
+or, for a Python callable, ``--callable path.to:factory``. The default only
+applies to the zero-configuration demo: supplying ``--cases`` without a target
+is a misconfiguration, not a request to evaluate a fictional city's toy
+assistant, and it is refused rather than answered with a green verdict.
+
+Exit codes: 0 a clean run, 1 a gate below its threshold, 2 the harness itself
+could not run, 4 the run could not be scored.
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ from pathlib import Path
 
 from gauntlet.cases import Suite, builtin_suites, load_suites
 from gauntlet.evidence import build_evidence_pack, github_output_lines
-from gauntlet.gates import run_suite
+from gauntlet.gates import run_suite, unscoreable_reason
 from gauntlet.inventory import (
     BEGIN_MARKER,
     build_inventory,
@@ -37,6 +43,11 @@ from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_line
 from gauntlet.site import build_site
 from gauntlet.targets import CallableTarget, HttpTarget, Target
 from gauntlet.toy import ToyRag
+
+# A run the harness refuses to score. Distinct from 1 (a gate failed, which is
+# the gates working) and from 2 (the harness could not run at all).
+EXIT_UNSCOREABLE = 4
+UNSCOREABLE_VERDICT = "UNSCOREABLE"
 
 
 def _load_callable_target(spec: str) -> Target:
@@ -66,6 +77,15 @@ def _select_target(args: argparse.Namespace) -> Target:
         return HttpTarget(url=args.http_url)
     if args.callable:
         return _load_callable_target(args.callable)
+    if getattr(args, "cases", None):
+        # Falling back to the toy here would evaluate a fictional city's demo
+        # assistant against the operator's own cases and report the verdict as
+        # theirs. In CI that is a green check on a feature nothing contacted.
+        raise ValueError(
+            "--cases was given without a target, and the built-in toy is not your system. "
+            "Pass --http-url or --callable. To evaluate the toy on purpose, name it: "
+            "--callable gauntlet.toy:ToyRag"
+        )
     return ToyRag()
 
 
@@ -87,17 +107,29 @@ def _cmd_run(args: argparse.Namespace) -> int:
     target = _select_target(args)
     suites = _select_suites(args.cases)
     gates = tuple(run_suite(suite, target) for suite in suites)
-    run = RunResult(target=target.name, gates=gates, started_at=now_iso())
+    scored = RunResult(target=target.name, gates=gates, started_at=now_iso())
+    withheld = unscoreable_reason(scored, suites)
+    # The reason travels with the results file, so a pack rendered from it
+    # later cannot report a verdict this run declined to reach.
+    run = RunResult(
+        target=scored.target,
+        gates=scored.gates,
+        started_at=scored.started_at,
+        verdict_withheld=withheld,
+    )
     if args.out:
         out_path = Path(args.out)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         run.write_json(out_path)
-    _print_run_summary(run)
+    _print_run_summary(run, verdict=UNSCOREABLE_VERDICT if withheld else None)
+    if withheld:
+        print(f"error: {withheld}", file=sys.stderr)
+        return EXIT_UNSCOREABLE
     return 0 if run.passed else 1
 
 
-def _print_run_summary(run: RunResult) -> None:
-    for line in run_summary_lines(run):
+def _print_run_summary(run: RunResult, verdict: str | None = None) -> None:
+    for line in run_summary_lines(run, verdict=verdict):
         print(line)
 
 

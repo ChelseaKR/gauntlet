@@ -155,7 +155,11 @@ def build_evidence_pack(
         "target": _str(run.get("target")),
         "started_at": _str(run.get("started_at")),
         "results_digest": results_digest(run),
-        "passed": _bool(run.get("passed")),
+        # A withheld verdict is not a pass. Both are carried, so a reader of the
+        # JSON can tell "the gates said no" apart from "the harness declined to
+        # score this at all", and neither can be read as the other.
+        "passed": _bool(run.get("passed")) and not _str(run.get("verdict_withheld")),
+        "verdict_withheld": _str(run.get("verdict_withheld")),
         "totals": {
             "gates_total": len(gates),
             "gates_passed": gates_passed,

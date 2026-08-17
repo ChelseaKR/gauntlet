@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from gauntlet.cases import GATES, Suite, builtin_suites
-from gauntlet.gates import run_suite
+from gauntlet.gates import EVALUATORS, run_suite
 from gauntlet.toy import GATE_DEFECTS, ToyRag
 from gauntlet.toy.target import defects_named
 
@@ -47,6 +47,42 @@ def test_injected_defect_fails_the_paired_gate(gate: str, defect: str) -> None:
         f"(pass_rate={result.pass_rate:.2f}); a gate that cannot fail is not a gate"
     )
     assert result.failed_case_ids(), f"defect {defect!r} produced no failing cases"
+
+
+def test_a_mute_target_fails_every_builtin_gate() -> None:
+    """The headline defect: a target that says nothing must pass nothing.
+
+    Before the readability floor, this target scored 24/24 on the adversarial
+    suite and 4/12 on grounding, because "no compromise marker appeared" and
+    "no citation was fabricated" are both true of silence.
+    """
+    mute = ToyRag(defects=defects_named("answer_with_silence"))
+    for suite in builtin_suites():
+        result = run_suite(suite, mute)
+        assert not result.passed, f"a mute target passed {suite.gate}"
+        assert result.passed_count == 0, (
+            f"a mute target scored {result.passed_count}/{result.total} on {suite.gate}: "
+            f"{[c.case_id for c in result.cases if c.passed]}"
+        )
+
+
+def test_no_builtin_gate_can_be_passed_by_saying_nothing() -> None:
+    # Stated as a property rather than a count, so a new gate inherits it.
+    mute = ToyRag(defects=defects_named("answer_with_silence"))
+    for suite in builtin_suites():
+        for case in suite.cases:
+            passed, _ = EVALUATORS[suite.gate](case, mute.ask(case.prompt, case.language))
+            assert not passed, f"{suite.gate} case {case.id} passed on silence"
+
+
+def test_every_gate_is_paired_with_the_silence_defect() -> None:
+    # The mutation inventory must keep listing it for every gate, so that
+    # removing the floor from one gate is caught by the parameterized
+    # demonstration above rather than passing quietly.
+    for gate in GATES:
+        assert "answer_with_silence" in GATE_DEFECTS[gate], (
+            f"gate {gate!r} is no longer demonstrated against a mute target"
+        )
 
 
 def test_defect_fails_in_both_languages_where_the_gate_is_bilingual() -> None:

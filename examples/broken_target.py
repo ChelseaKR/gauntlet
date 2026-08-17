@@ -27,3 +27,15 @@ def make_healthy_target() -> Target:
     """Return the same toy with no defect injected, for comparison runs."""
     toy = ToyRag()
     return CallableTarget(fn=toy.ask, name="example-healthy-target")
+
+
+def make_mute_target() -> Target:
+    """Return a target that answers nothing, in every shape that survives strip().
+
+    Pointed at ``cases-absence-only``, this is the run the harness refuses to
+    score: every check in that directory is phrased as an absence, and silence
+    satisfies all of them. CI runs it so that exit 4 is a demonstrated path
+    rather than a claim in a README.
+    """
+    toy = ToyRag(defects=defects_named("answer_with_silence"))
+    return CallableTarget(fn=toy.ask, name="example-mute-target")

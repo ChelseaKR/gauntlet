@@ -453,6 +453,7 @@ STANDALONE_NUMBER = re.compile(r"(?<![\w.\-/])\d+(?![\w.\-/])")
 REVIEWED_NUMBERS: dict[str, str] = {
     "1": "the exit code gauntlet run uses for a failed gate",
     "2": "the exit code gauntlet run uses when the harness itself could not run",
+    "4": "the exit code gauntlet run uses when the run cannot be scored",
     "4986": "the SAM 4986 series, named while explaining the correction made by reading",
 }
 
