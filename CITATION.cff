@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: "Gauntlet: merge-blocking evaluation gates for generative AI features"
+message: "If you refer to this harness or to an evidence pack it produced, please cite it."
+type: software
+authors:
+  - family-names: Kelly-Reif
+    given-names: Chelsea
+repository-code: "https://github.com/ChelseaKR/gauntlet"
+url: "https://chelseakr.github.io/gauntlet/"
+abstract: >-
+  YAML-driven evaluation gates that run against a deployed generative-AI feature over HTTP or a
+  Python callable, fail the build when a gate fails, and emit the run as a diffable JSON pack and
+  a reviewer-readable evidence document cross-referenced to California's published GenAI risk and
+  procurement framework. It evaluates a feature in its context rather than a foundation model, and
+  depends on no model vendor. Aligned to that framework, not approved, endorsed, or certified by
+  the State of California or any of its departments.
+keywords:
+  - evaluation
+  - generative AI
+  - continuous integration
+  - prompt injection
+  - public-interest technology
+  - procurement
+license: Apache-2.0
+version: 0.1.0
+date-released: "2026-08-15"

@@ -1,0 +1,46 @@
+# Fast local gates, run before a commit reaches CI. CI is still the gate of
+# record: `make verify` in .github/workflows/ci.yml decides whether a change
+# merges. These hooks only catch the same lint, hygiene, and secret problems on
+# your machine, where they are cheap to fix.
+#
+# Revisions are pinned to full commit SHAs with the tag in a trailing comment,
+# matching how this repo pins GitHub Actions. Bump them deliberately, in a
+# reviewed change.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b # v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 7c55798a78262d14b2074abf623d8a992ebb70d4 # v0.16.2 -- keep in step with pyproject.toml's `ruff>=0.15` floor
+    hooks:
+      # `make lint` runs ruff over the whole tree, so these are unscoped too. No
+      # --fix on the check hook: a local pass has to mean what a CI pass means.
+      - id: ruff-check
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # mypy --strict needs this project's own environment to resolve imports, so
+  # call the project's mypy rather than the isolated pre-commit mirror. It runs
+  # at pre-push: a full strict check is too slow for the inner commit loop.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy --strict
+        entry: .venv/bin/python -m mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]

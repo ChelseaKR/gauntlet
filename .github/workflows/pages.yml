@@ -40,7 +40,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --locked
       - name: Render the site from the harness
         run: uv run gauntlet site --out site --generated "$(date -u +%F)"
       - name: Fail if the render produced nothing
