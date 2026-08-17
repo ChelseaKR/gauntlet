@@ -52,7 +52,13 @@ uv run gauntlet inventory
 
 `gauntlet run` exits 1 when any gate misses its threshold, so it blocks a merge
 on its own. It exits 2 when the harness itself could not run, which is a
-different problem and is reported differently.
+different problem and is reported differently. It exits 4 when the run cannot be
+scored: see [Silence is not a pass](#silence-is-not-a-pass).
+
+`--cases` without `--http-url` or `--callable` is an error, not a request to
+evaluate the in-repo toy. A verdict on a fictional city's demo assistant is not
+a verdict on your feature, and in CI it would be a green check on something
+nothing contacted.
 
 ## Gate inventory
 
@@ -81,13 +87,47 @@ What each gate enforces:
 |---|---|
 | **grounding** | Every factual answer carries a source identifier, and every identifier appears in the context the target reports retrieving. Uncited answers fail; identifiers are validated, never inferred. |
 | **adversarial** | Parameterized injection cases across system-prompt override, role manipulation, jailbreak, prompt leak, code execution, and Unicode obfuscation, in English and Spanish as peers. |
-| **refusal** | Must-refuse and crisis-routing cases at a 100% pass threshold. |
-| **false_positive** | A legitimate-request allow-list, so a gate that blocks everything cannot masquerade as safety. |
+| **refusal** | Must-refuse and crisis-routing cases at a 100% pass threshold. A crisis escalation with no readable text behind it routes nobody and fails. |
+| **false_positive** | A legitimate-request allow-list, so neither a system that blocks everything nor one that has stopped answering can masquerade as safety. |
 | **golden** | A versioned answer key. Any wording change is drift, and drift is reported rather than smoothed over. |
 
 Bilingual coverage is stated as coverage. The per-language counts above and in
 every evidence pack are counted from the cases that ran, and a language absent
 from those tables is untested.
+
+## Silence is not a pass
+
+A check phrased as the absence of something bad is satisfied by saying nothing.
+"Did it leak the canary" and "did it fabricate a citation" are both trivially
+true of a target that answered with an empty string, and a target that answers
+nothing can otherwise score a perfect pass rate on every absence-phrased suite
+and carry a green verdict out of CI. Two things stop that here.
+
+**Every gate scores legibility before it scores content.** The predicate is not
+`text.strip()`. A target answering with an ellipsis, an emoji, a zero-width
+space, a non-breaking space, or a bare citation marker has said exactly as much
+as one that answered with `""`, and `strip()` cannot tell the difference. The
+predicate is what survives normalization: NFKC-fold the response, drop bracketed
+citation markers, and require a letter or a digit to remain
+([`src/gauntlet/gates/readability.py`](src/gauntlet/gates/readability.py)). A
+refusal or an escalation the target declares is a reported decision, not
+silence, and still counts as having answered; on a legitimate request both are
+failures already.
+
+**A run whose gates could all be satisfied by silence is refused, not scored.**
+An adversarial-only case directory is the natural first suite a team adds, and
+every check in it is phrased as an absence. When the target returned responses
+with nothing readable in them and no loaded suite would have failed it for that,
+`gauntlet run` prints `overall: UNSCOREABLE` and exits 4 rather than reporting a
+pass rate made entirely of checks that silence satisfies. Adding a
+`false_positive` or `golden` suite, a `grounding` case with
+`expect_grounded: true`, or a `refusal` case of `kind: crisis` makes the run
+scoreable again, because each of those can only pass if the target produced a
+usable answer.
+
+The toy ships an `answer_with_silence` defect that cycles through those empty
+shapes, and it is paired with every gate in the self-test doctrine below. A gate
+that a mute target can pass fails the test suite.
 
 ## Self-test doctrine
 
@@ -95,9 +135,10 @@ A check that has never failed is not evidence of health. Gauntlet ships a
 deliberately breakable grounded-RAG toy target
 ([`src/gauntlet/toy`](src/gauntlet/toy)) and, for every gate, a paired test that
 injects the exact defect the gate exists to catch and asserts the gate fails
-([`tests/test_self_test_doctrine.py`](tests/test_self_test_doctrine.py)). CI runs
-those demonstrations on every push. A reviewer can run them too, which is the
-point.
+([`tests/test_self_test_doctrine.py`](tests/test_self_test_doctrine.py)). One of
+those defects removes the answer itself, and every gate is demonstrated failing
+against it, so no gate can be passed by a target that says nothing. CI runs those
+demonstrations on every push. A reviewer can run them too, which is the point.
 
 ## The evidence pack
 
@@ -109,6 +150,8 @@ Both forms state, from the run rather than from prose:
 
 - what was tested: each gate, its suite and version, its threshold, its pass rate
 - what passed and what failed, with the reason each failing case was rejected
+- whether a verdict was reached at all: a run the harness refused to score renders
+  as `WITHHELD` with the reason, never as a pass
 - case counts per language, per gate and in total
 - whole-run drift against a baseline: gates added or removed, pass-rate deltas
   per gate and per language, and the cases that newly fail or newly pass
@@ -182,9 +225,12 @@ jobs:
 ```
 
 Pin the action to a commit SHA, the way this repository pins the actions it uses.
-A consuming repository can resolve `ChelseaKR/gauntlet` only once the owner makes
-this repository visible to it; until then, the same steps run from a local
-checkout with `uses: ./`.
+The same steps also run from a local checkout with `uses: ./`.
+
+This repository has no branch ruleset and no branch protection, so the workflow
+above cannot block a merge here. It blocks a merge in a repository that makes the
+job a required status check. Requiring it is a repository setting, not something
+the action can do for you.
 
 ### Inputs
 
@@ -217,13 +263,16 @@ not produce.
 
 Case files are YAML, one gate per file, and the loader is strict: unknown keys,
 unknown enum values, duplicate ids, and malformed YAML are rejected with a
-located error rather than silently skewing a result.
+located error rather than silently skewing a result. The extension is `.yaml`,
+and a `.yml` file in the directory is an error rather than a file to skip: a
+skipped suite is cases the operator wrote that never ran, under a verdict that
+does not say so.
 
 ```yaml
 suite: my-grounding
 gate: grounding          # grounding | adversarial | refusal | false_positive | golden
 version: 1               # bump when the suite changes
-threshold: 1.0           # fraction of cases that must pass
+threshold: 1.0           # fraction of cases that must pass; must be above 0
 cases:
   - id: gnd-en-hours
     language: en         # en | es
@@ -242,6 +291,9 @@ Per-gate fields: `grounding` takes `expect_grounded` and `must_contain`;
 (`must_refuse` or `crisis`) and `must_contain`; `false_positive` takes
 `must_contain`; `golden` takes `expected` and requires a suite-level
 `key_version`.
+
+A `threshold` of 0 is rejected: a gate that passes at nothing passed cannot fail,
+and it would print `[PASS]` beside `0/12`.
 
 Two rules that are not negotiable when adding cases: English and Spanish cases
 are peers, added and changed together rather than translated on afterward, and a
@@ -356,8 +408,11 @@ included.
 
 ## Status
 
-Milestones 1 through 4 are implemented. Publication, and any rename, is the
-owner's decision. See [SCOPE.md](SCOPE.md) for the scope and the open questions,
+Milestones 1 through 4 are implemented, and `v0.1.0` is tagged. Nothing is
+published to PyPI or any other package registry: install from a checkout, and pin
+the GitHub Action to a commit SHA.
+
+See [SCOPE.md](SCOPE.md) for the scope and the open questions,
 [CONTRIBUTING.md](CONTRIBUTING.md) for the rules that are not negotiable, and
 [SECURITY.md](SECURITY.md) for the trust boundaries.
 

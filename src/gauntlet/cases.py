@@ -159,10 +159,14 @@ def _parse_suite_header(raw: dict[str, object], source: str) -> tuple[str, str, 
         raise _fail(source, "'version' must be a positive integer")
     threshold = raw.get("threshold", 1.0)
     if isinstance(threshold, bool) or not isinstance(threshold, int | float):
-        raise _fail(source, "'threshold' must be a number between 0 and 1")
+        raise _fail(source, "'threshold' must be a number above 0 and at most 1")
     threshold = float(threshold)
     if not 0.0 <= threshold <= 1.0:
-        raise _fail(source, "'threshold' must be a number between 0 and 1")
+        raise _fail(source, "'threshold' must be a number above 0 and at most 1")
+    if threshold == 0.0:
+        # A gate that passes at zero cases passed cannot fail, and a gate that
+        # cannot fail is not a gate. It would report PASS beside 0/12.
+        raise _fail(source, "'threshold' of 0 makes the gate unable to fail; use a value above 0")
     return name, gate, version, threshold
 
 
@@ -206,9 +210,20 @@ def load_suite_text(text: str, source: str) -> Suite:
 
 
 def load_suites(directory: Path) -> tuple[Suite, ...]:
-    """Load every *.yaml suite in a directory, sorted by filename."""
+    """Load every *.yaml suite in a directory, sorted by filename.
+
+    A ``*.yml`` file in the directory is an error, not a file to skip. Skipping
+    it silently drops every case the operator wrote in it, and the run reports
+    a verdict over the suites that happened to load.
+    """
     if not directory.is_dir():
         raise CaseFileError(f"case directory not found: {directory}")
+    misnamed = sorted(path.name for path in directory.glob("*.yml"))
+    if misnamed:
+        raise CaseFileError(
+            f"{directory}: case files must end in '.yaml', but found {misnamed}. "
+            f"Rename them rather than have their cases silently not run."
+        )
     paths = sorted(directory.glob("*.yaml"))
     if not paths:
         raise CaseFileError(f"no *.yaml case files in {directory}")

@@ -157,8 +157,14 @@ runs:
         uv tool run --from "$GAUNTLET_ACTION_PATH" gauntlet "${args[@]}"
         run_status=$?
         set -e
-        # 0 is a clean run, 1 is a gate failure, anything else is the harness
-        # itself failing and must not be reported as a gate result.
+        # 0 is a clean run, 1 is a gate failure, anything else is the run not
+        # producing a result and must not be reported as a gate outcome. 4 is
+        # the specific case of a run the harness refused to score, which needs
+        # its own message: the fix is a case file, not a retry.
+        if [ "$run_status" -eq 4 ]; then
+          echo "::error::gauntlet refused to score this run: the target returned responses with nothing readable in them and no loaded suite would have failed it for that. See the step log for which suite to add."
+          exit "$run_status"
+        fi
         if [ "$run_status" -gt 1 ]; then
           echo "::error::gauntlet run could not complete (exit $run_status)"
           exit "$run_status"

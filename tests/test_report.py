@@ -213,3 +213,43 @@ def test_degenerate_packs_render_without_crashing() -> None:
     assert "Where the disclosure duty comes from" not in rendered
     assert "No verified framework reference is claimed for this entry." in rendered
     assert "Disclosure content supported:" not in rendered
+
+
+# ---- a withheld verdict never renders as a pass ----
+
+
+def _withheld_run(*gates: GateResult, reason: str) -> dict[str, object]:
+    return RunResult(
+        target="mute-target",
+        gates=gates,
+        started_at="2026-08-07T12:00:00+00:00",
+        verdict_withheld=reason,
+    ).to_dict()
+
+
+def test_a_withheld_verdict_is_not_rendered_as_a_pass() -> None:
+    """The worst thing this repository can emit is a compliance-adjacent
+    document reporting PASS for a run the harness declined to score.
+
+    Every gate here passed. The verdict was still withheld, because every
+    check that passed is one a target could satisfy by saying nothing.
+    """
+    reason = "no loaded suite scores whether this target can answer at all"
+    pack = build_evidence_pack(
+        _withheld_run(_gate("adversarial", {"a-en": True, "a-es": True}), reason=reason)
+    )
+    assert pack["passed"] is False
+    assert pack["verdict_withheld"] == reason
+    document = render_markdown(pack)
+    assert "Overall verdict: **WITHHELD**" in document
+    assert "Overall verdict: **PASS**" not in document
+    assert "No verdict was reached" in document
+    assert reason in document
+
+
+def test_a_withheld_run_still_renders_every_section() -> None:
+    # No path makes a withheld run quieter than a clean one.
+    run = _withheld_run(_gate("golden", {"g-en": True}), reason="unscoreable")
+    document = render_markdown(build_evidence_pack(run))
+    for section in _SECTIONS:
+        assert section in document

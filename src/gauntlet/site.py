@@ -366,8 +366,9 @@ def index_page(inventory: Inventory) -> str:
                 "forms: a versioned JSON pack a machine can diff, and a document a "
                 "reviewer can attach to a risk assessment.",
                 f"The built-in suites carry {esc(counted)}. It depends on no model vendor, "
-                "reaches no network during a test run, and ships a deliberately breakable "
-                "toy target so a reviewer can watch each gate fail on purpose.",
+                "reaches the network only where the operator points it at an HTTP target, "
+                "and ships a deliberately breakable toy target so a reviewer can watch "
+                "each gate fail on purpose.",
             ),
             '<h2 id="what-it-is-not">What it is not</h2>',
             what_it_is_not,
@@ -438,8 +439,11 @@ cases:
             paragraphs(
                 "<code>gauntlet run</code> exits 1 when any gate misses its threshold, so "
                 "it blocks a merge on its own. It exits 2 when the harness itself could "
-                "not run, which is a different problem and is reported differently. Turn "
-                "the results file into the evidence pack with "
+                "not run, which is a different problem and is reported differently. It "
+                "exits 4 when the run cannot be scored: the target returned responses with "
+                "nothing readable in them and no loaded suite would have failed it for "
+                "that, so a pass rate would be made entirely of checks that silence "
+                "satisfies. Turn the results file into the evidence pack with "
                 "<code>gauntlet report</code>.",
             ),
             '<h2 id="read-next">Read next</h2>',
@@ -683,6 +687,8 @@ def evidence_page() -> str:
         [
             "what was tested: each gate, its suite and version, its threshold, its pass rate",
             "what passed and what failed, with the reason each failing case was rejected",
+            "whether a verdict was reached at all: a run the harness refused to score "
+            "renders as WITHHELD with the reason, never as a pass",
             "case counts per language, per gate and in total",
             "whole-run drift against a baseline: gates added or removed, pass-rate deltas "
             "per gate and per language, and the cases that newly fail or newly pass",

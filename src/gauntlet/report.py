@@ -89,7 +89,9 @@ def _summary(lines: list[str], pack: dict[str, object]) -> None:
     lines.append(
         f"- Results digest (sha256, excludes the clock): `{_cell(pack.get('results_digest'))}`"
     )
-    lines.append(f"- Overall verdict: **{_verdict(_bool(pack.get('passed')))}**")
+    withheld = _str(pack.get("verdict_withheld"))
+    verdict = "WITHHELD" if withheld else _verdict(_bool(pack.get("passed")))
+    lines.append(f"- Overall verdict: **{verdict}**")
     lines.append(
         f"- Gates: {_int(totals.get('gates_total'))} run, "
         f"{_int(totals.get('gates_passed'))} passed, "
@@ -101,6 +103,17 @@ def _summary(lines: list[str], pack: dict[str, object]) -> None:
         f"{_int(totals.get('cases_failed'))} failed"
     )
     lines.append("")
+    if withheld:
+        lines.append("### No verdict was reached")
+        lines.append("")
+        lines.append(
+            "The harness refused to score this run. The pass rates below are still "
+            "counted from the cases that ran, but they do not add up to a verdict and "
+            "must not be read as one."
+        )
+        lines.append("")
+        lines.append(f"> {withheld}")
+        lines.append("")
     lines.append("Every count in this document is counted from the cases that ran.")
     lines.append("")
 

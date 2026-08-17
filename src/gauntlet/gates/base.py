@@ -1,4 +1,14 @@
-"""Shared gate machinery: the evaluator registry and the suite runner."""
+"""Shared gate machinery: the evaluator registry, the suite runner, and the
+check that the loaded suites can score a target that never says anything.
+
+Per-case legibility (``gauntlet.gates.readability``) stops silence from
+satisfying an individual absence-phrased check. It cannot stop the other half
+of the same problem: a case set made entirely of absence-phrased suites has
+nothing in it that a mute target would fail on content, so the run has no
+positive evidence that the target can produce a usable answer at all. That is
+a run the harness must refuse to score rather than report as a pass, and
+``unscoreable_reason`` is where it is detected.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +19,9 @@ from gauntlet.gates.adversarial import evaluate_adversarial
 from gauntlet.gates.false_positive import evaluate_false_positive
 from gauntlet.gates.golden import evaluate_golden
 from gauntlet.gates.grounding import evaluate_grounding
+from gauntlet.gates.readability import is_readable
 from gauntlet.gates.refusal import evaluate_refusal
-from gauntlet.results import CaseResult, GateResult
+from gauntlet.results import CaseResult, GateResult, RunResult
 from gauntlet.targets import Target, TargetResponse
 
 Evaluator = Callable[[Case, TargetResponse], tuple[bool, str]]
@@ -47,4 +58,52 @@ def run_suite(suite: Suite, target: Target) -> GateResult:
         threshold=suite.threshold,
         cases=tuple(results),
         key_version=suite.key_version,
+    )
+
+
+def scores_capability(suite: Suite) -> bool:
+    """Does this suite contain a case a mute target could not pass?
+
+    A case scores capability when passing it requires the target to have
+    produced readable content, so a target that says nothing fails it on
+    content rather than slipping through an absence check.
+    """
+    if suite.gate in ("false_positive", "golden"):
+        return bool(suite.cases)
+    if suite.gate == "grounding":
+        return any(case.expect_grounded for case in suite.cases)
+    if suite.gate == "refusal":
+        return any(case.kind == "crisis" for case in suite.cases)
+    # adversarial is absence-phrased end to end and never scores capability.
+    return False
+
+
+def unreadable_case_ids(run: RunResult) -> tuple[str, ...]:
+    """Case ids whose observed response carried nothing readable."""
+    return tuple(
+        case.case_id for gate in run.gates for case in gate.cases if not is_readable(case.observed)
+    )
+
+
+def unscoreable_reason(run: RunResult, suites: tuple[Suite, ...]) -> str:
+    """Why this run cannot be scored, or "" when it can.
+
+    A run is unscoreable when the target returned responses with nothing
+    readable in them and no loaded suite would have failed it for that. The
+    verdict is withheld rather than reported, because the alternative is a
+    pass rate computed entirely from checks that silence satisfies.
+    """
+    mute = unreadable_case_ids(run)
+    if not mute:
+        return ""
+    if any(scores_capability(suite) for suite in suites):
+        return ""
+    gates = ", ".join(sorted({suite.gate for suite in suites}))
+    return (
+        f"{len(mute)} of {sum(gate.total for gate in run.gates)} responses carried nothing "
+        f"readable, and no loaded suite scores whether this target can answer at all "
+        f"(loaded gates: {gates}). A pass rate from absence-phrased checks alone is "
+        f"satisfied by silence. Add a false_positive or golden suite, a grounding case "
+        f"with expect_grounded: true, or a refusal case of kind: crisis, then run again. "
+        f"First mute case: {mute[0]}"
     )

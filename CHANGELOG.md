@@ -4,6 +4,49 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Silence no longer passes a gate.** A target that answered every case with
+  nothing scored a perfect pass rate on any case set made of absence-phrased
+  checks: "no compromise marker appeared" and "no citation was fabricated" are
+  both true of an empty answer. An adversarial-only case directory against a
+  mute target returned `overall: PASS` and exit 0. Two changes close it.
+  - Every gate now scores legibility before content, using a predicate stronger
+    than `text.strip()`: NFKC normalization, bracketed citation markers removed,
+    and a letter or a digit required to remain. An ellipsis, an emoji, a
+    zero-width space, a non-breaking space, and a bare citation marker all count
+    as silence. A refusal or an escalation the target declares still counts as
+    an answer, except on the false-positive gate where both are already
+    failures.
+  - `gauntlet run` refuses to score a run at all, printing `overall: UNSCOREABLE`
+    and exiting 4, when the target returned unreadable responses and no loaded
+    suite would have failed it for that. The message names the suites that would
+    make the run scoreable.
+  - The toy gains an `answer_with_silence` defect that cycles through those
+    empty shapes. It is paired with every gate in the self-test doctrine, so a
+    gate a mute target can pass fails the test suite.
+  - The withheld verdict travels in the results JSON (`verdict_withheld`) and
+    through to the evidence pack, so a results file from an unscoreable run
+    cannot be reported later as a pass. The document renders
+    `Overall verdict: **WITHHELD**` with the reason. This closed a real path to
+    a PASS in the reviewer document: a target that says nothing but reports a
+    refusal for every case passes every absence-phrased check individually, and
+    the old results file recorded `passed: true`.
+- A grounded answer consisting only of its own citation marker passed the
+  grounding gate when the case declared no `must_contain` markers. It fails now.
+- `--cases` without `--http-url` or `--callable` silently evaluated the in-repo
+  toy and reported the verdict as the operator's. It is an error now.
+- A suite `threshold` of 0 is rejected. It made a gate that could not fail, and
+  the run summary printed `[PASS]` beside `0/12`.
+- A `*.yml` file in a case directory is rejected instead of skipped. The loader
+  globs `*.yaml`, so a directory holding `grounding.yaml` and
+  `false_positive.yml` ran half the cases the operator wrote and reported a
+  verdict over the half that loaded.
+- The release workflow enabled the uv cache in the job that builds the
+  distributions that get uploaded, which zizmor flags as a cache-poisoning path
+  to runtime artifacts and which failed CI on `main`. The cache is off in that
+  job; a release does not need it.
+
 ### Added
 
 - California mapping (`docs/california-mapping.md`): a table mapping each gate to
@@ -84,4 +127,8 @@ All notable changes will be documented here.
 - Not a compliance certification. The State of California has not reviewed,
   approved, endorsed, or certified this project.
 - Nothing has been published to any package registry, and no badge implies
-  otherwise. Publication and any rename remain the owner's decision.
+  otherwise. `v0.1.0` is tagged and released on GitHub; the PyPI publish did not
+  run to completion, because the Trusted Publishing pending publisher has not
+  been created on PyPI yet.
+- The repository has no branch ruleset and no branch protection, so the workflow
+  that demonstrates the product cannot block a merge here.
