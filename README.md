@@ -408,17 +408,24 @@ included.
 
 ## Status
 
-Milestones 1 through 4 are implemented, and `v0.1.0` is tagged. Nothing is
-published to PyPI or any other package registry: install from a checkout, and pin
-the GitHub Action to a commit SHA.
+Milestones 1 through 4 are implemented, and `v0.1.0` is tagged and published as
+the distribution `gauntlet-evals`:
 
-That is a statement about what happened, not about what was attempted.
-`release.yml` is wired to publish the distribution `gauntlet-evals` to PyPI
-through Trusted Publishing, and it ran on the `v0.1.0` release. The upload was
-refused with `invalid-publisher`, because no pending publisher has been
-registered on PyPI for this project yet. The build half of that run succeeded;
-only the publish step failed. Until a publisher is registered and the workflow
-re-run, `pip install gauntlet-evals` installs nothing.
+```console
+pip install gauntlet-evals
+```
+
+Requires Python 3.12 or newer. The GitHub Action is a separate artifact and is
+not distributed that way: pin it to a commit SHA.
+
+The upload runs through Trusted Publishing (OIDC), so no API token exists to
+leak or rotate, and the files that were published are the same artifacts
+`release.yml` built and verified in the run that uploaded them. The first
+attempt, on the `v0.1.0` release, was refused with `invalid-publisher`: the
+repository was configured correctly and there was simply no registered
+publisher matching its claims. The republish was dispatched against the
+`v0.1.0` tag rather than `main`, so what was uploaded is the tagged tree and
+not the commit that landed after it.
 
 See [SCOPE.md](SCOPE.md) for the scope and the open questions,
 [CONTRIBUTING.md](CONTRIBUTING.md) for the rules that are not negotiable, and
