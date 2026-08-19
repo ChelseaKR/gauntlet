@@ -9,7 +9,7 @@ import pytest
 
 from gauntlet.cli import main
 from gauntlet.inventory import BEGIN_MARKER, END_MARKER
-from gauntlet.targets import TargetProtocolError
+from gauntlet.targets import TargetError, TargetProtocolError
 
 
 def test_run_default_toy_passes(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
@@ -317,12 +317,62 @@ def test_no_command_errors() -> None:
         main([])
 
 
-def test_run_against_a_loopback_http_target_is_selected(tmp_path: Path) -> None:
-    # The HTTP adapter itself is covered in test_targets.py against a loopback
-    # stub; here the point is that --http-url selects it and a dead port is
-    # reported rather than silently passing.
-    with pytest.raises(TargetProtocolError):
-        main(["run", "--http-url", "http://127.0.0.1:1/evaluate"])
+# ---- a run that never reached the target is not a gate outcome ----
+
+
+def test_a_dead_http_target_exits_two_not_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dead port is the harness not running, not a gate below its threshold.
+
+    The HTTP adapter itself is covered in test_targets.py against a loopback
+    stub; here the point is the exit code. Letting TargetProtocolError escape
+    main() prints a traceback and exits 1, and 1 is the documented code for a
+    gate failure. A run that never reached the target has no gate verdict.
+    """
+    code = main(["run", "--http-url", "http://127.0.0.1:1/evaluate"])
+    assert code == 2
+    assert "error: " in capsys.readouterr().err
+
+
+def test_a_target_that_raises_exits_two_and_names_the_case(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Whatever the target raises on its own is still the target not answering.
+    code = main(["run", "--callable", "tests.conftest:unreachable_target_factory"])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "503" in err
+    # The operator is told where the run stopped instead of reading a traceback.
+    assert "gate 'adversarial'" in err
+    assert "case " in err
+
+
+def test_an_aborted_run_leaves_no_earlier_results_file_behind(tmp_path: Path) -> None:
+    """The severe half: a stale file reported as this run's evidence.
+
+    `gauntlet run --out X` then `gauntlet report X` is the shape the action
+    uses. If an aborted run leaves an earlier X in place, the pack is built from
+    a run that is not this one, and a stale pack is indistinguishable from a
+    fresh one on its face.
+    """
+    results = tmp_path / "results.json"
+    assert main(["run", "--out", str(results)]) == 0
+    assert json.loads(results.read_text(encoding="utf-8"))["passed"] is True
+
+    code = main(
+        ["run", "--callable", "tests.conftest:unreachable_target_factory", "--out", str(results)]
+    )
+    assert code == 2
+    assert not results.exists()
+    # And so the pack cannot be built from it, rather than being built wrong.
+    assert main(["report", str(results)]) == 2
+
+
+def test_the_protocol_error_type_is_still_reachable_for_callers() -> None:
+    # TargetProtocolError remains a TargetError, so a caller catching either
+    # still catches an adapter that rejected a malformed response.
+    assert issubclass(TargetProtocolError, TargetError)
 
 
 def test_the_results_file_from_an_unscoreable_run_cannot_be_reported_as_a_pass(

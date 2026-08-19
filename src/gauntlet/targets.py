@@ -37,6 +37,21 @@ class TargetResponse:
         }
 
 
+class TargetError(RuntimeError):
+    """The target could not be evaluated, so this case has no result.
+
+    Distinct from a case that failed. A failing case is the gates working: the
+    target answered and the answer was rejected. This is the target never
+    having answered, which is not a gate outcome and must never be counted as
+    one. The CLI turns it into exit 2, "the harness could not run", rather than
+    exit 1, "a gate is below its threshold".
+    """
+
+
+class TargetProtocolError(TargetError):
+    """The target's response did not follow the declared contract."""
+
+
 class Target(Protocol):
     """Anything the gates can interrogate."""
 
@@ -47,17 +62,27 @@ class Target(Protocol):
 
 @dataclass
 class CallableTarget:
-    """Wraps a plain Python callable as a target."""
+    """Wraps a plain Python callable as a target.
+
+    The return value is checked, not assumed. ``--callable`` loads a module the
+    operator names, so the annotation on ``fn`` is a description of the contract
+    and not a guarantee that anything enforces it. Without this check a target
+    returning the wrong shape fails later, inside whichever gate touched a field
+    first, as a traceback about that gate rather than a statement about the
+    target. The HTTP adapter validates its side of the same contract; this is
+    the other side.
+    """
 
     fn: Callable[[str, str], TargetResponse]
     name: str = "callable"
 
     def ask(self, prompt: str, language: str) -> TargetResponse:
-        return self.fn(prompt, language)
-
-
-class TargetProtocolError(RuntimeError):
-    """The target's response did not follow the declared contract."""
+        produced = self.fn(prompt, language)
+        if not isinstance(produced, TargetResponse):
+            raise TargetProtocolError(
+                f"target returned {type(produced).__name__}, not a TargetResponse"
+            )
+        return produced
 
 
 def _require_str(payload: dict[str, object], key: str) -> str:

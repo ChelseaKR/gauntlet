@@ -6,6 +6,37 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- **A run that never reached the target no longer reports as one that did.** An
+  unreachable endpoint, a target that raised, and a target that returned the
+  wrong shape all escaped `main()` as a traceback and exit 1, which is the code
+  that means a gate is below its threshold. The severe case was the results file:
+  `gauntlet run --out results.json` left an earlier run's file in place when it
+  aborted, and the next command in the pipeline built an evidence pack out of
+  it. Against a dead port, all 66 built-in cases failed to send and the pack
+  still rendered `Overall verdict: **PASS**`, `Cases: 66 run, 66 passed`, from
+  the previous run. A stale pack is indistinguishable from a fresh one.
+  - A target that cannot be evaluated now raises `TargetError`, which the CLI
+    reports as exit 2, "the harness could not run", with the gate and case the
+    run stopped on instead of a stack trace. `TargetProtocolError` is a subclass,
+    so callers catching it are unaffected.
+  - `gauntlet run --out X` claims X before the run starts. After it, X holds
+    this run's results or does not exist. It is never left holding an earlier
+    run's.
+  - `CallableTarget` checks that what the target returned is a `TargetResponse`.
+    The HTTP adapter already validated its side of the contract; a `--callable`
+    target returning a dict used to fail inside whichever gate touched a field
+    first, reported as a fault in that gate.
+- **The evidence pack counts its own verdict instead of copying it.** `passed`
+  was taken from the result set's headline boolean, so a results file whose
+  headline disagreed with its gate rows produced a pack printing
+  `Overall verdict: **PASS**` directly above "1 of 5 gates failed". The verdict
+  is now counted from the gate rows the pack renders, in both output forms and
+  in the action's `passed` output.
+- **A pack with no gates in it withholds its verdict.** `all()` over an empty
+  set of gates is `True`, so a result set containing no gates rendered `PASS`
+  and reported `passed=true` to the action while the body of the same document
+  said "No gate ran. This pack establishes nothing about the target." It renders
+  `WITHHELD` now, through the machinery an unscoreable run already used.
 - **Silence no longer passes a gate.** A target that answered every case with
   nothing scored a perfect pass rate on any case set made of absence-phrased
   checks: "no compromise marker appeared" and "no citation was fabricated" are

@@ -8,6 +8,10 @@ nothing in it that a mute target would fail on content, so the run has no
 positive evidence that the target can produce a usable answer at all. That is
 a run the harness must refuse to score rather than report as a pass, and
 ``unscoreable_reason`` is where it is detected.
+
+There is a third way a run can fail to mean anything, and it is the plainest:
+the target was never reached. ``_ask`` keeps that from escaping as an exception
+the CLI would exit 1 on, which is the code reserved for a gate that failed.
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ from gauntlet.gates.grounding import evaluate_grounding
 from gauntlet.gates.readability import is_readable
 from gauntlet.gates.refusal import evaluate_refusal
 from gauntlet.results import CaseResult, GateResult, RunResult
-from gauntlet.targets import Target, TargetResponse
+from gauntlet.targets import Target, TargetError, TargetResponse
 
 Evaluator = Callable[[Case, TargetResponse], tuple[bool, str]]
 
@@ -35,12 +39,33 @@ EVALUATORS: dict[str, Evaluator] = {
 }
 
 
+def _ask(target: Target, case: Case, gate: str) -> TargetResponse:
+    """Put one case to the target, naming the case if the attempt fails.
+
+    Anything the target raises means this case has no result: the harness never
+    reached an answer to judge. Letting that escape as whatever the target chose
+    to raise would surface as a traceback and an exit code that means "a gate
+    failed", which is the opposite of what happened. It is re-raised as a
+    TargetError so the CLI reports it as the run not completing, and it carries
+    the gate and case so the operator knows where the run stopped rather than
+    reading a stack trace to find out.
+    """
+    try:
+        return target.ask(case.prompt, case.language)
+    except TargetError as exc:
+        raise TargetError(f"gate {gate!r}, case {case.id!r}: {exc}") from exc
+    except Exception as exc:
+        raise TargetError(
+            f"gate {gate!r}, case {case.id!r}: target raised {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 def run_suite(suite: Suite, target: Target) -> GateResult:
     """Evaluate every case in a suite against a target."""
     evaluator = EVALUATORS[suite.gate]
     results = []
     for case in suite.cases:
-        response = target.ask(case.prompt, case.language)
+        response = _ask(target, case, suite.gate)
         passed, detail = evaluator(case, response)
         results.append(
             CaseResult(

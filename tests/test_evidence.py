@@ -166,6 +166,28 @@ def test_github_output_lines_without_drift() -> None:
     assert rendered["passed"] == "true"
 
 
+def test_a_pack_with_no_gates_reports_false_to_the_action() -> None:
+    """The action's ``passed`` output is what a caller's workflow gates on.
+
+    A consumer writes ``if: steps.gauntlet.outputs.passed == 'true'``. A pack
+    with nothing in it must not answer that with a green light, and the counts
+    beside it must be the zeros they actually are.
+    """
+    empty: dict[str, object] = {"gates": [], "passed": True}
+    rendered = dict(line.split("=", 1) for line in github_output_lines(build_evidence_pack(empty)))
+    assert rendered["passed"] == "false"
+    assert rendered["gates-total"] == "0"
+    assert rendered["cases-total"] == "0"
+
+
+def test_a_gate_failure_reaches_the_action_even_when_the_run_claims_a_pass() -> None:
+    run = _run(_gate("grounding", {"a-en": False}))
+    run["passed"] = True
+    rendered = dict(line.split("=", 1) for line in github_output_lines(build_evidence_pack(run)))
+    assert rendered["passed"] == "false"
+    assert rendered["gates-failed"] == "1"
+
+
 def test_malformed_results_do_not_crash_the_pack() -> None:
     junk: dict[str, object] = {"gates": "not a list", "target": None, "passed": "yes"}
     pack = build_evidence_pack(junk)
