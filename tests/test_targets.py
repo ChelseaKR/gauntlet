@@ -59,6 +59,20 @@ def test_callable_target() -> None:
     assert target.ask("hi", "en").text == "hi:en"
 
 
+def test_callable_target_rejects_a_response_that_is_not_a_target_response() -> None:
+    """`--callable` imports a module the operator names, so the annotation on
+    `fn` describes the contract and does not enforce it.
+
+    Unchecked, a target returning a dict reaches the first gate that touches a
+    field and fails there, as a traceback naming that gate. The operator is told
+    about `adversarial` when the fact is that their target returns the wrong
+    shape for every gate.
+    """
+    target = CallableTarget(fn=lambda p, lang: {"text": "hi"}, name="wrong")  # type: ignore[arg-type,return-value]
+    with pytest.raises(TargetProtocolError, match="not a TargetResponse"):
+        target.ask("hi", "en")
+
+
 def test_http_target_rejects_non_http_url() -> None:
     with pytest.raises(ValueError, match="must be http"):
         HttpTarget(url="ftp://example.com")

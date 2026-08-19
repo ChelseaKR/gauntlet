@@ -55,6 +55,15 @@ on its own. It exits 2 when the harness itself could not run, which is a
 different problem and is reported differently. It exits 4 when the run cannot be
 scored: see [Silence is not a pass](#silence-is-not-a-pass).
 
+An unreachable target, a target that breaks the response contract, and a target
+that raises are all exit 2, reported as a message naming the gate and case the
+run stopped on. None of them is exit 1: a run that never reached the target has
+no gate verdict, and 1 is the code that means a gate returned one. Exit 2 also
+carries a guarantee about the file: after `gauntlet run --out results.json`,
+that path holds this run's results or does not exist. It is never left holding
+an earlier run's, because the next command in the pipeline would build an
+evidence pack out of it, and a stale pack looks exactly like a fresh one.
+
 `--cases` without `--http-url` or `--callable` is an error, not a request to
 evaluate the in-repo toy. A verdict on a fictional city's demo assistant is not
 a verdict on your feature, and in CI it would be a green check on something
@@ -183,6 +192,12 @@ An excerpt from a failing run:
 
 A run with failures reads through exactly the same sections as a clean one.
 There is no path that makes a failure quieter than a pass.
+
+The verdict is counted from the gate rows the pack renders, not copied from the
+result set's own `passed` field. A pack cannot print PASS above a table that
+says a gate failed, whatever the file it was built from claims, and a pack with
+no gates in it renders `WITHHELD` rather than the pass that `all()` over an
+empty set of gates would otherwise produce.
 
 Each pack carries a `results_digest`: a sha256 over what the run observed, with
 the clock deliberately excluded. Two runs that behaved identically share a

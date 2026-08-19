@@ -25,6 +25,19 @@ def mute_toy_factory() -> Target:
     return CallableTarget(fn=toy.ask, name="callable-toy-mute")
 
 
+def unreachable_target_factory() -> Target:
+    """A target that cannot be evaluated: every case raises, as a backend would.
+
+    Not a defect the toy models. A defect makes the target answer badly, which
+    the gates catch. This one never answers, which they cannot.
+    """
+
+    def ask(prompt: str, language: str) -> TargetResponse:
+        raise RuntimeError("model backend returned 503")
+
+    return CallableTarget(fn=ask, name="callable-unreachable")
+
+
 def mute_refuser_factory() -> Target:
     """Says nothing, and reports a refusal and an escalation for everything.
 

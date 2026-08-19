@@ -253,3 +253,54 @@ def test_a_withheld_run_still_renders_every_section() -> None:
     document = render_markdown(build_evidence_pack(run))
     for section in _SECTIONS:
         assert section in document
+
+
+# ---- the verdict is counted from the gates, not copied from the run ----
+
+
+def test_the_headline_verdict_cannot_disagree_with_the_gate_table() -> None:
+    """A pack must not print PASS above a table that says a gate failed.
+
+    The verdict is recounted from the gate rows the pack renders. A result set
+    whose own ``passed`` field says otherwise -- edited by hand, merged by a
+    script, or written by something that is not this version of the harness --
+    does not get to set the headline.
+    """
+    run = _run(_gate("grounding", {"a-en": False, "b-es": True}))
+    assert run["passed"] is False
+    run["passed"] = True  # the claim the pack must not take on faith
+
+    pack = build_evidence_pack(run)
+    assert pack["passed"] is False
+    document = render_markdown(pack)
+    assert "Overall verdict: **FAIL**" in document
+    assert "Overall verdict: **PASS**" not in document
+    assert "1 of 1 gates failed" in document
+
+
+def test_a_pack_with_no_gates_withholds_its_verdict() -> None:
+    """Nothing ran, so nothing passed.
+
+    ``all(...)`` over no gates is True, which is how a run that evaluated
+    nothing acquires a green verdict. The pack treats an empty set of gates the
+    way it treats any other run it cannot score: it withholds, and says so in
+    the one line a reviewer and the action's ``passed`` output both read.
+    """
+    run = _run()
+    run["passed"] = True
+
+    pack = build_evidence_pack(run)
+    assert pack["passed"] is False
+    assert "vacuous truth" in str(pack["verdict_withheld"])
+    document = render_markdown(pack)
+    assert "Overall verdict: **WITHHELD**" in document
+    assert "Overall verdict: **PASS**" not in document
+    assert "No gate ran" in document
+
+
+def test_a_real_clean_run_still_passes() -> None:
+    # The recount must not turn a genuine pass into anything else.
+    pack = build_evidence_pack(_run(_gate("golden", {"g-en": True, "g-es": True})))
+    assert pack["passed"] is True
+    assert pack["verdict_withheld"] == ""
+    assert "Overall verdict: **PASS**" in render_markdown(pack)

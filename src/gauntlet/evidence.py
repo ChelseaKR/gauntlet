@@ -58,6 +58,12 @@ NOT_ESTABLISHED: tuple[str, ...] = (
     "red-team findings regression-tested after the humans go home.",
 )
 
+NO_GATE_RAN = (
+    "No gate ran, so there is nothing here to have passed. A pack with no gate "
+    "in it establishes nothing about the target, and an empty set of gates all "
+    "meeting their thresholds is a vacuous truth, not a verdict."
+)
+
 CLEAN_RUN_CAVEAT = (
     "A clean run is not by itself evidence that the gates work. The harness ships a "
     "deliberately breakable toy target and a paired test per gate that injects the "
@@ -146,6 +152,14 @@ def build_evidence_pack(
     unmapped = [
         _str(entry.get("gate")) for entry in gate_entries if entry.get("mapping_status") != "mapped"
     ]
+    # The verdict is counted from the gate rows this pack renders, not copied
+    # from the result set's own headline. Copying it lets a pack print PASS
+    # above a table that says a gate failed, and the two output forms would then
+    # agree with each other while both disagree with the run. A pack with no
+    # gates in it has its verdict withheld for the same reason a run the harness
+    # refuses to score does: nothing in it could have failed.
+    withheld = _str(run.get("verdict_withheld")) or (NO_GATE_RAN if not gates else "")
+    passed = bool(gates) and gates_passed == len(gates) and not withheld
     return {
         "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
         "results_schema_version": RESULTS_SCHEMA_VERSION,
@@ -158,8 +172,8 @@ def build_evidence_pack(
         # A withheld verdict is not a pass. Both are carried, so a reader of the
         # JSON can tell "the gates said no" apart from "the harness declined to
         # score this at all", and neither can be read as the other.
-        "passed": _bool(run.get("passed")) and not _str(run.get("verdict_withheld")),
-        "verdict_withheld": _str(run.get("verdict_withheld")),
+        "passed": passed,
+        "verdict_withheld": withheld,
         "totals": {
             "gates_total": len(gates),
             "gates_passed": gates_passed,
