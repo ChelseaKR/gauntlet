@@ -412,6 +412,14 @@ Milestones 1 through 4 are implemented, and `v0.1.0` is tagged. Nothing is
 published to PyPI or any other package registry: install from a checkout, and pin
 the GitHub Action to a commit SHA.
 
+That is a statement about what happened, not about what was attempted.
+`release.yml` is wired to publish the distribution `gauntlet-evals` to PyPI
+through Trusted Publishing, and it ran on the `v0.1.0` release. The upload was
+refused with `invalid-publisher`, because no pending publisher has been
+registered on PyPI for this project yet. The build half of that run succeeded;
+only the publish step failed. Until a publisher is registered and the workflow
+re-run, `pip install gauntlet-evals` installs nothing.
+
 See [SCOPE.md](SCOPE.md) for the scope and the open questions,
 [CONTRIBUTING.md](CONTRIBUTING.md) for the rules that are not negotiable, and
 [SECURITY.md](SECURITY.md) for the trust boundaries.
