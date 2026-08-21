@@ -41,7 +41,7 @@ from gauntlet.inventory import (
 from gauntlet.report import render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
-from gauntlet.targets import CallableTarget, HttpTarget, Target
+from gauntlet.targets import CallableTarget, HttpTarget, Target, TargetError
 from gauntlet.toy import ToyRag
 
 # A run the harness refuses to score. Distinct from 1 (a gate failed, which is
@@ -103,9 +103,26 @@ def _write(path: str, text: str) -> Path:
     return out_path
 
 
+def _claim_out_path(path_str: str) -> Path:
+    """Take ownership of the results path before the run starts.
+
+    After ``gauntlet run --out X``, X holds this run's results or does not
+    exist. It is never left holding an earlier run's. A run that aborts partway
+    writes nothing, and if a previous file were left in place, the next command
+    in the pipeline would build an evidence pack out of it and present a stale
+    verdict as this run's: the shape a reviewer cannot see from the pack, since
+    a stale pack looks exactly like a fresh one.
+    """
+    out_path = Path(path_str)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.unlink(missing_ok=True)
+    return out_path
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     target = _select_target(args)
     suites = _select_suites(args.cases)
+    out_path = _claim_out_path(args.out) if args.out else None
     gates = tuple(run_suite(suite, target) for suite in suites)
     scored = RunResult(target=target.name, gates=gates, started_at=now_iso())
     withheld = unscoreable_reason(scored, suites)
@@ -117,9 +134,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         started_at=scored.started_at,
         verdict_withheld=withheld,
     )
-    if args.out:
-        out_path = Path(args.out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path is not None:
         run.write_json(out_path)
     _print_run_summary(run, verdict=UNSCOREABLE_VERDICT if withheld else None)
     if withheld:
@@ -261,8 +276,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         result = args.func(args)
     # ValueError covers CaseFileError, ResultsFileError, and InventoryError;
-    # OSError covers an unreadable or unwritable path.
-    except (ValueError, OSError) as exc:
+    # OSError covers an unreadable or unwritable path; TargetError covers the
+    # target being unreachable, breaking its contract, or raising on its own.
+    # All three are the harness not completing a run, which is exit 2. None of
+    # them is a gate verdict, and none may leave by way of a traceback: exit 1
+    # from an uncaught exception is the code that means "a gate is below its
+    # threshold", and a run that never reached the target has no gate verdict
+    # to report.
+    except (ValueError, OSError, TargetError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return int(result)
