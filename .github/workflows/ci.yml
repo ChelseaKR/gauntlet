@@ -29,7 +29,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --locked
       - name: Verify (ruff, mypy strict, pytest with 90% coverage gate)
         run: make verify
       - name: Run the gates against the toy and render a report
@@ -57,7 +57,7 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Install locked environment
-        run: uv sync --frozen
+        run: uv sync --locked
       - name: Build the site and check it (html-validate, axe-core, npm audit)
         run: make pages
       - name: The site build must produce byte-identical output twice

@@ -45,7 +45,8 @@ jobs:
           python-version: "3.12"
           enable-cache: false
       # `--locked` fails when uv.lock has drifted from pyproject.toml. `--frozen`
-      # (used in ci.yml) exits 0 in that case, so a release must not rely on it.
+      # exits 0 in that case, having installed the stale set, so nothing here or
+      # in ci.yml uses it.
       - name: Install locked environment, failing on lockfile drift
         run: uv sync --locked
       - name: Verify (ruff, mypy strict, pytest with 90% coverage gate)
