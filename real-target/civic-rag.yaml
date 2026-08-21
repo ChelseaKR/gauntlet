@@ -1,0 +1,177 @@
+# Civic RAG Starter Kit — sample configuration.
+# Every value here is validated (extra keys are rejected). This is the only file an
+# adopter edits to point the kit at their own corpus, model, and languages.
+
+corpus:
+  path: examples/corpus
+  # Supported formats: .md/.markdown, .txt/.text, .html/.htm, and .pdf (the last
+  # needs the 'pdf' extra). The default glob ingests markdown only; broaden it
+  # (e.g. "**/*") to pick up the other formats — unsupported file types under the
+  # glob are skipped, not errored.
+  glob: "**/*.md"
+  default_language: en
+  # Pluggable ingestion connector — the source seam (see docs/CONNECTORS.md).
+  # "filesystem" (default) loads files under `path` matching `glob`; "agency_faq"
+  # ingests structured JSONL FAQ records (worked example in examples/agency-faq/).
+  connector: filesystem
+  # Multi-corpus routing (roadmap §3 Could-have). Leave `corpora` empty (default) for
+  # the single corpus above. When set, the kit indexes each corpus separately and
+  # routes each query to the relevant one(s) by lexical overlap with the corpus's
+  # name/description/keywords. Routing never causes a refusal: a query that matches no
+  # corpus falls back to searching all of them. See docs/MULTI-CORPUS.md.
+  # routing:
+  #   strategy: route   # "route" (match query → corpora) or "all" (always fan out)
+  #   max_corpora: 0    # cap corpora searched per query (0 = no cap)
+  # corpora:
+  #   - name: benefits
+  #     path: examples/corpus
+  #     glob: "**/*.md"
+  #     description: SNAP, Medicaid, TANF and other benefit program eligibility
+  #     keywords: [snap, medicaid, tanf, benefits, eligibility, income]
+  #   - name: housing
+  #     path: examples/housing-corpus
+  #     glob: "**/*.md"
+  #     description: Rental assistance, evictions, and housing vouchers
+  #     keywords: [rent, eviction, voucher, section 8, housing, landlord]
+
+chunk:
+  max_words: 110
+  overlap_words: 24
+
+retrieval:
+  top_k: 4
+  min_score: 0.12        # below this, the engine refuses rather than guessing
+  embedding_dim: 512
+  embedding_cache_size: 0 # bounded LRU over embeddings (0 = off); deterministic, saves recompute
+  embedding_provider: deterministic # offline hashing baseline; "bedrock" = Titan V2; "local" = pinned ONNX (FIX-06)
+  bedrock_embedding_model_id: amazon.titan-embed-text-v2:0
+  bedrock_region: us-east-1
+  # Local ONNX semantic tier (embedding_provider: local). Offline + deterministic +
+  # *semantic* — closes the paraphrase-recall ceiling of the hashing baseline without a
+  # network or AWS. Needs the 'local' extra and a downloaded, sha256-pinned MiniLM-class
+  # model; weights are never bundled. See docs/SEMANTIC-EMBEDDING.md for the fetch recipe.
+  # local_model_path: models/minilm.onnx
+  # local_tokenizer_path: models/minilm-tokenizer.json
+  # local_model_sha256: <sha256sum of the .onnx file — verified at load>
+  # local_embedding_dim: 384    # MiniLM-class output width; must match the model
+  # local_max_seq_length: 256   # inputs longer than this are truncated before embedding
+  hybrid: false          # fuse BM25 lexical + vector ranking (RRF) — better recall on exact terms
+  bm25_k1: 1.5           # BM25 term-frequency saturation
+  bm25_b: 0.75           # BM25 length normalization
+  rrf_k: 60              # Reciprocal Rank Fusion constant
+  # defer_threshold is SUPERSEDED (EXP-03): low_confidence now follows the calibrated
+  # confidence tier (low/medium/high) from the committed calibration table, not a raw
+  # cosine cutoff. The key is still accepted for backward compatibility but drives nothing.
+  # defer_threshold: 0.25
+  # Calibrated confidence tiers: optional path to a custom-fitted calibration table
+  # (weights, tier cut-points, per-tier gold-set accuracy). Omit to use the packaged
+  # default; regenerate with scripts/fit_confidence_calibration.py after eval changes.
+  # confidence_calibration: docs/audits/confidence-calibration.json
+  dedup_threshold: 0.0   # collapse near-duplicate chunks (token-set Jaccard >= this); 0 = off
+  # Civic glossary: bridge a resident's colloquial phrasing to the official program
+  # names the corpus uses, for the retrieval query only (the prompt and logs keep the
+  # original). Directional term -> aliases; omit/empty to disable.
+  # Provenance-tracked starter packs are available in examples/glossaries/; load one by copying
+  # its synonyms: section below or programmatically via yaml.safe_load(pack)["synonyms"].
+  # synonyms:
+  #   food stamps: [SNAP, EBT]
+  #   welfare: [TANF]
+  #   disability check: [SSDI, SSI]
+
+generation:
+  provider: deterministic # offline default; "bedrock" = Claude, "openai" = OpenAI-compatible, "anthropic" = native Anthropic API
+  max_sentences: 3
+  bedrock_model_id: anthropic.claude-haiku-4-5-20251001-v1:0
+  bedrock_region: us-east-1
+  # OpenAI-compatible path (set provider: openai). Works with the OpenAI API, Azure
+  # OpenAI, or any compatible endpoint (vLLM, Together, Groq, …). The API key is read
+  # from the named environment variable — never stored here.
+  # openai_base_url: https://api.openai.com/v1
+  # openai_model: gpt-4o-mini
+  # openai_api_key_env: OPENAI_API_KEY
+  # openai_input_price_per_mtok: 0.15   # used by the cost gate; match your model
+  # openai_output_price_per_mtok: 0.60
+  # Native Anthropic Messages API path (set provider: anthropic). Calls Claude
+  # directly (or via a VPC proxy); the key is read from $ANTHROPIC_API_KEY.
+  # anthropic_base_url: https://api.anthropic.com/v1
+  # anthropic_model: claude-haiku-4-5
+  # anthropic_api_key_env: ANTHROPIC_API_KEY
+  # anthropic_version: "2023-06-01"
+  # anthropic_input_price_per_mtok: 1.0
+  # anthropic_output_price_per_mtok: 5.0
+  # Transient-failure resilience for the openai/anthropic HTTP providers: retry a
+  # dropped connection or 429/5xx response with exponential backoff. 0 = off (default);
+  # a non-retryable 4xx and the final exhausted failure still fail closed to a refusal.
+  # max_retries: 2
+  # retry_backoff_seconds: 0.5
+  redact_query_pii: false # mask emails/SSNs/phones/long numbers in the query sent to the provider
+  max_cost_usd: 0.01      # per-conversation ceiling; the pipeline refuses above it
+  # Load-bearing grounding thresholds (higher = stricter grounding, more refusals):
+  support_overlap: 0.66   # citation guard: min token overlap to keep a sentence as cited
+  relevance_floor: 0.34   # offline generator: min query-overlap for a sentence to be eligible
+
+server:
+  max_question_chars: 2000 # longer questions are rejected with 400
+  session_memory: false    # reuse a request's session_id history to improve follow-up retrieval
+  session_max_turns: 3     # how many prior questions a session reuses (when session_memory is on)
+  # Optional in-process rate limiter (token bucket, keyed per client IP). Off by default:
+  # the closed-VPC topology expects rate limiting at the proxy layer (docs/THREAT-MODEL.md).
+  # Enable when running without a fronting proxy. Applies to /api/chat and /api/chat/stream
+  # only; /health and /api/disclosure are never limited. Over-limit requests get 429 + Retry-After.
+  # rate_limit_enabled: true
+  # rate_limit_requests_per_minute: 60  # refill rate per client IP
+  # rate_limit_burst: 10                # bucket capacity (short spikes allowed)
+
+language:
+  supported: [en, es]
+
+store:
+  backend: memory          # "memory" (offline default) or "pgvector"
+  index_path: var/index/sample.json
+  # Production store (set backend: pgvector). The DSN is a secret — it is read from the
+  # named environment variable at startup, never stored here. See docs/PRODUCTION.md.
+  # pgvector_dsn_env: PGVECTOR_DSN   # e.g. export PGVECTOR_DSN=postgresql://...?sslmode=require
+
+prompts:
+  system: >-
+    You are a public-sector benefits assistant. Answer only from the provided
+    sources, cite every claim, and say you don't know when the sources don't cover it.
+  refusal: >-
+    I don't have a source that answers that, so I can't say. Try rephrasing, or
+    contact your local benefits office directly.
+  disclosure: >-
+    This is an AI assistant. Answers are drawn from official sources shown as
+    citations; it cannot give legal advice or access your personal records.
+  # Per-language overrides for provider instructions and user-facing safety strings.
+  # When the answer's resolved language has an entry, it replaces the base string above;
+  # otherwise the base is used. Native-speaker review is required before deployment.
+  # system_by_lang:
+  #   es: >-
+  #     Eres un asistente del sector público. Responde solo con las fuentes
+  #     proporcionadas, cita cada afirmación y di que no sabes cuando no haya respaldo.
+  # refusal_by_lang:
+  #   es: >-
+  #     No tengo una fuente que responda eso, así que no puedo decirlo. Intente
+  #     reformular la pregunta o comuníquese directamente con la oficina.
+  # disclosure_by_lang:
+  #   es: >-
+  #     Este es un asistente de IA. Las respuestas provienen de fuentes oficiales
+  #     citadas; no puede dar asesoría legal ni acceder a sus registros personales.
+
+observability:
+  detect_injection: false  # log PII-free `injection_attempt` events (surfaced in log-stats)
+
+audit:
+  enabled: false          # PII-free audit trail (one JSON line per query; metadata only)
+  path: var/audit/audit.jsonl
+  retention_days: 0       # drop records older than N days at startup/prune; 0 = keep forever
+
+handoff:
+  # Human-handoff hook: where a consent-gated handoff record is dispatched after
+  # POST /api/handoff builds it (the record is always returned in the response too).
+  #   none — no dispatch; the caller pulls the record from the API response (default).
+  #   file — append the record as one JSON line to file_path (offline reference hook;
+  #          a caseworker tool tails the file). Real destinations (ticket queue, inbox,
+  #          bus) are adopter-implemented behind the HandoffSink protocol.
+  sink: none
+  file_path: var/handoff/handoff.jsonl

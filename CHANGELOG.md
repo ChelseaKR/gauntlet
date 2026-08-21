@@ -4,6 +4,28 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **The first run against a real system (#9).** Every result gauntlet had ever
+  produced ran against the in-repo toy or examples shaped by the same person
+  who wrote the harness. `real-target/` runs a purpose-written, bilingual suite
+  against the real `RagPipeline` from `civic-rag-starter-kit`, a sibling
+  repository in this portfolio, adapted through the `--callable` seam and
+  vendored in as plain-text source (the minimal module closure the pipeline
+  touches, not a compiled artifact) and a corpus (`real-target/PROVENANCE.md`),
+  with no network call and no model API key anywhere in the path. The run is committed
+  (`real-target/results.json`, `evidence.md`, `evidence.json`), re-run on a
+  schedule by `.github/workflows/real-target.yml` with the job failing on any
+  digest drift, and written up in `docs/real-target-findings.md`, whose tables
+  are re-derived from the committed run by `tests/test_real_target_evidence.py`.
+  The verdict is a real FAIL: a genuine cross-language answer-completeness gap,
+  a real retrieval recall gap on a naturally phrased question, and a target
+  contract field (`escalated`) the sibling system has no way to honestly
+  populate. It also found that the adversarial suite's clean 24/24 pass is
+  real but structurally guaranteed by an extractive generator's bounded output
+  space, not earned through injection-resistant instruction-following, which
+  is weaker evidence than the number alone suggests.
+
 ### Fixed
 
 - **A run that never reached the target no longer reports as one that did.** An

@@ -149,6 +149,34 @@ those defects removes the answer itself, and every gate is demonstrated failing
 against it, so no gate can be passed by a target that says nothing. CI runs those
 demonstrations on every push. A reviewer can run them too, which is the point.
 
+## The first real run
+
+Every result above, and every built-in suite, runs against the in-repo toy: a
+target written by the same person who wrote the harness, to be evaluated by
+it. [`real-target/`](real-target/) runs a purpose-written suite against a
+system that did not co-evolve with gauntlet's contract: the real,
+production-shaped `RagPipeline` from `civic-rag-starter-kit`, a sibling
+repository in this portfolio, adapted through the `--callable` seam and
+vendored in ([`real-target/PROVENANCE.md`](real-target/PROVENANCE.md) says
+exactly how and why). The run is committed
+([`real-target/results.json`](real-target/results.json),
+[`real-target/evidence.md`](real-target/evidence.md),
+[`real-target/evidence.json`](real-target/evidence.json)), re-run on a
+schedule by [`.github/workflows/real-target.yml`](.github/workflows/real-target.yml),
+and written up in [`docs/real-target-findings.md`](docs/real-target-findings.md),
+whose every number is re-derived from the committed run by
+[`tests/test_real_target_evidence.py`](tests/test_real_target_evidence.py).
+
+The run's overall verdict is FAIL: 3 of 5 gates found something real,
+including a genuine cross-language answer-completeness gap, a real retrieval
+recall gap on a naturally phrased question, and a target contract field
+(`escalated`) the sibling system has no way to honestly populate. The write-up
+also reports where a gate's clean pass is weaker evidence than it looks: the
+adversarial suite's 24/24 is real, but structurally guaranteed by an
+extractive generator's bounded output space rather than earned through
+injection-resistant instruction-following. That distinction, not the pass
+rate, is the finding.
+
 ## The evidence pack
 
 `gauntlet report` produces one versioned structure in two forms. The JSON is the

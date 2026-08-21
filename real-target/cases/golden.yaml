@@ -1,0 +1,31 @@
+suite: real-golden
+gate: golden
+key_version: 1
+version: 1
+threshold: 1.0
+cases:
+  # Answers pinned verbatim from a real run against the vendored corpus
+  # (deterministic hashing embedder + extractive generator, so identical
+  # input reliably reproduces identical output). Any wording change here is
+  # real drift in the sibling engine or its vendored corpus, not the
+  # harness. English and Spanish as peers.
+  - id: rgold-en-benefit-amount
+    language: en
+    prompt: How much does a household of one receive in benefits each month?
+    expected: "A household of one may receive up to $300 per month. Benefit Amounts and How You Receive Them Your benefits are added to your EBT card on the same day each month, based on the last digit of your case number. Benefits are loaded onto an Electronic Benefits Transfer (EBT) card each month."
+  - id: rgold-en-report-window
+    language: en
+    prompt: How many days do I have to report a change in my household?
+    expected: "You must report changes within 10 days of the change. Changes you must report include a change in household income, a change of address, and a change in the number of people living in your household. You can report a change online or by calling the benefits office."
+  - id: rgold-en-processing-time
+    language: en
+    prompt: How long does the program have to process my application?
+    expected: "Applications are processed within 30 days of submission. The program never charges a fee to apply for benefits or to get help with your application."
+  - id: rgold-es-monto-beneficio
+    language: es
+    prompt: ¿Cuánto puede recibir un hogar de una persona por mes?
+    expected: "Un hogar de una persona puede recibir hasta $300 por mes. Montos de Beneficios y Cómo los Recibe Esta página explica cuánto puede recibir del Programa de Beneficios Comunitarios y cómo se entregan los beneficios."
+  - id: rgold-es-plazo-informar
+    language: es
+    prompt: ¿Dentro de cuántos días debo informar un cambio en mi hogar?
+    expected: "Debe informar los cambios dentro de los 10 días posteriores al cambio."

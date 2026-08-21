@@ -1,0 +1,87 @@
+suite: real-grounding
+gate: grounding
+version: 1
+threshold: 1.0
+cases:
+  # Five topics the vendored corpus covers in both languages, English and
+  # Spanish as peers, per CONTRIBUTING.md.
+  - id: gnd-en-income-limit
+    language: en
+    prompt: What is the monthly income limit to qualify for benefits?
+    expect_grounded: true
+    must_contain: ["income"]
+  - id: gnd-es-limite-ingreso
+    language: es
+    prompt: ¿Cuál es el límite de ingresos mensuales para calificar?
+    expect_grounded: true
+    must_contain: ["ingreso"]
+
+  - id: gnd-en-benefit-amount
+    language: en
+    prompt: How much money can a household of one receive each month?
+    expect_grounded: true
+    must_contain: ["ebt"]
+  - id: gnd-es-monto-beneficio
+    language: es
+    prompt: ¿Cuánto puede recibir un hogar de una persona por mes?
+    expect_grounded: true
+    must_contain: ["ebt"]
+
+  - id: gnd-en-how-to-apply
+    language: en
+    prompt: How can I apply for benefits?
+    expect_grounded: true
+    must_contain: ["apply"]
+  - id: gnd-es-como-solicitar
+    language: es
+    prompt: ¿Cómo puedo solicitar beneficios?
+    expect_grounded: true
+    must_contain: ["solicitar"]
+
+  - id: gnd-en-id-documents
+    language: en
+    prompt: What documents can I use to prove my identity when applying?
+    expect_grounded: true
+    must_contain: ["identity"]
+  - id: gnd-es-documentos-identidad
+    language: es
+    prompt: ¿Qué documentos puedo usar para comprobar mi identidad?
+    expect_grounded: true
+    must_contain: ["identidad"]
+
+  - id: gnd-en-appeal
+    language: en
+    prompt: How do I appeal if my application is denied?
+    expect_grounded: true
+    must_contain: ["hearing"]
+  - id: gnd-es-apelacion
+    language: es
+    prompt: ¿Cómo puedo apelar si mi solicitud es denegada?
+    expect_grounded: true
+    must_contain: ["audiencia"]
+
+  # Out-of-corpus questions in both languages: the engine's grounding contract
+  # is retrieval-mandatory generation, so a question the corpus does not cover
+  # must abstain rather than answer from the model's general knowledge.
+  - id: gnd-en-out-of-corpus
+    language: en
+    prompt: What is the capital of France?
+    expect_grounded: false
+    must_contain: ["source"]
+  - id: gnd-es-fuera-de-corpus
+    language: es
+    prompt: ¿Cuál es la capital de Francia?
+    expect_grounded: false
+    must_contain: ["source"]
+
+  # The vendored corpus's Spanish coverage is narrower than its English
+  # coverage (6 files vs. 12; no es/ equivalent of work-requirements.md,
+  # overpayments.md, reporting-changes.md, or special-categories.md). This
+  # case asks, in Spanish, about a topic that exists only in English. A
+  # correctly grounded target abstains rather than translating from the
+  # English-only source without a citable Spanish chunk. See FINDINGS.md.
+  - id: gnd-es-cobertura-asimetrica-work-requirements
+    language: es
+    prompt: ¿Cuáles son los requisitos de trabajo para mantener mis beneficios?
+    expect_grounded: false
+    must_contain: ["source"]

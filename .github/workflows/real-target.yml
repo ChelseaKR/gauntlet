@@ -1,0 +1,71 @@
+# Re-runs the real-target suite (issue #9, docs/real-target-findings.md) against a
+# freshly built index over the vendored corpus, and fails the job if the run's
+# results_digest drifts from the one committed in real-target/evidence.json. That
+# digest is a sha256 over what the run observed, excluding the clock, so an
+# unrelated cause (Python/dependency drift, an accidental change to the vendored
+# source or corpus, a real behavior change in the pipeline) cannot pass silently.
+#
+# Scheduled and on-demand only, not on pull_request: the run's own verdict is FAIL
+# by design (see docs/real-target-findings.md, "Headline"), and that is not
+# something a PR to this repository's own code should be blocked on. What this
+# workflow guards is reproducibility of the finding, not the finding's pass rate.
+name: real-target
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Monday 06:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  rerun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.29"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked environment, plus the vendored real target
+        run: uv sync --extra real-target --locked
+      - name: Re-run the suite against a freshly built index
+        working-directory: real-target
+        run: |
+          set -euo pipefail
+          uv run --project .. gauntlet run --cases cases --callable target:make_target \
+            --out /tmp/fresh-results.json || true
+          uv run --project .. gauntlet report /tmp/fresh-results.json \
+            --out /tmp/fresh-evidence.md
+          uv run --project .. gauntlet report /tmp/fresh-results.json --format json \
+            --out /tmp/fresh-evidence.json
+      - name: The fresh run must reproduce the committed digest
+        working-directory: real-target
+        run: |
+          set -euo pipefail
+          python3 -c "
+          import json, sys
+          committed = json.load(open('evidence.json'))['results_digest']
+          fresh = json.load(open('/tmp/fresh-evidence.json'))['results_digest']
+          print(f'committed digest: {committed}')
+          print(f'fresh digest:     {fresh}')
+          if committed != fresh:
+              print('DIGEST MISMATCH: the real target no longer reproduces the committed evidence.')
+              print('Either the vendored source/corpus changed without regenerating the evidence,')
+              print('or the pipeline genuinely behaves differently now. See PROVENANCE.md.')
+              sys.exit(1)
+          print('Reproduced: the committed evidence pack still matches a live run.')
+          "
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: real-target-fresh-run
+          path: |
+            /tmp/fresh-results.json
+            /tmp/fresh-evidence.md
+            /tmp/fresh-evidence.json

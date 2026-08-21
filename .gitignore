@@ -20,3 +20,7 @@ gauntlet-evidence.json
 # The documentation site is a build artifact, rendered by `make site`.
 site/
 node_modules/
+
+# The real target's index is rebuilt every run from the vendored corpus
+# (content-addressed chunk ids, so it is reproducible, not authoritative).
+real-target/var/

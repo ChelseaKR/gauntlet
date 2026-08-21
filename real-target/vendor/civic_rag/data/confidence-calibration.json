@@ -1,0 +1,14 @@
+{
+  "best_score_weight": 0.7,
+  "citation_coverage_weight": 0.1,
+  "guard_survival_weight": 0.1,
+  "high_accuracy": 1.0,
+  "high_cutpoint": 0.5595,
+  "low_accuracy": 0.0,
+  "medium_accuracy": 1.0,
+  "medium_cutpoint": 0.3107,
+  "n_high": 22,
+  "n_low": 1,
+  "n_medium": 21,
+  "score_margin_weight": 0.1
+}

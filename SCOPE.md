@@ -99,9 +99,12 @@ product. This repo makes it reusable and inspectable.
 | **M2, core gates plus toy target** | Grounding, adversarial (EN/ES), refusal, false-positive guard, golden-answer; the breakable RAG toy; every gate demonstrated failing | 4 to 5 days |
 | **M3, evidence pack** | `gauntlet report`: JSON + human document with the M1 mapping applied; drift between runs | 2 to 3 days |
 | **M4, publication polish** | GitHub Action, docs, README with claim rules, bilingual case coverage stated as coverage (counts, not vibes) | 2 to 3 days |
+| **M5, a real target (post-publication, issue #9)** | A purpose-written suite run against `civic-rag-starter-kit`'s real `RagPipeline`, vendored in and adapted through `--callable`; the run committed, re-run on a schedule, and written up in `docs/real-target-findings.md` | 1 day |
 
-Roughly two weeks part-time. All four milestones are implemented. The
-publication decision, and any renaming, sits with the owner.
+Roughly two weeks part-time for M1 through M4. All five milestones are
+implemented. The publication decision, and any renaming, sits with the owner.
+M5 was added after publication, closing the gap its own issue named: every
+milestone through M4 had only ever been demonstrated against the in-repo toy.
 
 ## Claim rules (carried from the author's standing discipline)
 
