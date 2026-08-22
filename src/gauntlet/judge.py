@@ -218,7 +218,7 @@ class RecordingJudge:
             for line in self.replay_path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     entry = json.loads(line)
-                    self._replay[str(entry["key"])] = entry
+                    self._replay[str(entry["request_hash"])] = entry
             models = sorted({str(entry.get("model", "")) for entry in self._replay.values()})
             self.model = "replayed:" + ", ".join(model for model in models if model)
         elif self.inner is not None:
@@ -245,7 +245,7 @@ class RecordingJudge:
                 handle.write(
                     json.dumps(
                         {
-                            "key": key,
+                            "request_hash": key,
                             "model": self.inner.model,
                             "rubric": request.rubric,
                             "language": request.language,

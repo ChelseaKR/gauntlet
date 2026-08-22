@@ -450,7 +450,7 @@ def test_recording_judge_writes_and_replays_verdicts(tmp_path: Path) -> None:
     assert recorder.recorded == 2
     entries = [json.loads(line) for line in log.read_text().splitlines()]
     assert entries[0]["model"] == "inner-model"
-    assert entries[0]["key"] == first.key()
+    assert entries[0]["request_hash"] == first.key()
     replayer = RecordingJudge(replay_path=log)
     assert replayer.model == "replayed:inner-model"
     assert replayer.grade(second) == VIOLATES
@@ -605,7 +605,9 @@ def test_recording_judge_passes_through_without_a_log_and_skips_blank_lines(
     request = JudgeRequest(rubric=RUBRIC, prompt="p", response="r", language="en")
     log.write_text(
         "\n"
-        + json.dumps({"key": request.key(), "model": "m", "verdict": "violates", "rationale": ""})
+        + json.dumps(
+            {"request_hash": request.key(), "model": "m", "verdict": "violates", "rationale": ""}
+        )
         + "\n\n"
     )
     replayer = RecordingJudge(replay_path=log)
