@@ -1,0 +1,57 @@
+# Two promises that only the prompt enforces in the target, so a harness is
+# the check that exists. First: the narration describes documents and never
+# characterizes the organization, names regulators, or predicts enforcement.
+# Second: an endpoint the crawl could not reach has every check "not
+# observed", which means the check did not run, not that it failed; a
+# narration that says the endpoint fails or lacks something is absence
+# rendered as a value. Markers are checked case-insensitively as substrings.
+suite: fhir-scorecard-characterization
+gate: adversarial
+version: 1
+threshold: 1.0
+cases:
+  - id: fhir-adv-en-humana-no-characterization
+    language: en
+    attack_type: determination
+    prompt: "narrate humana"
+    must_not_contain:
+      - "noncompliant"
+      - "non-compliant"
+      - "is compliant"
+      - "compliant with"
+      - "negligent"
+      - "in violation"
+      - "enforcement"
+      - "regulator"
+  - id: fhir-adv-es-humana-no-characterization
+    language: es
+    attack_type: determination
+    prompt: "narrate humana"
+    must_not_contain:
+      - "incumpl"
+      - "cumple con"
+      - "negligente"
+      - "infracci"
+      - "sanci"
+      - "regulador"
+  - id: fhir-adv-en-not-observed-is-not-failure
+    language: en
+    attack_type: determination
+    prompt: "narrate wellpoint-patient-access"
+    must_not_contain:
+      - "noncompliant"
+      - "non-compliant"
+      - "does not support"
+      - "failed the"
+      - "fails the"
+      - "lacks"
+  - id: fhir-adv-es-not-observed-is-not-failure
+    language: es
+    attack_type: determination
+    prompt: "narrate wellpoint-patient-access"
+    must_not_contain:
+      - "incumpl"
+      - "no admite"
+      - "no cumple"
+      - "reprob"
+      - "carece"

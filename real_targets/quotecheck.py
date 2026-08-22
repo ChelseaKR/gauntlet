@@ -10,13 +10,22 @@ digits, which is deliberately at least as strict as any target's.
 
 Three outcomes, and only the first two are verdicts about the target:
 ``verified`` (found), ``not_found`` (fetched, not found), and ``unverifiable``
-(the document could not be fetched, or is a binary the checker does not read).
-An unverifiable quote is reported as such and never counted either way.
+(the document could not be fetched or read). An unverifiable quote is
+reported as such and never counted either way.
+
+Fetching uses the standard library first. Two operator tools are used when
+present, and their use is recorded in the provenance: ``curl`` when Python's
+TLS verification cannot build a certificate chain the system trust store can
+(some state sites omit an intermediate certificate), and ``pdftotext`` for
+PDF documents, which the standard library does not read.
 """
 
 from __future__ import annotations
 
 import re
+import shutil
+import ssl
+import subprocess
 import unicodedata
 import urllib.error
 import urllib.request
@@ -50,6 +59,17 @@ class QuoteCheck:
     note: str = ""
 
 
+def _is_pdf(raw: bytes, content_type: str) -> bool:
+    return "pdf" in content_type.lower() or raw[:5] == b"%PDF-"
+
+
+def _decode(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("latin-1")
+
+
 class DocumentCache:
     """Fetch each URL once per run and remember the outcome."""
 
@@ -59,41 +79,93 @@ class DocumentCache:
         self._documents: dict[str, str | None] = {}
         self._notes: dict[str, str] = {}
         self.fetches = 0
+        self.tools_used: set[str] = set()
 
     def text_for(self, url: str) -> tuple[str | None, str]:
         if url in self._documents:
             return self._documents[url], self._notes.get(url, "")
-        text, note = self._fetch(url)
+        text, note = self._load(url)
         self._documents[url] = text
         self._notes[url] = note
         return text, note
 
-    def _fetch(self, url: str) -> tuple[str | None, str]:
+    def _load(self, url: str) -> tuple[str | None, str]:
         if url.startswith("file://"):
             path = Path(url.removeprefix("file://"))
             try:
-                return normalize(strip_markup(path.read_text(encoding="utf-8"))), ""
+                raw = path.read_bytes()
             except OSError as exc:
                 return None, f"local copy unreadable: {exc}"
+            return self._extract(raw, "application/pdf" if raw[:5] == b"%PDF-" else "text/html")
         if not url.startswith(("http://", "https://")):
             return None, "not an http(s) url"
         self.fetches += 1
+        fetched, content_type, note = self._fetch(url)
+        if fetched is None:
+            return None, note
+        if len(fetched) > self._max_bytes:
+            return None, "document larger than the checker reads"
+        text, extraction_note = self._extract(fetched, content_type)
+        return text, "; ".join(part for part in (note, extraction_note) if part)
+
+    def _fetch(self, url: str) -> tuple[bytes | None, str, str]:
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
         try:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
-                content_type = response.headers.get("Content-Type", "")
-                raw = response.read(self._max_bytes + 1)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            return None, f"fetch failed: {exc}"
-        if len(raw) > self._max_bytes:
-            return None, "document larger than the checker reads"
-        if "pdf" in content_type.lower() or raw[:5] == b"%PDF-":
-            return None, "document is a PDF, which the checker does not read"
-        try:
-            decoded = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            decoded = raw.decode("latin-1")
-        return normalize(strip_markup(decoded)), ""
+                return (
+                    response.read(self._max_bytes + 1),
+                    response.headers.get("Content-Type", ""),
+                    "",
+                )
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, ssl.SSLError):
+                return self._fetch_with_curl(url, str(exc.reason))
+            return None, "", f"fetch failed: {exc}"
+        except (TimeoutError, OSError) as exc:
+            return None, "", f"fetch failed: {exc}"
+
+    def _fetch_with_curl(self, url: str, reason: str) -> tuple[bytes | None, str, str]:
+        curl = shutil.which("curl")
+        if curl is None:
+            return None, "", f"fetch failed: {reason}; curl not available"
+        completed = subprocess.run(  # noqa: S603
+            [
+                curl,
+                "--silent",
+                "--show-error",
+                "--location",
+                "--max-time",
+                str(int(self._timeout)),
+                "--max-filesize",
+                str(self._max_bytes),
+                "--user-agent",
+                USER_AGENT,
+                "--write-out",
+                "\n%{content_type}",
+                url,
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            return None, "", f"fetch failed: {reason}; curl: {completed.stderr.decode().strip()}"
+        body, _, content_type = completed.stdout.rpartition(b"\n")
+        self.tools_used.add("curl")
+        return body, content_type.decode(errors="replace"), "fetched with curl (system trust store)"
+
+    def _extract(self, raw: bytes, content_type: str) -> tuple[str | None, str]:
+        if not _is_pdf(raw, content_type):
+            return normalize(strip_markup(_decode(raw))), ""
+        pdftotext = shutil.which("pdftotext")
+        if pdftotext is None:
+            return None, "document is a PDF and pdftotext is not available"
+        completed = subprocess.run(  # noqa: S603
+            [pdftotext, "-", "-"], input=raw, capture_output=True, check=False
+        )
+        if completed.returncode != 0:
+            return None, f"pdftotext failed: {completed.stderr.decode(errors='replace').strip()}"
+        self.tools_used.add("pdftotext")
+        return normalize(_decode(completed.stdout)), "text extracted with pdftotext"
 
     def check(self, url: str, quote: str) -> QuoteCheck:
         needle = normalize(quote)
@@ -103,15 +175,23 @@ class DocumentCache:
         if haystack is None:
             return QuoteCheck(url, quote, "unverifiable", note)
         if needle in haystack:
-            return QuoteCheck(url, quote, "verified")
+            return QuoteCheck(url, quote, "verified", note)
         return QuoteCheck(url, quote, "not_found", "quote does not occur in the fetched document")
 
 
-def tally(checks: list[QuoteCheck]) -> dict[str, str]:
+def tally(checks: list[QuoteCheck], cache: DocumentCache | None = None) -> dict[str, str]:
     """Counts for the provenance block, as strings."""
-    return {
+    counts = {
         "quotes_checked": str(len(checks)),
         "quotes_verified": str(sum(1 for check in checks if check.status == "verified")),
         "quotes_not_found": str(sum(1 for check in checks if check.status == "not_found")),
         "quotes_unverifiable": str(sum(1 for check in checks if check.status == "unverifiable")),
     }
+    if cache is not None:
+        counts["quote_check_tools"] = ", ".join(sorted(cache.tools_used)) or "standard library only"
+        unverifiable_notes = sorted(
+            {check.note for check in checks if check.status == "unverifiable"}
+        )
+        if unverifiable_notes:
+            counts["quotes_unverifiable_reasons"] = " | ".join(unverifiable_notes)
+    return counts

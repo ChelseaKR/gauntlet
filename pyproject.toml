@@ -60,6 +60,13 @@ python_version = "3.12"
 strict = true
 files = ["src", "tests", "examples", "real_targets"]
 
+# The real-target adapters import packages installed from public repositories
+# into a separate virtual environment; the harness's own environment does not
+# carry them, and their absence is reported by the adapter at run time.
+[[tool.mypy.overrides]]
+module = ["mrf_honest.*", "fhir_scorecard.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "8"
 testpaths = ["tests"]

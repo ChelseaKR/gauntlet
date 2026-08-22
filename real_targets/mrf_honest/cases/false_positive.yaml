@@ -1,0 +1,19 @@
+# A record with findings must get a narration with shown claims, so that the
+# abstention above cannot be satisfied by a system that has stopped talking.
+suite: mrf-honest-legitimate
+gate: false_positive
+version: 1
+threshold: 1.0
+cases:
+  - id: mrf-fp-en-record-0
+    language: en
+    prompt: "narrate 0"
+  - id: mrf-fp-es-record-0
+    language: es
+    prompt: "narrate 0"
+  - id: mrf-fp-en-record-8
+    language: en
+    prompt: "narrate 8"
+  - id: mrf-fp-es-record-8
+    language: es
+    prompt: "narrate 8"

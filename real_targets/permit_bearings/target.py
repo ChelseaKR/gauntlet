@@ -40,9 +40,11 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from gauntlet.targets import TargetError, TargetResponse
 from real_targets.quotecheck import DocumentCache, QuoteCheck, tally
+from real_targets.rawlog import RawLog
 
 DEFAULT_URL = "https://tb4ekoqybhbxbrbn447ln5ad3e0arlwx.lambda-url.us-west-2.on.aws"
 # The service's per-client window is six requests a minute. Eleven seconds
@@ -101,6 +103,7 @@ class PermitBearingsTarget:
     _observed_models: set[str] = field(default_factory=set)
     _observations: list[Observation] = field(default_factory=list)
     _documents: DocumentCache = field(default_factory=DocumentCache)
+    raw_log: RawLog = field(default_factory=RawLog)
 
     # -- the target contract -------------------------------------------------
 
@@ -138,7 +141,8 @@ class PermitBearingsTarget:
             "withheld_claims_total": str(sum(item.withheld_count for item in self._observations)),
             "documents_fetched_for_quote_checks": str(self._documents.fetches),
         }
-        provenance.update(tally(checks))
+        provenance.update(tally(checks, self._documents))
+        provenance.update(self.raw_log.provenance())
         return provenance
 
     # -- endpoints -----------------------------------------------------------
@@ -271,6 +275,11 @@ class PermitBearingsTarget:
     # -- transport -----------------------------------------------------------
 
     def health(self) -> dict[str, object]:
+        if self._health is None and self.raw_log.replaying:
+            recorded = self.raw_log.lookup("GET /health")
+            if recorded is None:
+                raise TargetError("replaying, and the recording has no /health entry")
+            self._health = dict(recorded["payload"])
         if self._health is None:
             request = urllib.request.Request(  # noqa: S310
                 self.base_url + "/health", headers={"Accept": "application/json"}
@@ -283,6 +292,9 @@ class PermitBearingsTarget:
             if not isinstance(payload, dict):
                 raise TargetError("permit-bearings /health did not return an object")
             self._health = payload
+            self.raw_log.record(
+                "GET /health", {"path": "/health", "status": 200, "payload": payload}
+            )
         return self._health
 
     def _post(
@@ -290,9 +302,9 @@ class PermitBearingsTarget:
     ) -> dict[str, object]:
         self.health()
         key = json.dumps({"path": path, "body": body}, sort_keys=True)
-        if key in self._memo:
-            self._observations.append(Observation(prompt, language, path, 200))
-            return self._memo[key]
+        known = self._known_response(key, path, prompt, language)
+        if known is not None:
+            return known
         if self.requests_made >= self.max_requests:
             raise TargetError(
                 f"per-run ceiling of {self.max_requests} metered requests reached; "
@@ -313,6 +325,7 @@ class PermitBearingsTarget:
         except json.JSONDecodeError as exc:
             raise TargetError(f"{path} returned invalid JSON (status {status})") from exc
         self._observations.append(Observation(prompt, language, path, status))
+        self.raw_log.record(key, {"path": path, "body": body, "status": status, "payload": payload})
         if status == 429:
             self.rate_limited += 1
             raise TargetError(
@@ -328,6 +341,25 @@ class PermitBearingsTarget:
             self._observed_models.add(model)
         self._memo[key] = payload
         return payload
+
+    def _known_response(
+        self, key: str, path: str, prompt: str, language: str
+    ) -> dict[str, object] | None:
+        """A response already held for this request: memoized this run, or replayed."""
+        if key in self._memo:
+            self._observations.append(Observation(prompt, language, path, 200))
+            return self._memo[key]
+        recorded = self.raw_log.lookup(key)
+        if recorded is not None:
+            payload = recorded["payload"]
+            if not isinstance(payload, dict):
+                raise TargetError(f"replay entry for {path} is not an object")
+            self._observations.append(Observation(prompt, language, path, int(recorded["status"])))
+            self._memo[key] = payload
+            return payload
+        if self.raw_log.replaying:
+            raise TargetError(f"replaying, and the recording has no entry for {path} {key}")
+        return None
 
     def _send(self, request: urllib.request.Request) -> tuple[int, bytes]:
         try:
@@ -349,7 +381,9 @@ def make_target() -> PermitBearingsTarget:
     """The factory ``gauntlet run --callable`` imports.
 
     Environment overrides: ``PERMIT_BEARINGS_URL``, ``PERMIT_BEARINGS_MAX_REQUESTS``,
-    ``PERMIT_BEARINGS_MIN_INTERVAL`` (seconds).
+    ``PERMIT_BEARINGS_MIN_INTERVAL`` (seconds), ``PERMIT_BEARINGS_RAW_LOG`` (record
+    every raw response to this JSON Lines file), ``PERMIT_BEARINGS_REPLAY`` (answer
+    from that file instead of the network; no budget is spent).
     """
     return PermitBearingsTarget(
         base_url=os.environ.get("PERMIT_BEARINGS_URL", DEFAULT_URL).rstrip("/"),
@@ -357,4 +391,12 @@ def make_target() -> PermitBearingsTarget:
         min_interval=float(
             os.environ.get("PERMIT_BEARINGS_MIN_INTERVAL", DEFAULT_MIN_INTERVAL_SECONDS)
         ),
+        raw_log=RawLog(
+            write_path=_path_or_none(os.environ.get("PERMIT_BEARINGS_RAW_LOG")),
+            replay_path=_path_or_none(os.environ.get("PERMIT_BEARINGS_REPLAY")),
+        ),
     )
+
+
+def _path_or_none(value: str | None) -> Path | None:
+    return Path(value) if value else None
