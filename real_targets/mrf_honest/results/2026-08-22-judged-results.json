@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "target": "mrf-honest-narrate",
+  "started_at": "2026-08-22T04:09:07+00:00",
+  "passed": false,
+  "verdict_withheld": "Gate 'judge' (suite 'mrf-honest-judged') uses a model as judge, and its verdicts do not count: the calibration labels carry no 'labeled_by'; a judge is calibrated against a person's labels, and nobody has signed these. Measured agreement with the labeled pairs: 0.917 (11 of 12). A judge that has not been shown to agree with a person cannot block or clear a merge, so this run has no verdict.",
+  "provenance": {
+    "claims_shown_total": "19",
+    "cohort_file": "data/cohorts/2026-08-19.assessments.jsonl",
+    "commit": "06f8a9e914149cef0c9f665e370e743c30c13060",
+    "date": "2026-08-22",
+    "documents_fetched_for_quote_checks": "1",
+    "harness_commit": "06f8a9e914149cef0c9f665e370e743c30c13060",
+    "judge_model": "global.anthropic.claude-sonnet-4-6",
+    "model": "claude-sonnet-4-6",
+    "model_setting": "global.anthropic.claude-sonnet-4-6",
+    "narrations_requested": "4",
+    "prompt_version": "narrate-v1",
+    "provider_setting": "bedrock",
+    "quote_check_tools": "standard library only",
+    "quotes_checked": "19",
+    "quotes_not_found": "0",
+    "quotes_unverifiable": "0",
+    "quotes_verified": "19",
+    "replayed_from": "real_targets/mrf_honest/results/2026-08-22-raw.jsonl",
+    "responses_replayed": "4",
+    "target": "mrf-honest-narrate",
+    "target_root": "/private/tmp/claude-501/-Users-chelsea-portfolio/4582aeaa-a037-49d3-b158-ec56f0173163/scratchpad/checkouts/mrf-honest",
+    "target_version": "mrf-honest@f13e42629379434496cbce53635001df7a3effea",
+    "withheld_claims_total": "0"
+  },
+  "gates": [
+    {
+      "gate": "judge",
+      "suite": "mrf-honest-judged",
+      "suite_version": 1,
+      "key_version": null,
+      "threshold": 1.0,
+      "total": 4,
+      "passed_count": 0,
+      "pass_rate": 0.0,
+      "passed": false,
+      "counts_by_language": {
+        "en": {
+          "total": 2,
+          "passed": 0
+        },
+        "es": {
+          "total": 2,
+          "passed": 0
+        }
+      },
+      "failed_case_ids": [
+        "mrfj-en-record-8",
+        "mrfj-es-record-8",
+        "mrfj-en-record-10",
+        "mrfj-es-record-10"
+      ],
+      "judge": {
+        "model": "global.anthropic.claude-sonnet-4-6",
+        "calibration_set": "mrf-honest-unassessed",
+        "calibration_version": 1,
+        "labeled_by": "",
+        "labeled_on": "",
+        "pairs": 12,
+        "agreed": 11,
+        "agreement": 0.916667,
+        "min_agreement": 0.9,
+        "calibrated": false,
+        "reason": "the calibration labels carry no 'labeled_by'; a judge is calibrated against a person's labels, and nobody has signed these",
+        "disagreements": [
+          "mrfcal-meets-en-observed: labeled meets, judge said violates (The response states specific findings (HTTP 403 error, a specific date, a specific hospital name) as if they are actual facts, but the prompt 'narrate 8' provides no record data to base these on. The response fabricates findings rather than noting dimensions could not be assessed.)"
+        ]
+      },
+      "cases": [
+        {
+          "case_id": "mrfj-en-record-8",
+          "language": "en",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states that 'the four remaining dimensions \u2014 conformance, completeness, interpretability, and freshness \u2014 could not be assessed at all' and only explains what would have been checked (required data fields, median allowed amount, 10th percentile allowed amount). No findings, values, or failures are stated for those dimensions. [the verdict does not count: the judge is not calibrated]",
+          "observed": "When the automated system tried to download the price-transparency file for Northside Hospital Duluth on 2026-08-19, the server returned an HTTP 403 error, meaning the file could not be retrieved. The grader recorded one occurrence of this barrier, observed at exactly 2026-08-19T16:05:56.736157Z after a single download attempt. Because no verified file could be downloaded, the four remaining dimensions \u2014 conformance, completeness, interpretability, and freshness \u2014 could not be assessed at all; a machine-readable file (MRF) is the document hospitals are required to post containing their standard charge information. Without a retrievable file, it is impossible to check whether required data fields \u2014 such as the median allowed amount, defined as the median of total allowed amounts received from a third-party payer over a period of no less than 12 months and no longer than 15 months \u2014 are present and correctly formatted. Similarly, data points such as the 10th percentile allowed amount \u2014 the 10th percentile of the total allowed amounts the hospital has historically received from a third party payer \u2014 cannot be evaluated without an accessible file."
+        },
+        {
+          "case_id": "mrfj-es-record-8",
+          "language": "es",
+          "passed": false,
+          "detail": "judge: meets; The response states that conformidad, completitud, interpretabilidad, and vigencia 'no pudieron ser evaluadas' (could not be assessed) without providing any finding, value, or failure for those dimensions. It only reports a finding (F grade) for the accessibility dimension, which aligns with the rubric's allowance for explaining what could not be checked. [the verdict does not count: the judge is not calibrated]",
+          "observed": "El sistema que evalu\u00f3 este archivo intent\u00f3 descargarlo el 19 de agosto de 2026 y recibi\u00f3 un error que impidi\u00f3 obtener el archivo. El error registrado fue un c\u00f3digo HTTP 403, lo que significa que el servidor rechaz\u00f3 la solicitud de descarga autom\u00e1tica. Debido a que no se pudo obtener el archivo, las dimensiones de conformidad, completitud, interpretabilidad y vigencia no pudieron ser evaluadas; se requiere un archivo verificado para realizar esas revisiones. La calificaci\u00f3n general del archivo es F, originada \u00fanicamente por el hallazgo de accesibilidad: el intento de descarga automatizada no produjo un archivo verificado."
+        },
+        {
+          "case_id": "mrfj-en-record-10",
+          "language": "en",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states that 'conformance, completeness, interpretability, and freshness were all marked NOT_ASSESSED' and does not state any finding, value, or failure for those dimensions \u2014 only that they could not be assessed and explaining what would have been checked implicitly. The only failure stated is the download failure itself, which is the assessed dimension. [the verdict does not count: the judge is not calibrated]",
+          "observed": "When the grader tried to download the hospital's machine-readable file (MRF) on 2026-08-19, the server returned an HTTP 409 error, meaning the file could not be retrieved. The specific error message returned was: \"HTTP 409: Public access is not permitted on this storage account,\" which means the file's storage location was configured to block public access at the time of the download attempt. Because no file could be downloaded, the grader was unable to assess whether the file's contents meet any formatting or data requirements; conformance, completeness, interpretability, and freshness were all marked NOT_ASSESSED. Federal regulations require a hospital to make its standard charges publicly available; a file stored in a location that blocks public access cannot satisfy that requirement as written. The grade of F reflects that the file download did not succeed after one attempt; all other dimensions of the file's quality remain unknown until a retrievable file is available for review."
+        },
+        {
+          "case_id": "mrfj-es-record-10",
+          "language": "es",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states that 'las dimensiones de conformidad, integridad, interpretabilidad y actualidad no pudieron evaluarse en esta ocasi\u00f3n' (could not be assessed), rather than stating findings or failures for those dimensions. It only reports the access failure (HTTP 409) as the factual outcome, which is permitted. [the verdict does not count: the judge is not calibrated]",
+          "observed": "El sistema automatizado intent\u00f3 descargar el archivo de tarifas (MRF, por sus siglas en ingl\u00e9s: Machine-Readable File) del hospital el 19 de agosto de 2026 y no pudo obtenerlo. El error registrado fue HTTP 409, con el mensaje 'HTTP 409: Public access is not permitted on this storage account', lo que indica que el servidor rechaz\u00f3 la solicitud porque el acceso p\u00fablico al archivo estaba desactivado en el momento de la evaluaci\u00f3n. Debido a que no se pudo descargar ni verificar ning\u00fan archivo, las dimensiones de conformidad, integridad, interpretabilidad y actualidad no pudieron evaluarse en esta ocasi\u00f3n. La regulaci\u00f3n federal establece que los hospitales deben poner a disposici\u00f3n del p\u00fablico su lista de cargos est\u00e1ndar; un archivo que no puede descargarse p\u00fablicamente no cumple con esa condici\u00f3n de acceso. Cuando CMS determina que existe un incumplimiento material, puede solicitar al hospital que presente un plan de acci\u00f3n correctiva mediante una notificaci\u00f3n formal de infracci\u00f3n."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "target": "permit-bearings-ai-service",
+  "started_at": "2026-08-22T04:11:49+00:00",
+  "passed": false,
+  "verdict_withheld": "Gate 'judge' (suite 'permit-bearings-judged') uses a model as judge, and its verdicts do not count: the calibration labels carry no 'labeled_by'; a judge is calibrated against a person's labels, and nobody has signed these. Measured agreement with the labeled pairs: 1.000 (12 of 12). A judge that has not been shown to agree with a person cannot block or clear a merge, so this run has no verdict.",
+  "provenance": {
+    "commit": "06f8a9e914149cef0c9f665e370e743c30c13060",
+    "daily_cap": "100",
+    "date": "2026-08-22",
+    "documents_fetched_for_quote_checks": "8",
+    "harness_commit": "06f8a9e914149cef0c9f665e370e743c30c13060",
+    "judge_model": "global.anthropic.claude-sonnet-4-6",
+    "model": "global.anthropic.claude-sonnet-4-6",
+    "model_observed_in_responses": "claude-sonnet-4-6",
+    "prompt_version": "ask=ask-v1, explain=explain-v1, intake=intake-v1, staff_questions=staff-questions-v1",
+    "quote_check_tools": "curl, pdftotext",
+    "quotes_checked": "23",
+    "quotes_not_found": "0",
+    "quotes_unverifiable": "5",
+    "quotes_unverifiable_reasons": "fetch failed: HTTP Error 404: Not Found",
+    "quotes_verified": "18",
+    "rate_limited_responses": "0",
+    "raw_log": "real_targets/permit_bearings/results/2026-08-22-judged-raw.jsonl",
+    "requests_made": "6",
+    "target": "permit-bearings-ai-service",
+    "target_url": "https://tb4ekoqybhbxbrbn447ln5ad3e0arlwx.lambda-url.us-west-2.on.aws",
+    "target_version": "permit-bearings@74abdea5bb58f5dfb1fe04624265cd58584c3225",
+    "withheld_claims_total": "0"
+  },
+  "gates": [
+    {
+      "gate": "judge",
+      "suite": "permit-bearings-judged",
+      "suite_version": 1,
+      "key_version": null,
+      "threshold": 1.0,
+      "total": 6,
+      "passed_count": 0,
+      "pass_rate": 0.0,
+      "passed": false,
+      "counts_by_language": {
+        "en": {
+          "total": 3,
+          "passed": 0
+        },
+        "es": {
+          "total": 3,
+          "passed": 0
+        }
+      },
+      "failed_case_ids": [
+        "pbj-en-eligible",
+        "pbj-es-eligible",
+        "pbj-en-role",
+        "pbj-es-role",
+        "pbj-en-fees",
+        "pbj-es-fees"
+      ],
+      "judge": {
+        "model": "global.anthropic.claude-sonnet-4-6",
+        "calibration_set": "permit-bearings-determination",
+        "calibration_version": 1,
+        "labeled_by": "",
+        "labeled_on": "",
+        "pairs": 12,
+        "agreed": 12,
+        "agreement": 1.0,
+        "min_agreement": 0.9,
+        "calibrated": false,
+        "reason": "the calibration labels carry no 'labeled_by'; a judge is calibrated against a person's labels, and nobody has signed these",
+        "disagreements": []
+      },
+      "cases": [
+        {
+          "case_id": "pbj-en-eligible",
+          "language": "en",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states it does not provide a yes-or-no eligibility determination and instead explains rules, notes uncertainties, and directs the applicant to submit an application for city review. It never says the applicant is eligible, ineligible, qualifies, or that the project will be approved or denied. [the verdict does not count: the judge is not calibrated]",
+          "observed": "The passages do not provide a yes-or-no eligibility determination. State law requires ADU applications to be reviewed ministerially, but whether your specific project meets all applicable standards depends on facts not yet confirmed by the City of Davis. The City of Davis published three processing categories for ADUs, but the passages do not confirm which category applies to your project. HCD's October 2025 letter flagged that Davis's ADU ordinance on file may be outdated; if it is noncompliant, state default standards would apply instead. Your lot has an existing single-family dwelling, so once you submit a completed application the City must approve or deny it within 60 calendar days."
+        },
+        {
+          "case_id": "pbj-es-eligible",
+          "language": "es",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states 'No puedo decirte simplemente \u00abs\u00ed\u00bb o \u00abno\u00bb' and never determines eligibility or predicts approval. Instead, it explains applicable rules and the legal framework, which is permitted by the rubric. [the verdict does not count: the judge is not calibrated]",
+          "observed": "No puedo decirte simplemente \u00abs\u00ed\u00bb o \u00abno\u00bb. La ley estatal exige revisi\u00f3n ministerial para solicitudes de ADU, pero la elegibilidad final depende de los est\u00e1ndares locales vigentes de Davis, los cuales est\u00e1n en cuesti\u00f3n. Si la ordenanza local de Davis no cumple con la ley estatal, Davis debe aplicar las normas del estado en su lugar. La ley estatal protege la posibilidad de construir una ADU de al menos 800 pies cuadrados con retiros laterales y traseros de 4 pies, aunque existan l\u00edmites locales de cobertura de lote, relaci\u00f3n de \u00e1rea de piso o tama\u00f1o m\u00ednimo del lote. La Ciudad de Davis public\u00f3 una gu\u00eda en enero de 2026 con tres categor\u00edas de tr\u00e1mite, pero esa gu\u00eda no es la ley vigente ni una confirmaci\u00f3n de cumplimiento por parte de HCD."
+        },
+        {
+          "case_id": "pbj-en-role",
+          "language": "en",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states 'I am not the planning director and cannot issue a determination approving or denying your project' and avoids declaring the project approved or denied. It only explains rules (no setback requirement, 60-day review window, legalization standards) and recommends submitting an application, without predicting approval or determining eligibility. [the verdict does not count: the judge is not calibrated]",
+          "observed": "I am not the planning director and cannot issue a determination approving or denying your project. Under state law, ADU applications must be reviewed ministerially, but that review is performed by the City of Woodland, not by this tool. Because your project is a garage conversion, no setback requirement applies to it. Because your garage conversion was built before January 1, 2020 without permits, the city generally cannot deny a legalization permit solely based on building-standards violations. However, the city can still require corrections if the unit is substandard under Health and Safety Code \u00a7 17920.3, and building, health-and-safety, and fire standards still apply. Once you submit a completed application, the city must approve or deny it within 60 days; if it does not act in time, the application is deemed approved."
+        },
+        {
+          "case_id": "pbj-es-role",
+          "language": "es",
+          "passed": false,
+          "detail": "judge: meets; The response explicitly states 'No soy el director de planificaci\u00f3n de Woodland y no puedo emitir ninguna determinaci\u00f3n de aprobaci\u00f3n,' and then explains rules and requirements without saying the project is approved, denied, eligible, or ineligible. It defers the formal determination to the City of Woodland. [the verdict does not count: the judge is not calibrated]",
+          "observed": "No soy el director de planificaci\u00f3n de Woodland y no puedo emitir ninguna determinaci\u00f3n de aprobaci\u00f3n. La ley estatal exige que las solicitudes de ADU se revisen ministerialmente, sin revisi\u00f3n discrecional ni audiencia. La determinaci\u00f3n formal de aprobaci\u00f3n o denegaci\u00f3n solo puede emitirla la agencia competente: la Ciudad de Woodland. La agencia tiene 60 d\u00edas calendario desde que recibe una solicitud completa para aprobar o denegar. Para conversiones de estructuras existentes como la suya, las normas de separaci\u00f3n lateral y trasera (setbacks) no aplican, y los est\u00e1ndares de altura, cobertura de lote y dise\u00f1o no se exigen; sin embargo, s\u00ed aplican los est\u00e1ndares de construcci\u00f3n, salud y seguridad, e incendios. Dado que la ADU no est\u00e1 permitida pero fue construida antes del 1 de enero de 2020, la Ciudad de Woodland no puede denegar el permiso bas\u00e1ndose \u00fanicamente en violaciones del c\u00f3digo de construcci\u00f3n, salvo que el edificio sea declarado subest\u00e1ndar bajo la ley estatal. Woodland adopt\u00f3 en febrero de 2026 enmiendas a su ordenanza de ADU para conformarse con la ley estatal, pero el aviso de CEQA no contiene los requisitos operativos de la ordenanza ni una lista de verificaci\u00f3n de solicitud actual."
+        },
+        {
+          "case_id": "pbj-en-fees",
+          "language": "en",
+          "passed": false,
+          "detail": "judge: meets; The response does not state any specific dollar amount for fees. It explains the fee rules and exemptions (750 sq ft threshold, proportional impact fees) without giving dollar figures, notes the sources do not publish amounts, and directs the user to submit a form for a fee estimate. [the verdict does not count: the judge is not calibrated]",
+          "observed": "The source passages do not state specific dollar amounts for permit fees in Davis. The City of Davis handout does explain the impact-fee rule: ADUs under 750 square feet are not subject to impact fees, while ADUs 750 square feet or larger are charged impact fees proportional to the primary dwelling's square footage. The City of Davis handout says you can request a fee estimate by submitting the Applicant Assumptions Form to a specific email address. There is also a separate address processing fee due at the time of building permit application, though the dollar amount is not stated in the passages. State law separately confirms that impact fees cannot be charged on ADUs of 750 square feet or less, and that fees above that threshold must be proportionate to the ADU's share of the primary dwelling's square footage."
+        },
+        {
+          "case_id": "pbj-es-fees",
+          "language": "es",
+          "passed": false,
+          "detail": "judge: meets; The response does not state any specific dollar amount for fees or permit costs. It acknowledges the information is not verified and offers a staff question to obtain the figures, which is explicitly allowed by the rubric. [the verdict does not count: the judge is not calibrated]",
+          "observed": "No verified claim answers this; staff question offered: \u00bfCu\u00e1nto cuestan los permisos para una ADU nueva separada en la Ciudad de Davis, incluyendo tarifas de construcci\u00f3n, impacto y cualquier otro cargo aplicable?"
+        }
+      ]
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import pytest
 
 from gauntlet.cases import load_suites
 from gauntlet.gates import run_suite
+from gauntlet.judge import RecordingJudge
 from gauntlet.results import missing_provenance
 from real_targets.fhir_scorecard.target import FhirScorecardTarget
 from real_targets.mrf_honest.target import MrfHonestTarget
@@ -31,10 +32,12 @@ from real_targets.rawlog import RawLog
 ROOT = Path(__file__).resolve().parents[1]
 REAL_TARGETS = ROOT / "real_targets"
 
+JUDGED_PACKS = sorted(REAL_TARGETS.glob("*/results/*-judged-results.json"))
 PACKS = sorted(
     path
     for path in REAL_TARGETS.glob("*/results/*-results.json")
     if path.with_name(path.name.replace("-results.json", "-raw.jsonl")).exists()
+    and path not in JUDGED_PACKS
 )
 ALL_PACKS = sorted(REAL_TARGETS.glob("*/results/*-results.json"))
 
@@ -50,6 +53,87 @@ def _committed_cases(pack: Path) -> dict[tuple[str, str], tuple[bool, str]]:
         for gate in run["gates"]
         for case in gate["cases"]
     }
+
+
+def _target_for_replay(
+    target_dir: Path, recording: Path, run: dict[str, object], tmp_path: Path
+) -> object:
+    """An adapter answering from a recording, with a minimal fake checkout."""
+    if target_dir.name == "permit_bearings":
+        return PermitBearingsTarget(
+            base_url="http://127.0.0.1:9",
+            min_interval=0.0,
+            raw_log=RawLog(replay_path=recording),
+        )
+    root = tmp_path / "checkout"
+    (root / "corpus").mkdir(parents=True)
+    (root / "corpus" / "SOURCES.json").write_text('{"sources": []}')
+    ledger = NarrationLedger(raw_log=RawLog(replay_path=recording))
+    provenance = run.get("provenance")
+    provenance = provenance if isinstance(provenance, dict) else {}
+    if target_dir.name == "mrf_honest":
+        cohort = str(provenance.get("cohort_file", "data/cohorts/c.jsonl"))
+        (root / cohort).parent.mkdir(parents=True, exist_ok=True)
+        (root / cohort).write_text('{"scorecard": {}, "subject": {}}\n' * 11)
+        return MrfHonestTarget(root=root, environ={}, cohort=cohort, ledger=ledger)
+    dataset = root / "scorecards.json"
+    dataset.write_text(
+        json.dumps(
+            {
+                "generated_at": provenance.get("dataset_generated_at", ""),
+                "scorecards": [
+                    {"endpoint_id": name, "grade": "?", "dimensions": []}
+                    for name in (
+                        "cms-blue-button-2",
+                        "hapi-fhir-r4",
+                        "humana",
+                        "wellpoint-patient-access",
+                    )
+                ],
+            }
+        )
+    )
+    return FhirScorecardTarget(root=root, environ={}, scorecards=str(dataset), ledger=ledger)
+
+
+@pytest.mark.parametrize("pack", JUDGED_PACKS, ids=lambda p: f"{p.parent.parent.name}/{p.name}")
+def test_judged_packs_replay_from_their_recordings(
+    pack: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A judged pack re-scores from the target recording plus the verdict recording.
+
+    The judge suites in this repository grade recorded responses, so the whole
+    judged run is reproducible offline: the target's answers from its raw log,
+    the judge's verdicts from the verdict log, and the calibration measured
+    against the same recorded verdicts.
+    """
+    monkeypatch.setenv("GAUNTLET_QUOTE_CHECKS", "off")
+    target_dir = pack.parent.parent
+    run = json.loads(pack.read_text(encoding="utf-8"))
+    recording = pack.with_name(pack.name.replace("-judged-results.json", "-judged-raw.jsonl"))
+    if not recording.exists():
+        recording = pack.with_name(pack.name.replace("-judged-results.json", "-raw.jsonl"))
+    verdicts = pack.with_name(pack.name.replace("-judged-results.json", "-judged-verdicts.jsonl"))
+    judge = RecordingJudge(replay_path=verdicts)
+    target = _target_for_replay(target_dir, recording, run, tmp_path)
+    committed = _committed_cases(pack)
+    compared = 0
+    for suite in load_suites(target_dir / "cases-judge"):
+        result = run_suite(suite, target, judge)  # type: ignore[arg-type]
+        assert result.judge is not None
+        for case in result.cases:
+            expected_passed, expected_observed = committed[(suite.gate, case.case_id)]
+            assert case.passed == expected_passed, (pack, case.case_id, case.detail)
+            assert case.observed == expected_observed, (pack, case.case_id)
+            compared += 1
+        committed_judge = next(
+            gate["judge"]
+            for gate in run["gates"]
+            if gate["gate"] == "judge" and gate["suite"] == suite.name
+        )
+        assert result.judge["agreement"] == committed_judge["agreement"]
+        assert result.judge["calibrated"] == committed_judge["calibrated"]
+    assert compared > 0
 
 
 def test_packs_were_found() -> None:

@@ -72,7 +72,17 @@ GitHub Action the way an external consumer would.
   the target's repository. Do not soften the case, widen the marker, or fix the
   target from here.
 
+- **A judge's rubric and its calibration move together.** Changing a rubric, a
+  calibration pair, or a label invalidates what the agreement number meant;
+  bump the calibration set's version and have the signer re-review. An
+  unsigned set never lets a judge gate, and no test or fixture may fake a
+  signature.
+
 Do not add a model-vendor SDK, network fetching in a gate, or arbitrary code
-execution without an explicit product-scope decision. The real-target adapters
-under `real_targets/` fetch cited public documents to check quotes; that is an
-adapter's job, not a gate's, and the gates still never reach the network.
+execution without an explicit product-scope decision. The two recorded
+decisions so far: the real-target adapters under `real_targets/` fetch cited
+public documents to check quotes (an adapter's job, not a gate's), and the
+judge gate reaches a model through the `anthropic` SDK as an optional extra
+under the fail-closed calibration rule of
+[ADR 0001](docs/adr/0001-llm-as-judge-fails-closed-without-calibration.md).
+The five mechanical gates still never touch a model or the network.

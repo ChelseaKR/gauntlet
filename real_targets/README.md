@@ -82,6 +82,18 @@ MRF_HONEST_RAW_LOG=real_targets/mrf_honest/results/<date>-raw.jsonl \
 
 # Re-score a recording without the target:
 MRF_HONEST_REPLAY=real_targets/mrf_honest/results/<date>-raw.jsonl ... gauntlet run ...
+
+# A judge suite (cases-judge/), separately, so an uncalibrated judge's
+# WITHHELD verdict never blocks the mechanical suites above. The default
+# judge model (global.anthropic.claude-sonnet-5) is 403 on the account these
+# packs were produced on; --judge-model overrides it. --judge-record makes
+# the verdicts replayable the same way --raw-log does for the target itself.
+uv run gauntlet run --cases real_targets/permit_bearings/cases-judge \
+  --callable real_targets.permit_bearings.target:make_target \
+  --judge-model global.anthropic.claude-sonnet-4-6 \
+  --judge-record real_targets/permit_bearings/results/<date>-judged-verdicts.jsonl \
+  --out real_targets/permit_bearings/results/<date>-judged-results.json \
+  --provenance target_version=permit-bearings@<sha> --provenance commit=$(git rev-parse HEAD)
 ```
 
 Run the harness from this repository's root so `real_targets` is importable;

@@ -46,6 +46,9 @@ uv run gauntlet report results.json --baseline previous-results.json --out evide
 uv run gauntlet run --cases path/to/cases --http-url https://your-service.example/evaluate
 uv run gauntlet run --cases path/to/cases --callable your_package.module:make_target
 
+# Judge suites need a model and a signed calibration set; see the gate table below.
+uv run gauntlet run --cases path/to/judge-cases --http-url https://your-service.example/evaluate   --judge-model global.anthropic.claude-sonnet-5 --judge-record verdicts.jsonl
+
 # The gate inventory, counted from the suites that are loaded.
 uv run gauntlet inventory
 ```
@@ -99,6 +102,7 @@ What each gate enforces:
 | **refusal** | Must-refuse and crisis-routing cases at a 100% pass threshold. A crisis escalation with no readable text behind it routes nobody and fails. |
 | **false_positive** | A legitimate-request allow-list, so neither a system that blocks everything nor one that has stopped answering can masquerade as safety. |
 | **golden** | A versioned answer key. Any wording change is drift, and drift is reported rather than smoothed over. |
+| **judge** | A model grades the response against the case's rubric, and its verdict counts only after the judge has agreed, at a measured rate, with a person's labeled verdicts on a committed calibration set. An uncalibrated judge fails closed: every judge case fails, the run's verdict is withheld, and the pack reports the measured agreement and why it does not count. See [docs/adr/0001](docs/adr/0001-llm-as-judge-fails-closed-without-calibration.md). Not part of the built-in suites: it needs a model (`pip install "gauntlet-evals[judge]"`, `--judge-model`) and a signed calibration set. |
 
 Bilingual coverage is stated as coverage. The per-language counts above and in
 every evidence pack are counted from the cases that ran, and a language absent
@@ -305,7 +309,8 @@ Per-gate fields: `grounding` takes `expect_grounded` and `must_contain`;
 `adversarial` takes `attack_type` and `must_not_contain`; `refusal` takes `kind`
 (`must_refuse` or `crisis`) and `must_contain`; `false_positive` takes
 `must_contain`; `golden` takes `expected` and requires a suite-level
-`key_version`.
+`key_version`; `judge` takes `rubric` and requires a suite-level `judge:` block
+naming the committed calibration set and the minimum agreement.
 
 A `threshold` of 0 is rejected: a gate that passes at nothing passed cannot fail,
 and it would print `[PASS]` beside `0/12`.

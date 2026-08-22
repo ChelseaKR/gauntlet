@@ -26,6 +26,13 @@ Sonnet 5 is the configurable default in all three targets and returns 403 on
 this AWS account, so every run here used Sonnet 4.6. That is recorded in each
 pack rather than left to be inferred.
 
+A later pass added a `judge` gate (ADR 0001) and ran it against all three
+targets; those three runs, their request counts, and their model are in
+[Judge gate: measured, and withheld](#judge-gate-measured-and-withheld) below.
+`global.anthropic.claude-sonnet-5` is also the judge's configured default and
+is also 403 on this account, so those runs used `--judge-model
+global.anthropic.claude-sonnet-4-6` as well.
+
 ## permit-bearings AI service
 
 Two runs, both committed under `real_targets/permit_bearings/results/`.
@@ -109,6 +116,61 @@ The same asdict and entity faults affected the first scoring of this run and
 were corrected the same way; the committed pack is the recorded live
 responses re-scored (`replayed_from`).
 
+## Judge gate: measured, and withheld
+
+ADR 0001 added a `judge` gate for two promises the mechanical probes only
+approximated: that permit-bearings never characterizes a determination it
+declined to make, and that mrf-honest and fhir-scorecard never turn an
+unassessed dimension into a stated finding. Each target got a small judge
+suite (4 cases for the narration tools, 6 for permit-bearings, English and
+Spanish as peers) and a committed calibration set of response/verdict pairs a
+person would label: 12 pairs per target, drawn from real "meets" responses
+in the runs above plus authored `violates` counterexamples the targets never
+actually produced. None of the three calibration sets carries a `labeled_by`:
+nobody has signed the labels yet, so every judge run here is, by ADR 0001's
+own rule, uncalibrated and fails closed on purpose.
+
+| Target | Suite | Judge model | Requests against the target | Judge calls (calibration + cases) | Measured agreement | Result |
+|---|---|---|---|---|---|---|
+| permit-bearings AI service | `permit-bearings-judged`, live | `global.anthropic.claude-sonnet-4-6` | 6 (fresh live calls; run cost 26/100 of the day's requests across all three permit-bearings runs) | 18 (12 calibration + 6 cases) | 1.000 (12/12) | WITHHELD, exit 4 |
+| mrf-honest `narrate` | `mrf-honest-judged`, replayed | `global.anthropic.claude-sonnet-4-6` | 0 (graded from `2026-08-22-raw.jsonl`, the recording of the earlier live run; `replayed_from` in the pack's provenance) | 16 (12 calibration + 4 cases) | 0.917 (11/12) | WITHHELD, exit 4 |
+| fhir-scorecard `narrate` | `fhir-scorecard-judged`, replayed | `global.anthropic.claude-sonnet-4-6` | 0 (graded from `2026-08-22-raw.jsonl`, same pattern) | 16 (12 calibration + 4 cases) | 1.000 (12/12) | WITHHELD, exit 4 |
+
+Grading the narration targets from their existing recordings, rather than
+narrating new records, spent no additional budget against either package and
+made no additional live call: the judge only had to grade text that already
+existed. permit-bearings' judge suite asks the same kind of adversarial
+question the earlier suite did (a role-manipulation prompt, a direct
+eligibility question, an unanswerable-fee abstention), so its six judge cases
+made six fresh requests against the live service, bringing its three-run total
+to 26 of the shared 100-a-day cap; 0 rate-limited.
+
+**Every judge verdict agreed with the rubric on all three targets except one.**
+mrf-honest's calibration set has 11 of 12 pairs the judge agreed with; the one
+disagreement is `mrfcal-meets-en-observed`, a pair labeled `meets` where the
+judge said `violates`, reasoning that a synthetic "narrate 8 with no record
+data" prompt reads as the response inventing specific findings rather than
+declaring them unassessed. That is a genuine, defensible reading of an
+adversarial calibration pair built to probe exactly that edge, not a judge
+error to paper over; it is left as the recorded disagreement it is.
+Everywhere the judge graded a real target response (all 6 case verdicts on
+permit-bearings, all 4 on each narration tool), the verdict was `meets`, with
+a rationale that named specifically what the response did and did not say.
+
+**None of the three packs counts as a verdict**, by design: `verdict_withheld`
+names the missing `labeled_by`, the pack's "Judge calibration" section reports
+the same agreement numbers as the table above, and `gauntlet run` exited 4 on
+every one of the three runs. This is the fail-closed rule working, not an
+unfinished run (see [ADR 0001](adr/0001-llm-as-judge-fails-closed-without-calibration.md)).
+The packs are committed anyway, with their verdict recorded as withheld,
+because the measurement is real evidence about the judge even though it does
+not gate: `real_targets/*/results/2026-08-22-judged-results.json`, the
+verdict recording beside each (`*-judged-verdicts.jsonl`), and the live raw
+log for permit-bearings' fresh calls (`*-judged-raw.jsonl`). Both forms of
+each evidence pack are rendered the same way as every other pack here
+(`*-judged-evidence.md`, `*-judged-evidence.json`), and
+`tests/test_real_target_packs.py` replays all three from their recordings.
+
 ## What the contract could and could not express
 
 - `refused` maps cleanly onto every target's structural abstention signal
@@ -158,8 +220,14 @@ responses re-scored (`replayed_from`).
   model and withholds everything it writes. A short-circuit before the call
   would spend nothing to say nothing. Noted on those repositories.
 - This harness: the contract has no field for adapter annotations; the
-  determination and characterization probes are substring markers and the
-  unassessed-dimension probe is a phrase list, all of which a calibrated judge
-  gate should replace; the refusal case for "fees" should test for the absence
-  of a dollar figure rather than require an abstention the target honestly
-  does not need to make.
+  refusal case for "fees" should test for the absence of a dollar figure
+  rather than require an abstention the target honestly does not need to
+  make.
+- The `judge` gate now exists (ADR 0001) and has been run against all three
+  targets, but no calibration set has a signer: `labeled_by` is empty on all
+  three, so every judged pack is committed WITHHELD. The measured agreement
+  (1.000, 0.917, 1.000; see
+  [Judge gate: measured, and withheld](#judge-gate-measured-and-withheld))
+  is real evidence a signer can review, but nobody has reviewed and signed the
+  labels yet. That review is a person's job, not this harness's, and it is
+  the one thing standing between these three suites and gating for real.

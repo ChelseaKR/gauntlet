@@ -6,6 +6,21 @@ All notable changes will be documented here.
 
 ### Added
 
+- **The `judge` gate: a model grades against a rubric, after calibration.** A
+  judge suite names a committed calibration set of response/verdict pairs a
+  person labeled and a minimum agreement; the judge is measured against it
+  before any of its verdicts count. An uncalibrated judge fails closed: it
+  still grades for the record, but every judge case fails, the run's verdict
+  is withheld (exit 4), and the pack's new "Judge calibration" section
+  reports the model, the signer, the measured agreement, and each
+  disagreement. The judge is the public `anthropic` SDK's Bedrock client, an
+  optional extra (`gauntlet-evals[judge]`), configured by `--judge-model` /
+  `GAUNTLET_JUDGE_MODEL`; `--judge-record` and `--judge-replay` make judge
+  verdicts recordable and replayable like every other real-target artifact.
+  ADR 0001 records the decision and the fail-closed rule. Judged suites and
+  unsigned calibration sets are committed for all three real targets; their
+  packs render WITHHELD until a person signs the labels.
+
 - **Real targets.** `real_targets/` holds adapters, suites, and committed
   result packs for three systems that were not built to be run by Gauntlet:
   the permit-bearings AI service (a live public HTTP endpoint), and the
