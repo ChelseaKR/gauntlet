@@ -1,0 +1,25 @@
+title = "gauntlet gitleaks config"
+
+# Extends gitleaks' built-in default rule set; nothing below removes or
+# weakens a default rule globally.
+[extend]
+useDefault = true
+
+# real_targets/**/results/ holds committed evidence packs from judged eval
+# runs against real targets (ADR 0001). Those packs legitimately record
+# high-entropy hex strings that are not credentials:
+#   - request_hash: a sha256 hash of a JudgeRequest, used as a replay key
+#   - results_digest: a sha256 digest of a results file, excluding the clock
+#   - commit / harness_commit: full git commit SHAs
+# The generic-api-key rule pattern-matches on a field name like "key" sitting
+# next to a high-entropy string, which is exactly what request_hash used to
+# be called (see commit renaming "key" -> "request_hash"). There is no
+# sk-ant-*, AKIA*, PEM block, or key/token/secret assignment anywhere in this
+# repo; this allowlist is scoped to only the results directories, not the
+# whole tree, so a real credential landing anywhere else still trips
+# gitleaks.
+[allowlist]
+description = "eval-pack provenance hashes/digests/commit SHAs under real_targets/**/results/"
+paths = [
+  '''real_targets/.+/results/.+''',
+]
