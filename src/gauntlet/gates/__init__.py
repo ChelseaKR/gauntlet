@@ -7,6 +7,8 @@ their evaluators.
 
 from gauntlet.gates.base import (
     EVALUATORS,
+    judge_withheld_reason,
+    run_judge_suite,
     run_suite,
     scores_capability,
     unreadable_case_ids,
@@ -15,6 +17,8 @@ from gauntlet.gates.base import (
 
 __all__ = [
     "EVALUATORS",
+    "judge_withheld_reason",
+    "run_judge_suite",
     "run_suite",
     "scores_capability",
     "unreadable_case_ids",

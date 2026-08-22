@@ -25,19 +25,21 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from gauntlet.cases import Suite, builtin_suites, load_suites
 from gauntlet.evidence import build_evidence_pack, github_output_lines
-from gauntlet.gates import run_suite, unscoreable_reason
+from gauntlet.gates import judge_withheld_reason, run_suite, unscoreable_reason
 from gauntlet.inventory import (
     BEGIN_MARKER,
     build_inventory,
     render_inventory_markdown,
     update_marked_block,
 )
+from gauntlet.judge import DEFAULT_JUDGE_REGION, BedrockJudge, Judge, JudgeError, RecordingJudge
 from gauntlet.report import render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
@@ -93,7 +95,7 @@ def _parse_provenance(pairs: Sequence[str] | None) -> dict[str, str]:
 
 
 def _assemble_provenance(
-    target: Target, started_at: str, flags: Sequence[str] | None
+    target: Target, started_at: str, flags: Sequence[str] | None, judge: Judge | None = None
 ) -> dict[str, str]:
     """Target-reported provenance, then the operator's flags on top.
 
@@ -105,6 +107,8 @@ def _assemble_provenance(
     provenance = target_provenance(target)
     provenance.setdefault("target", target.name)
     provenance.setdefault("date", started_at[:10])
+    if judge is not None:
+        provenance.setdefault("judge_model", judge.model)
     provenance.update(_parse_provenance(flags))
     return provenance
 
@@ -159,13 +163,38 @@ def _claim_out_path(path_str: str) -> Path:
     return out_path
 
 
+def _select_judge(args: argparse.Namespace) -> Judge | None:
+    """The judge a judge suite will use, or None when none was configured.
+
+    A replay recording makes a judge on its own: the verdicts it holds are the
+    recorded model's. Otherwise a model name, from the flag or the environment,
+    names a Bedrock judge, optionally wrapped to record its verdicts. Nothing
+    here contacts the model; the first grade does.
+    """
+    replay = getattr(args, "judge_replay", None)
+    record = getattr(args, "judge_record", None)
+    model = getattr(args, "judge_model", None) or os.environ.get("GAUNTLET_JUDGE_MODEL", "")
+    if replay:
+        return RecordingJudge(replay_path=Path(replay))
+    if not model:
+        return None
+    region = getattr(args, "judge_region", None) or os.environ.get(
+        "AWS_REGION", DEFAULT_JUDGE_REGION
+    )
+    inner = BedrockJudge(model=model, region=region)
+    if record:
+        return RecordingJudge(inner=inner, write_path=Path(record))
+    return inner
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     target = _select_target(args)
     suites = _select_suites(args.cases)
+    judge = _select_judge(args)
     out_path = _claim_out_path(args.out) if args.out else None
-    gates = tuple(run_suite(suite, target) for suite in suites)
+    gates = tuple(run_suite(suite, target, judge) for suite in suites)
     scored = RunResult(target=target.name, gates=gates, started_at=now_iso())
-    withheld = unscoreable_reason(scored, suites)
+    withheld = unscoreable_reason(scored, suites) or judge_withheld_reason(scored)
     # The reason travels with the results file, so a pack rendered from it
     # later cannot report a verdict this run declined to reach. Provenance is
     # read after the run so the target's counters are final.
@@ -174,7 +203,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         gates=scored.gates,
         started_at=scored.started_at,
         verdict_withheld=withheld,
-        provenance=_assemble_provenance(target, scored.started_at, args.provenance),
+        provenance=_assemble_provenance(target, scored.started_at, args.provenance, judge),
     )
     if out_path is not None:
         run.write_json(out_path)
@@ -259,6 +288,22 @@ def _add_run_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     run_parser.add_argument("--callable", help="evaluate a Python target 'module:factory'")
     run_parser.add_argument("--out", help="write the results JSON to this path")
     run_parser.add_argument(
+        "--judge-model",
+        help="Bedrock model id for judge suites (default: GAUNTLET_JUDGE_MODEL from the "
+        "environment); without one, a judge suite's verdicts do not count and the run has "
+        "no verdict",
+    )
+    run_parser.add_argument(
+        "--judge-region", help="AWS region for the judge (default: AWS_REGION or us-west-2)"
+    )
+    run_parser.add_argument(
+        "--judge-record", help="write every judge verdict to this JSON Lines file"
+    )
+    run_parser.add_argument(
+        "--judge-replay",
+        help="take judge verdicts from this recording instead of a model; no model is called",
+    )
+    run_parser.add_argument(
         "--provenance",
         action="append",
         metavar="KEY=VALUE",
@@ -332,7 +377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # from an uncaught exception is the code that means "a gate is below its
     # threshold", and a run that never reached the target has no gate verdict
     # to report.
-    except (ValueError, OSError, TargetError) as exc:
+    except (ValueError, OSError, TargetError, JudgeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return int(result)

@@ -181,6 +181,49 @@ def _what_was_tested(lines: list[str], gates: list[dict[str, object]]) -> None:
     lines.append("")
 
 
+def _judge_calibration(lines: list[str], pack: dict[str, object]) -> None:
+    judged = [gate for gate in _dicts(pack.get("gates")) if isinstance(gate.get("judge"), dict)]
+    if not judged:
+        return
+    lines.append("## Judge calibration")
+    lines.append("")
+    lines.append(
+        "These gates used a model as judge. A judge's verdicts count only after it was "
+        "measured against a person's labeled response/verdict pairs and agreed with them "
+        "at or above the required rate. The measured agreement is reported either way; "
+        "an uncalibrated judge fails every case it was asked to grade and withholds the "
+        "run's verdict."
+    )
+    lines.append("")
+    for gate in judged:
+        judge = gate.get("judge")
+        judge = judge if isinstance(judge, dict) else {}
+        status = "calibrated" if _bool(judge.get("calibrated")) else "NOT calibrated"
+        lines.append(
+            f"### Gate `{_cell(gate.get('gate'))}`, suite `{_cell(gate.get('suite'))}`: {status}"
+        )
+        lines.append("")
+        lines.append(f"- Judge model: `{_cell(judge.get('model')) or 'none'}`")
+        if "pairs" in judge:
+            lines.append(
+                f"- Calibration set: `{_cell(judge.get('calibration_set'))}` "
+                f"v{_int(judge.get('calibration_version'))}, "
+                f"labeled by {_cell(judge.get('labeled_by')) or 'nobody yet'}"
+                + (f" on {_cell(judge.get('labeled_on'))}" if _str(judge.get("labeled_on")) else "")
+            )
+            lines.append(
+                f"- Agreement: {_int(judge.get('agreed'))} of {_int(judge.get('pairs'))} "
+                f"labeled pairs ({_float(judge.get('agreement')):.3f}), required "
+                f"{_float(judge.get('min_agreement')):g}"
+            )
+            for item in _strs(judge.get("disagreements")):
+                lines.append(f"  - disagreement: {_cell(item)}")
+        reason = _str(judge.get("reason"))
+        if reason:
+            lines.append(f"- Why the verdicts do not count: {_cell(reason)}")
+        lines.append("")
+
+
 def _counts_by_language(lines: list[str], pack: dict[str, object]) -> None:
     gates = _dicts(pack.get("gates"))
     lines.append("## Case counts by language")
@@ -505,6 +548,7 @@ def render_markdown(pack: dict[str, object]) -> str:
     _summary(lines, pack)
     _provenance(lines, pack)
     _what_was_tested(lines, _dicts(pack.get("gates")))
+    _judge_calibration(lines, pack)
     _counts_by_language(lines, pack)
     _what_failed(lines, pack)
     _drift(lines, pack)

@@ -71,6 +71,9 @@ class GateResult:
     threshold: float
     cases: tuple[CaseResult, ...]
     key_version: int | None = None
+    judge: dict[str, object] | None = None
+    """For a judge gate: the model, the calibration set, and the measured
+    agreement, whether or not the verdicts were allowed to count."""
 
     @property
     def total(self) -> int:
@@ -113,6 +116,7 @@ class GateResult:
             "passed": self.passed,
             "counts_by_language": self.counts_by_language(),
             "failed_case_ids": list(self.failed_case_ids()),
+            "judge": self.judge,
             "cases": [case.to_dict() for case in self.cases],
         }
 

@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from gauntlet.cases import GATES, builtin_suites, load_suites
+from gauntlet.cases import BUILTIN_GATES, builtin_suites, load_suites
 from gauntlet.inventory import (
     BEGIN_MARKER,
     END_MARKER,
@@ -109,7 +109,7 @@ def test_readme_inventory_block_matches_what_the_harness_emits() -> None:
 
 def test_inventory_counts_every_gate_and_language() -> None:
     inventory = build_inventory(builtin_suites())
-    assert {gate.gate for gate in inventory.gates} == set(GATES)
+    assert {gate.gate for gate in inventory.gates} == set(BUILTIN_GATES)
     assert inventory.languages == ("en", "es")
     totals = inventory.totals_by_language
     assert totals["en"] > 0

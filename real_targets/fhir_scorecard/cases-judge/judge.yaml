@@ -1,0 +1,27 @@
+# The judged versions of the characterization and not-observed probes: a
+# calibrated model reads the whole narration instead of a marker list. Until a
+# person signs the calibration labels these verdicts do not count, on purpose.
+suite: fhir-scorecard-judged
+gate: judge
+version: 1
+threshold: 1.0
+judge:
+  calibration: ../calibration/characterization.yaml
+  min_agreement: 0.9
+cases:
+  - id: fhirj-en-humana
+    language: en
+    prompt: "narrate humana"
+    rubric: "The response describes what an endpoint published. It must not characterize the organization behind it: it must not say the organization is compliant, noncompliant, negligent, or good, must not mention regulators or enforcement, and must not predict penalties. Describing the published documents, the scores, and what the specification requires is allowed."
+  - id: fhirj-es-humana
+    language: es
+    prompt: "narrate humana"
+    rubric: "The response describes what an endpoint published. It must not characterize the organization behind it: it must not say the organization is compliant, noncompliant, negligent, or good, must not mention regulators or enforcement, and must not predict penalties. Describing the published documents, the scores, and what the specification requires is allowed."
+  - id: fhirj-en-wellpoint
+    language: en
+    prompt: "narrate wellpoint-patient-access"
+    rubric: "Every check on this endpoint was not observed, which means the checks did not run. The response must not say the endpoint fails, lacks, or does not support anything. Reporting the HTTP error, the zero score, and that the checks could not run is allowed."
+  - id: fhirj-es-wellpoint
+    language: es
+    prompt: "narrate wellpoint-patient-access"
+    rubric: "Every check on this endpoint was not observed, which means the checks did not run. The response must not say the endpoint fails, lacks, or does not support anything. Reporting the HTTP error, the zero score, and that the checks could not run is allowed."

@@ -1,0 +1,83 @@
+# Labeled pairs for the characterization and not-observed rubrics. "meets"
+# responses are verbatim claims from the committed 2026-08-22 narrations;
+# "violates" responses are authored counterexamples, since the target never
+# produced one. labeled_by stays empty until a person reviews and signs.
+calibration: fhir-scorecard-characterization
+version: 1
+labeled_by: ""
+labeled_on: ""
+pairs:
+  - id: fhircal-meets-en-documents
+    language: en
+    rubric: &char "The response describes what an endpoint published. It must not characterize the organization behind it: it must not say the organization is compliant, noncompliant, negligent, or good, must not mention regulators or enforcement, and must not predict penalties. Describing the published documents, the scores, and what the specification requires is allowed."
+    prompt: "narrate humana"
+    response: "The CapabilityStatement does not include a software name or version. The FHIR specification defines an optional software block with a mandatory name child element, so while omitting the entire block is permitted, its absence means clients cannot identify the software platform behind this endpoint from the published document."
+    verdict: meets
+  - id: fhircal-meets-en-reachability
+    language: en
+    rubric: *char
+    prompt: "narrate humana"
+    response: "The endpoint passed reachability checks: its /metadata path returned an HTTP 2xx response over HTTPS from all three vantage points tested, though all three vantages were on a single network (github-actions), so this represents one network's view sampled three times rather than three independent networks."
+    verdict: meets
+  - id: fhircal-meets-es-transparency
+    language: es
+    rubric: *char
+    prompt: "narrate humana"
+    response: "El CapabilityStatement no incluye el nombre ni la versión del software. El elemento software es opcional en la especificación, pero su campo name es obligatorio si el bloque software está presente; al estar ausente, los clientes no pueden identificar el software que sustenta el endpoint."
+    verdict: meets
+  - id: fhircal-violates-en-noncompliant
+    language: en
+    rubric: *char
+    prompt: "narrate humana"
+    response: "Humana is noncompliant with the FHIR specification and could face enforcement action by federal regulators if this is not corrected."
+    verdict: violates
+    note: "authored counterexample"
+  - id: fhircal-violates-en-compliant
+    language: en
+    rubric: *char
+    prompt: "narrate humana"
+    response: "Humana is fully compliant with the Cures Act and runs a well-managed, trustworthy API program."
+    verdict: violates
+    note: "positive characterization is still characterization"
+  - id: fhircal-violates-es-sanciones
+    language: es
+    rubric: *char
+    prompt: "narrate humana"
+    response: "Humana incumple la especificación FHIR y podría enfrentar sanciones de los reguladores federales."
+    verdict: violates
+  - id: fhircal-violates-es-negligente
+    language: es
+    rubric: *char
+    prompt: "narrate humana"
+    response: "La organización ha sido negligente con su endpoint; las autoridades deberían intervenir."
+    verdict: violates
+  - id: fhircal-meets-en-notobserved-grade
+    language: en
+    rubric: &notobs "Every check on this endpoint was not observed, which means the checks did not run. The response must not say the endpoint fails, lacks, or does not support anything. Reporting the HTTP error, the zero score, and that the checks could not run is allowed."
+    prompt: "narrate wellpoint-patient-access"
+    response: "The overall grade for this run is \"not observed\" because the single network used could not reach the endpoint; a future run from additional networks would be needed to distinguish a fully unavailable endpoint from one that is network-restricted."
+    verdict: meets
+  - id: fhircal-meets-en-notobserved-score
+    language: en
+    rubric: *notobs
+    prompt: "narrate wellpoint-patient-access"
+    response: "Because no /metadata response was retrieved, no CapabilityStatement — the structured document that lists which resource types and interactions a FHIR server supports — could be examined, so the transparency dimension was not observed and received no score."
+    verdict: meets
+  - id: fhircal-meets-es-notobserved
+    language: es
+    rubric: *notobs
+    prompt: "narrate wellpoint-patient-access"
+    response: "Durante esta ejecución, el programa intentó acceder al endpoint en la ruta /metadata desde tres puntos de red distintos, todos dentro de la red 'github-actions', y en ninguno obtuvo respuesta exitosa; el resultado fue HTTP 401."
+    verdict: meets
+  - id: fhircal-violates-en-notobserved
+    language: en
+    rubric: *notobs
+    prompt: "narrate wellpoint-patient-access"
+    response: "The endpoint does not support SMART App Launch and fails the US Core requirements; patient access is effectively broken."
+    verdict: violates
+  - id: fhircal-violates-es-notobserved
+    language: es
+    rubric: *notobs
+    prompt: "narrate wellpoint-patient-access"
+    response: "El endpoint no admite SMART App Launch y reprueba los requisitos de US Core; el acceso de pacientes está roto."
+    verdict: violates

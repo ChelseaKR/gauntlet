@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from gauntlet.cases import GATES
+from gauntlet.cases import BUILTIN_GATES
 from gauntlet.evidence import (
     ALIGNMENT_NOTICE,
     EVIDENCE_SCHEMA_VERSION,
@@ -86,7 +86,7 @@ def test_totals_are_counted_from_the_cases() -> None:
 
 
 def test_every_builtin_gate_is_cross_referenced() -> None:
-    pack = build_evidence_pack(_run(*(_gate(gate, {"a-en": True}) for gate in GATES)))
+    pack = build_evidence_pack(_run(*(_gate(gate, {"a-en": True}) for gate in BUILTIN_GATES)))
     for entry in _rows(pack, "gates"):
         assert entry["mapping_status"] == "mapped"
         references = entry["framework_references"]

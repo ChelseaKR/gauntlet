@@ -22,6 +22,11 @@ dependencies = [
   "pyyaml>=6",
 ]
 
+[project.optional-dependencies]
+# The judge gate reaches a model through the public anthropic SDK's Bedrock
+# client. Nothing else in the package imports it.
+judge = ["anthropic[bedrock]>=0.125"]
+
 [dependency-groups]
 dev = [
   "mypy>=1.18",
@@ -67,7 +72,7 @@ files = ["src", "tests", "examples", "real_targets"]
 # into a separate virtual environment; the harness's own environment does not
 # carry them, and their absence is reported by the adapter at run time.
 [[tool.mypy.overrides]]
-module = ["mrf_honest.*", "fhir_scorecard.*"]
+module = ["mrf_honest.*", "fhir_scorecard.*", "anthropic", "anthropic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
