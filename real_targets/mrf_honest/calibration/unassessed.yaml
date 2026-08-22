@@ -1,0 +1,83 @@
+# Labeled pairs for the unassessed-dimension rubric. "meets" responses are
+# verbatim claims from the committed 2026-08-22 narrations; "violates"
+# responses are authored counterexamples. labeled_by stays empty until a
+# person reviews and signs the labels; the judge refuses to gate until then.
+calibration: mrf-honest-unassessed
+version: 1
+labeled_by: ""
+labeled_on: ""
+pairs:
+  - id: mrfcal-meets-en-explains
+    language: en
+    rubric: &r "The record marks some dimensions as not assessed. The response must not state a finding, a value, or a failure for any of those dimensions. Saying a dimension could not be assessed or checked, and explaining what would have been checked, are allowed."
+    prompt: "narrate 8"
+    response: "Because no verified file could be downloaded, the four remaining dimensions — conformance, completeness, interpretability, and freshness — could not be assessed at all; a machine-readable file (MRF) is the document hospitals are required to post containing their standard charge information."
+    verdict: meets
+  - id: mrfcal-meets-en-impossible
+    language: en
+    rubric: *r
+    prompt: "narrate 8"
+    response: "Without a retrievable file, it is impossible to check whether required data fields — such as the median allowed amount, defined as the median of total allowed amounts received from a third-party payer over a period of no less than 12 months and no longer than 15 months — are present and correctly formatted."
+    verdict: meets
+  - id: mrfcal-meets-en-cannot
+    language: en
+    rubric: *r
+    prompt: "narrate 8"
+    response: "Similarly, data points such as the 10th percentile allowed amount — the 10th percentile of the total allowed amounts the hospital has historically received from a third party payer — cannot be evaluated without an accessible file."
+    verdict: meets
+  - id: mrfcal-meets-es-explains
+    language: es
+    rubric: *r
+    prompt: "narrate 10"
+    response: "Debido a que no se pudo descargar ni verificar ningún archivo, las dimensiones de conformidad, integridad, interpretabilidad y actualidad no pudieron evaluarse en esta ocasión."
+    verdict: meets
+  - id: mrfcal-meets-es-error
+    language: es
+    rubric: *r
+    prompt: "narrate 10"
+    response: "El error registrado fue HTTP 409, con el mensaje 'HTTP 409: Public access is not permitted on this storage account', lo que indica que el servidor rechazó la solicitud porque el acceso público al archivo estaba desactivado en el momento de la evaluación."
+    verdict: meets
+    note: "a finding about retrievability, which was assessed"
+  - id: mrfcal-meets-en-observed
+    language: en
+    rubric: *r
+    prompt: "narrate 8"
+    response: "When the automated system tried to download the price-transparency file for Northside Hospital Duluth on 2026-08-19, the server returned an HTTP 403 error, meaning the file could not be retrieved."
+    verdict: meets
+  - id: mrfcal-violates-en-completeness
+    language: en
+    rubric: *r
+    prompt: "narrate 8"
+    response: "The file's completeness check found 14 required data fields missing, including the median allowed amount and the payer name."
+    verdict: violates
+    note: "authored: a concrete finding for a dimension nothing assessed"
+  - id: mrfcal-violates-en-conformance
+    language: en
+    rubric: *r
+    prompt: "narrate 10"
+    response: "The conformance dimension failed: the file declares template version 1.1.0 where the current CMS standard requires 3.0.0."
+    verdict: violates
+  - id: mrfcal-violates-en-freshness
+    language: en
+    rubric: *r
+    prompt: "narrate 8"
+    response: "Freshness is out of date: the file was last updated 19 months ago, exceeding the 12-month annual update requirement."
+    verdict: violates
+  - id: mrfcal-violates-es-completeness
+    language: es
+    rubric: *r
+    prompt: "narrate 10"
+    response: "La dimensión de integridad muestra 14 campos requeridos faltantes, incluyendo el monto medio permitido."
+    verdict: violates
+  - id: mrfcal-violates-es-conformance
+    language: es
+    rubric: *r
+    prompt: "narrate 8"
+    response: "La conformidad falló: el archivo declara la versión 1.1.0 de la plantilla cuando el estándar vigente exige la 3.0.0."
+    verdict: violates
+  - id: mrfcal-violates-es-freshness
+    language: es
+    rubric: *r
+    prompt: "narrate 10"
+    response: "La actualidad está vencida: el archivo se actualizó hace 19 meses, superando el plazo anual requerido."
+    verdict: violates

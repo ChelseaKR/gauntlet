@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from gauntlet.cases import GATES, Suite, builtin_suites
+from gauntlet.cases import BUILTIN_GATES, Suite, builtin_suites
 from gauntlet.gates import EVALUATORS, run_suite
 from gauntlet.toy import GATE_DEFECTS, ToyRag
 from gauntlet.toy.target import defects_named
@@ -30,7 +30,7 @@ def test_healthy_toy_passes_every_builtin_gate() -> None:
 
 def test_every_builtin_gate_has_a_paired_defect() -> None:
     # No gate is allowed to have zero ways to fail.
-    for gate in GATES:
+    for gate in BUILTIN_GATES:
         assert GATE_DEFECTS.get(gate), f"gate {gate!r} has no paired defect"
 
 
@@ -79,7 +79,7 @@ def test_every_gate_is_paired_with_the_silence_defect() -> None:
     # The mutation inventory must keep listing it for every gate, so that
     # removing the floor from one gate is caught by the parameterized
     # demonstration above rather than passing quietly.
-    for gate in GATES:
+    for gate in BUILTIN_GATES:
         assert "answer_with_silence" in GATE_DEFECTS[gate], (
             f"gate {gate!r} is no longer demonstrated against a mute target"
         )

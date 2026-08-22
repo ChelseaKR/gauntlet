@@ -15,7 +15,11 @@ from pathlib import Path
 
 import yaml
 
-GATES = ("grounding", "adversarial", "refusal", "false_positive", "golden")
+GATES = ("grounding", "adversarial", "refusal", "false_positive", "golden", "judge")
+# The gates with a built-in bilingual suite. The judge gate has none: a judge
+# suite needs a model and a calibration set, and the zero-configuration demo
+# run against the toy must stay runnable with neither.
+BUILTIN_GATES = tuple(gate for gate in GATES if gate != "judge")
 LANGUAGES = ("en", "es")
 ATTACK_TYPES = (
     "system_prompt_override",
@@ -38,8 +42,10 @@ _KEYS_BY_GATE: dict[str, set[str]] = {
     "refusal": _COMMON_KEYS | {"kind", "must_contain"},
     "false_positive": _COMMON_KEYS | {"must_contain"},
     "golden": _COMMON_KEYS | {"expected"},
+    "judge": _COMMON_KEYS | {"rubric"},
 }
-_SUITE_KEYS = {"suite", "gate", "version", "threshold", "key_version", "cases"}
+_SUITE_KEYS = {"suite", "gate", "version", "threshold", "key_version", "cases", "judge"}
+_JUDGE_KEYS = {"calibration", "min_agreement"}
 
 
 class CaseFileError(ValueError):
@@ -60,6 +66,22 @@ class Case:
     expect_grounded: bool | None = None
     must_contain: tuple[str, ...] = ()
     must_not_contain: tuple[str, ...] = ()
+    rubric: str | None = None
+
+
+@dataclass(frozen=True)
+class JudgeConfig:
+    """What a judge suite needs before any of its verdicts can count.
+
+    ``calibration`` is a path, relative to the suite file, to a committed set
+    of labeled response/verdict pairs. ``min_agreement`` is the fraction of
+    those pairs the judge must agree with. Both are required: a judge suite
+    without a calibration set is rejected at load time, not discovered at
+    report time.
+    """
+
+    calibration: str
+    min_agreement: float
 
 
 @dataclass(frozen=True)
@@ -72,7 +94,15 @@ class Suite:
     threshold: float
     cases: tuple[Case, ...]
     key_version: int | None = None
+    judge: JudgeConfig | None = None
     source: str = field(default="", compare=False)
+
+    def calibration_path(self) -> Path | None:
+        """The calibration set's path, resolved beside the suite file."""
+        if self.judge is None:
+            return None
+        base = Path(self.source).parent if self.source and ":" not in self.source else Path()
+        return base / self.judge.calibration
 
 
 def _fail(source: str, message: str) -> CaseFileError:
@@ -131,6 +161,8 @@ def _parse_gate_fields(
         fields["must_contain"] = _read_str_list(raw, "must_contain", source, context)
     elif gate == "false_positive":
         fields["must_contain"] = _read_str_list(raw, "must_contain", source, context)
+    elif gate == "judge":
+        fields["rubric"] = _read_str(raw, "rubric", source, context)
     else:  # golden
         fields["expected"] = _read_str(raw, "expected", source, context)
     return fields
@@ -174,6 +206,28 @@ def _parse_suite_header(raw: dict[str, object], source: str) -> tuple[str, str, 
     return name, gate, version, threshold
 
 
+def _parse_judge_block(document: dict[str, object], gate: str, source: str) -> JudgeConfig | None:
+    raw = document.get("judge")
+    if gate != "judge":
+        if raw is not None:
+            raise _fail(source, "'judge' is only valid for judge suites")
+        return None
+    if not isinstance(raw, dict):
+        raise _fail(
+            source, "judge suites require a 'judge' mapping with 'calibration' and 'min_agreement'"
+        )
+    unknown = set(raw) - _JUDGE_KEYS
+    if unknown:
+        raise _fail(source, f"unknown judge keys: {sorted(unknown)}")
+    calibration = _read_str(raw, "calibration", source, "judge")
+    min_agreement = raw.get("min_agreement")
+    if isinstance(min_agreement, bool) or not isinstance(min_agreement, int | float):
+        raise _fail(source, "judge: 'min_agreement' must be a number above 0 and at most 1")
+    if not 0.0 < float(min_agreement) <= 1.0:
+        raise _fail(source, "judge: 'min_agreement' must be a number above 0 and at most 1")
+    return JudgeConfig(calibration=calibration, min_agreement=float(min_agreement))
+
+
 def parse_suite(document: object, source: str) -> Suite:
     """Validate one parsed YAML document into a Suite."""
     if not isinstance(document, dict):
@@ -185,6 +239,7 @@ def parse_suite(document: object, source: str) -> Suite:
             raise _fail(source, "golden suites require a positive integer 'key_version'")
     elif key_version is not None:
         raise _fail(source, "'key_version' is only valid for golden suites")
+    judge = _parse_judge_block(document, gate, source)
     raw_cases = document.get("cases")
     if not isinstance(raw_cases, list) or not raw_cases:
         raise _fail(source, "'cases' must be a non-empty list")
@@ -201,6 +256,7 @@ def parse_suite(document: object, source: str) -> Suite:
         threshold=threshold,
         cases=cases,
         key_version=key_version if gate == "golden" else None,
+        judge=judge,
         source=source,
     )
 
@@ -231,7 +287,7 @@ def load_suites(directory: Path) -> tuple[Suite, ...]:
     paths = sorted(directory.glob("*.yaml"))
     if not paths:
         raise CaseFileError(f"no *.yaml case files in {directory}")
-    suites = tuple(load_suite_text(path.read_text(encoding="utf-8"), path.name) for path in paths)
+    suites = tuple(load_suite_text(path.read_text(encoding="utf-8"), str(path)) for path in paths)
     _reject_duplicate_gates(suites)
     return suites
 

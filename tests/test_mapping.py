@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 from gauntlet import mapping
-from gauntlet.cases import GATES
+from gauntlet.cases import BUILTIN_GATES
 
 DOC = Path(__file__).resolve().parents[1] / "docs" / "california-mapping.md"
 
@@ -32,8 +32,14 @@ def _all_mapping_text() -> str:
 
 
 def test_every_gate_the_harness_runs_has_a_mapping() -> None:
-    for gate in GATES:
+    for gate in BUILTIN_GATES:
         assert mapping.mapping_for(gate) is not None, f"gate {gate!r} has no mapping entry"
+
+
+def test_the_judge_gate_claims_no_framework_reference() -> None:
+    # A model grading a model informs no SIMM 5305-F item that was read; the
+    # framework's verification rows are about people. The pack says so.
+    assert mapping.mapping_for("judge") is None
 
 
 def test_unknown_gate_maps_to_nothing_and_says_so() -> None:
