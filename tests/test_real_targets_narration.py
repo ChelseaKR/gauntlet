@@ -119,6 +119,13 @@ def test_a_claim_that_says_the_dimension_was_not_assessed_is_not_flagged(documen
         narration, source_urls={}, ledger=ledger, unassessed_dimensions={"completeness"}
     )
     assert "unassessed dimension" not in response.text
+    narration["claims"][1]["text"] = (
+        "Without a retrievable file, it is impossible to check whether required fields are present."
+    )
+    response = shape_narration(
+        narration, source_urls={}, ledger=ledger, unassessed_dimensions={"completeness"}
+    )
+    assert "unassessed dimension" not in response.text
     narration["claims"][1]["text"] = "La completitud no se evaluó porque no se obtuvo el archivo."
     response = shape_narration(
         narration, source_urls={}, ledger=ledger, unassessed_dimensions={"completeness"}
@@ -252,6 +259,20 @@ def test_mrf_adapter_replays_narrations_and_reports_provenance(
     assert provenance["model_setting"] == "m"
     with pytest.raises(TargetError, match="no entry"):
         target.ask("narrate 1", "en")
+
+
+def test_mrf_adapter_needs_the_corpus_manifest_for_quote_checks(
+    mrf_root: Path, tmp_path: Path, document: str
+) -> None:
+    (mrf_root / "corpus" / "SOURCES.json").unlink()
+    target = MrfHonestTarget(
+        root=mrf_root,
+        environ={},
+        cohort="data/cohorts/cohort.jsonl",
+        ledger=NarrationLedger(raw_log=RawLog(replay_path=_mrf_recording(tmp_path, document))),
+    )
+    with pytest.raises(TargetError, match="corpus manifest"):
+        target.ask("narrate 0", "en")
 
 
 def test_mrf_adapter_rejects_bad_selectors_and_verbs(mrf_root: Path) -> None:

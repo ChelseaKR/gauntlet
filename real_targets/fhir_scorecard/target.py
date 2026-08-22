@@ -73,7 +73,9 @@ class FhirScorecardTarget:
         record = self._record(endpoint_id)
         if verb == "narrate":
             narration = self._narrate(endpoint_id, record, language)
-            return shape_narration(narration, source_urls=self._source_urls, ledger=self.ledger)
+            return shape_narration(
+                narration, source_urls=self._load_source_urls(), ledger=self.ledger
+            )
         if verb == "grade-consistency":
             narration = self._narrate(endpoint_id, record, language)
             narrated = str(narration.get("grade", ""))
@@ -144,12 +146,23 @@ class FhirScorecardTarget:
             from fhir_scorecard.ai.corpus import CorpusIndex
 
             self._corpus = CorpusIndex.load(self.root)
-            manifest = json.loads((self.root / "corpus" / "SOURCES.json").read_text("utf-8"))
+        return self._corpus
+
+    def _load_source_urls(self) -> dict[str, str]:
+        """Source id to the public URL the target's corpus manifest cites."""
+        if not self._source_urls:
+            manifest_path = self.root / "corpus" / "SOURCES.json"
+            try:
+                manifest = json.loads(manifest_path.read_text("utf-8"))
+            except OSError as exc:
+                raise TargetError(
+                    f"cannot read the corpus manifest {manifest_path}: {exc}"
+                ) from exc
             for source in manifest.get("sources", []):
                 urls = source.get("citation_urls")
                 if isinstance(urls, list) and urls:
                     self._source_urls[str(source.get("source_id"))] = str(urls[0])
-        return self._corpus
+        return self._source_urls
 
     def _load_provider(self) -> Any:
         if self._provider is None:

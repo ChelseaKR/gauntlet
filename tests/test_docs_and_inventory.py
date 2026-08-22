@@ -33,7 +33,7 @@ EN_DASH = chr(0x2013)
 
 PROSE_FILES = sorted(
     path
-    for pattern in ("*.md", "docs/*.md", "examples/*.md", ".github/*.md")
+    for pattern in ("*.md", "docs/*.md", "examples/*.md", ".github/*.md", "real_targets/*.md")
     for path in ROOT.glob(pattern)
 )
 SOURCE_FILES = sorted(
