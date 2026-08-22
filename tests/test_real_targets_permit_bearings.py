@@ -291,3 +291,7 @@ def test_quote_checker_outcomes(tmp_path: Path) -> None:
         "quotes_unverifiable": "2",
     }
     assert normalize(strip_markup("<b>A</b> b-C")) == "abc"
+    # Entities decode to their character, which normalization then drops: the
+    # section sign must not survive as the digits of its code point.
+    assert normalize(strip_markup("required at &#xA7; 180.40(a)")) == "requiredat18040a"
+    assert normalize(strip_markup("&amp;sect; <i>x</i>")) == "sectx"

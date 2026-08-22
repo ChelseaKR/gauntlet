@@ -15,8 +15,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 @dataclass
@@ -51,8 +56,9 @@ class RawLog:
         if self.write_path is None:
             return
         self.write_path.parent.mkdir(parents=True, exist_ok=True)
+        stamped = {"key": key, "recorded_at": _now(), **entry}
         with self.write_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"key": key, **entry}, ensure_ascii=False, sort_keys=True))
+            handle.write(json.dumps(stamped, ensure_ascii=False, sort_keys=True))
             handle.write("\n")
         self.recorded += 1
 

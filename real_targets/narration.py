@@ -83,6 +83,36 @@ def recorded_or_fresh(
     return narration
 
 
+# A claim labeled with an unassessed dimension is not a rendered value when
+# the claim itself says the dimension was not assessed. This is a proxy that a
+# reviewer or a calibrated judge should replace; it is deliberately narrow so
+# that it errs toward flagging.
+_NOT_ASSESSED_PHRASES = (
+    "not assessed",
+    "were not assessed",
+    "was not assessed",
+    "could not be assessed",
+    "could not be evaluated",
+    "could not be examined",
+    "could not examine",
+    "not evaluated",
+    "no se evalu",
+    "no pudo evaluar",
+    "no pudieron evaluar",
+    "no se pudo evaluar",
+    "no se pudieron evaluar",
+    "no fue evaluad",
+    "no fueron evaluad",
+    "no se examin",
+    "no pudo examinar",
+)
+
+
+def says_not_assessed(text: str) -> bool:
+    lowered = text.casefold()
+    return any(phrase in lowered for phrase in _NOT_ASSESSED_PHRASES)
+
+
 def _strs(value: object) -> list[str]:
     return [str(item) for item in value] if isinstance(value, list | tuple) else []
 
@@ -151,9 +181,14 @@ def shape_narration(
     failed: set[str] = set()
     unassessed_hits: list[str] = []
     for claim in claims:
-        texts.append(str(claim.get("text", "")))
+        text_of_claim = str(claim.get("text", ""))
+        texts.append(text_of_claim)
         dimension = claim.get("dimension")
-        if isinstance(dimension, str) and dimension in (unassessed_dimensions or set()):
+        if (
+            isinstance(dimension, str)
+            and dimension in (unassessed_dimensions or set())
+            and not says_not_assessed(text_of_claim)
+        ):
             unassessed_hits.append(dimension)
         for passage_id, check in _check_citations(claim, source_urls, ledger):
             citations.append(passage_id)

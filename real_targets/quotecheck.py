@@ -22,6 +22,8 @@ PDF documents, which the standard library does not read.
 
 from __future__ import annotations
 
+import html
+import os
 import re
 import shutil
 import ssl
@@ -46,9 +48,15 @@ def normalize(text: str) -> str:
 
 
 def strip_markup(document: str) -> str:
-    """Drop script, style, and tags so words that were adjacent stay adjacent."""
+    """Drop script, style, and tags, then decode entities.
+
+    Entities are decoded after the tags are gone so that a literal ``&#xA7;``
+    (the section sign in eCFR XML) becomes the character and not the digits
+    ``A7``, which the first live run counted as part of the text and failed
+    thirteen correct quotes on.
+    """
     without_scripts = _SCRIPT.sub(" ", document)
-    return _TAG.sub(" ", without_scripts)
+    return html.unescape(_TAG.sub(" ", without_scripts))
 
 
 @dataclass(frozen=True)
@@ -70,16 +78,25 @@ def _decode(raw: bytes) -> str:
         return raw.decode("latin-1")
 
 
+def checks_enabled() -> bool:
+    """``GAUNTLET_QUOTE_CHECKS=off`` disables fetching, for replaying a recording
+    without the network. Every check then reports unverifiable, never verified."""
+    return os.environ.get("GAUNTLET_QUOTE_CHECKS", "on").lower() not in ("off", "0", "false")
+
+
 class DocumentCache:
     """Fetch each URL once per run and remember the outcome."""
 
-    def __init__(self, timeout: float = 30.0, max_bytes: int = 8_000_000) -> None:
+    def __init__(
+        self, timeout: float = 30.0, max_bytes: int = 8_000_000, enabled: bool | None = None
+    ) -> None:
         self._timeout = timeout
         self._max_bytes = max_bytes
         self._documents: dict[str, str | None] = {}
         self._notes: dict[str, str] = {}
         self.fetches = 0
         self.tools_used: set[str] = set()
+        self.enabled = checks_enabled() if enabled is None else enabled
 
     def text_for(self, url: str) -> tuple[str | None, str]:
         if url in self._documents:
@@ -171,6 +188,10 @@ class DocumentCache:
         needle = normalize(quote)
         if len(needle) < MIN_QUOTE_CHARS:
             return QuoteCheck(url, quote, "not_found", "quote too short to be a verbatim span")
+        if not self.enabled:
+            return QuoteCheck(
+                url, quote, "unverifiable", "quote checks disabled (GAUNTLET_QUOTE_CHECKS=off)"
+            )
         haystack, note = self.text_for(url)
         if haystack is None:
             return QuoteCheck(url, quote, "unverifiable", note)

@@ -109,6 +109,23 @@ def test_shape_narration_checks_quotes_and_flags_unassessed_dimensions(document:
     assert provenance["prompt_version"] == "narrate-v1"
 
 
+def test_a_claim_that_says_the_dimension_was_not_assessed_is_not_flagged(document: str) -> None:
+    narration = _narration(document)
+    narration["claims"][1]["text"] = (
+        "Completeness could not be assessed because no file was retrieved."
+    )
+    ledger = NarrationLedger()
+    response = shape_narration(
+        narration, source_urls={}, ledger=ledger, unassessed_dimensions={"completeness"}
+    )
+    assert "unassessed dimension" not in response.text
+    narration["claims"][1]["text"] = "La completitud no se evaluó porque no se obtuvo el archivo."
+    response = shape_narration(
+        narration, source_urls={}, ledger=ledger, unassessed_dimensions={"completeness"}
+    )
+    assert "unassessed dimension" not in response.text
+
+
 def test_shape_narration_accepts_the_tuples_dataclasses_asdict_produces(document: str) -> None:
     # The live targets build Narration.to_dict() with dataclasses.asdict, which
     # keeps claims and citations as tuples. The first live run scored every
