@@ -63,9 +63,9 @@ SITE_DESCRIPTION = (
     "and procurement framework."
 )
 
-NO_PACKAGE_NOTICE = (
-    "Nothing here is published to PyPI or any other package registry. Install from a "
-    "checkout, and pin the GitHub Action to a commit SHA."
+PACKAGE_NOTICE = (
+    "The harness is published to PyPI as gauntlet-evals, from the tagged release. The "
+    "GitHub Action is not on any package registry: pin it to a commit SHA."
 )
 
 EXCERPT_DEFECT = "drop_citations"
@@ -310,7 +310,7 @@ def page(*, title: str, body: str, active: str, generated: str = "") -> str:
 </main>
 <footer class="site">
 <p>{esc(ALIGNMENT_NOTICE)}</p>
-<p>{esc(NO_PACKAGE_NOTICE)}</p>
+<p>{esc(PACKAGE_NOTICE)}</p>
 <p>These pages are generated from the harness by <code>gauntlet site</code>: the gate
 counts are counted from the suites that load, and the evidence excerpts are output from
 runs made while the pages were built. Source at
@@ -381,14 +381,14 @@ def index_page(inventory: Inventory) -> str:
             ),
             '<h2 id="quickstart">Quickstart</h2>',
             "<h3>Install</h3>",
-            paragraphs(esc(NO_PACKAGE_NOTICE)),
+            paragraphs(esc(PACKAGE_NOTICE)),
             code_block(
-                f"git clone {REPO_URL}\n"
-                "cd gauntlet\n"
-                "uv sync\n"
+                "pip install gauntlet-evals\n"
                 "\n"
                 "# The built-in bilingual suites against the in-repo toy target.\n"
-                "uv run gauntlet run --out results.json",
+                "gauntlet run --out results.json\n"
+                "\n"
+                f"# Or from a checkout: git clone {REPO_URL} && cd gauntlet && uv sync",
                 language="sh",
             ),
             "<h3>Write a case file</h3>",
@@ -1015,8 +1015,8 @@ def action_page(action: ActionMetadata) -> str:
             code_block(ACTION_USAGE, language="yaml"),
             paragraphs(
                 "Pin the action to a commit SHA, the way the repository pins the actions it "
-                "uses itself. Nothing is published to a package registry and no release tag "
-                "is implied. From inside this repository the same steps run against a local "
+                "uses itself. The action is not distributed through a package registry and "
+                "no release tag is implied. From inside this repository the same steps run against a local "
                 "checkout with <code>uses: ./</code>.",
                 "A failing gate is the expected outcome of a working gate, so the action "
                 "does not abort before the evidence pack exists: the gates step captures a "

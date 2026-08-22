@@ -326,8 +326,9 @@ def test_no_page_implies_a_published_package(built: Path, name: str) -> None:
     text = (built / name).read_text(encoding="utf-8").casefold()
     for badge in PACKAGE_BADGES:
         assert badge not in text, f"{name} implies a published package via {badge!r}"
-    # PyPI may be named, but only to say nothing is on it.
-    assert text.count("pypi") == text.count("published to pypi or any other package registry")
+    # PyPI may be named, but only by the notice that says what is on it: the
+    # harness, as gauntlet-evals, and never the action.
+    assert text.count("pypi") == text.count("published to pypi as gauntlet-evals")
 
 
 @pytest.mark.parametrize("name", PAGE_NAMES)
