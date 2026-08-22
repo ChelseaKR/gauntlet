@@ -54,6 +54,13 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- README's Standards table, SECURITY.md, SCOPE.md, and every page of the
+  documentation site still said nothing was published to a registry and the
+  supported install was from a checkout, three days after the Status section
+  started saying `pip install gauntlet-evals`. PyPI has had `gauntlet-evals`
+  0.1.0 since 2026-08-19. Every surface now says that, and the site test that
+  allowed PyPI to be named only to deny a package now allows it to be named only
+  by the notice that says what is on it.
 - **A run that never reached the target no longer reports as one that did.** An
   unreachable endpoint, a target that raised, and a target that returned the
   wrong shape all escaped `main()` as a traceback and exit 1, which is the code
@@ -205,9 +212,9 @@ All notable changes will be documented here.
 
 - Not a compliance certification. The State of California has not reviewed,
   approved, endorsed, or certified this project.
-- Nothing has been published to any package registry, and no badge implies
-  otherwise. `v0.1.0` is tagged and released on GitHub; the PyPI publish did not
-  run to completion, because the Trusted Publishing pending publisher has not
-  been created on PyPI yet.
+- `v0.1.0` is tagged and released on GitHub. The first PyPI publish did not
+  run to completion, because the Trusted Publishing pending publisher had not
+  been created on PyPI; once it was, `gauntlet-evals` 0.1.0 was uploaded from
+  the tag on 2026-08-19. No badge implies a registry for the GitHub Action.
 - The repository has no branch ruleset and no branch protection, so the workflow
   that demonstrates the product cannot block a merge here.

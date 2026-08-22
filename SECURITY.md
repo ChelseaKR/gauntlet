@@ -1,7 +1,8 @@
 # Security policy
 
-Gauntlet is a technical alpha. `v0.1.0` is tagged; nothing is published to a
-package registry, and the supported install is from a checkout. Do not use it as
+Gauntlet is a technical alpha. `v0.1.0` is tagged and published to PyPI as
+`gauntlet-evals`; the GitHub Action is not distributed through any registry and
+is pinned by commit SHA. Do not use it as
 the sole basis for a compliance, procurement, safety, or production-security
 decision. A passing gate
 run is evidence for a reviewer to inspect, not a certification, and it never

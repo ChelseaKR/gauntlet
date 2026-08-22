@@ -119,6 +119,7 @@ publication decision, and any renaming, sits with the owner.
 2. License: Apache-2.0 assumed (matches exitdrill and portfolio convention).
 3. Whether M1's mapping table should be reviewed by a procurement-side reader
    (an advocate contact or the DGS webinar Q&A) before the repo goes public.
-4. Whether to publish at all, and if so whether to cut a release tag so the
-   GitHub Action can be referenced by tag rather than by commit SHA. No package
-   has been published to any registry, and no badge implies one has.
+4. Whether the GitHub Action should be referenceable by tag rather than by
+   commit SHA. The package question is settled: `v0.1.0` is tagged and
+   `gauntlet-evals` 0.1.0 is on PyPI. The action is still pinned by SHA, and no
+   badge implies a registry for it.
