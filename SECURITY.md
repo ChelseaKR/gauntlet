@@ -43,6 +43,15 @@ report.
   field carries response text verbatim, so a pack from a real target can hold
   anything that target emitted. Treat published packs the way you would treat
   production logs, and review one before attaching it to a procurement file.
+  The same applies to the recordings under `real_targets/*/results/`, which
+  hold each target's raw responses so a pack can be re-scored without the
+  target.
+- **The real-target adapters make outbound requests of their own.** They call
+  the target, and they fetch the public documents the target cites to check
+  its quotes, using `curl` and `pdftotext` from the operator's `PATH` when
+  present. They send nothing but the case prompts and read nothing that is not
+  public. Credentials for a model-backed target come from the environment the
+  way that target reads them; the adapters hold none.
 
 ## What a gate result is and is not
 

@@ -24,7 +24,7 @@ from gauntlet.mapping import (
     mapping_for,
     unmapped_note,
 )
-from gauntlet.results import RESULTS_SCHEMA_VERSION
+from gauntlet.results import RESULTS_SCHEMA_VERSION, missing_provenance
 
 EVIDENCE_SCHEMA_VERSION = 1
 
@@ -90,6 +90,16 @@ def _str(value: object) -> str:
 
 def _bool(value: object) -> bool:
     return value if isinstance(value, bool) else False
+
+
+def _provenance(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): item
+        for key, item in sorted(value.items())
+        if isinstance(key, str) and isinstance(item, str)
+    }
 
 
 def _language_totals(gates: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -160,6 +170,7 @@ def build_evidence_pack(
     # refuses to score does: nothing in it could have failed.
     withheld = _str(run.get("verdict_withheld")) or (NO_GATE_RAN if not gates else "")
     passed = bool(gates) and gates_passed == len(gates) and not withheld
+    provenance = _provenance(run.get("provenance"))
     return {
         "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
         "results_schema_version": RESULTS_SCHEMA_VERSION,
@@ -174,6 +185,12 @@ def build_evidence_pack(
         # score this at all", and neither can be read as the other.
         "passed": passed,
         "verdict_withheld": withheld,
+        # Where the run came from, verbatim from the results file, and what a
+        # committed pack would still owe. A missing model or commit is listed,
+        # never filled in: a pack that says "model: unknown" in its own voice
+        # is more honest than one that says nothing and looks complete.
+        "provenance": provenance,
+        "provenance_missing": missing_provenance(provenance),
         "totals": {
             "gates_total": len(gates),
             "gates_passed": gates_passed,

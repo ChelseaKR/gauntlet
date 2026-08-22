@@ -41,7 +41,13 @@ from gauntlet.inventory import (
 from gauntlet.report import render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
-from gauntlet.targets import CallableTarget, HttpTarget, Target, TargetError
+from gauntlet.targets import (
+    CallableTarget,
+    HttpTarget,
+    Target,
+    TargetError,
+    target_provenance,
+)
 from gauntlet.toy import ToyRag
 
 # A run the harness refuses to score. Distinct from 1 (a gate failed, which is
@@ -66,7 +72,41 @@ def _load_callable_target(spec: str) -> Target:
     produced = factory()
     if not (hasattr(produced, "ask") and hasattr(produced, "name")):
         raise ValueError(f"{spec} did not produce a target with .ask and .name")
-    return CallableTarget(fn=produced.ask, name=produced.name)
+    return CallableTarget(
+        fn=produced.ask,
+        name=produced.name,
+        provenance_fn=lambda: target_provenance(produced),
+    )
+
+
+def _parse_provenance(pairs: Sequence[str] | None) -> dict[str, str]:
+    """``--provenance key=value`` flags, each a non-empty key and value."""
+    parsed: dict[str, str] = {}
+    for pair in pairs or ():
+        key, separator, value = pair.partition("=")
+        if not separator or not key.strip() or not value.strip():
+            raise ValueError(
+                f"--provenance expects KEY=VALUE with both sides non-empty, got {pair!r}"
+            )
+        parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def _assemble_provenance(
+    target: Target, started_at: str, flags: Sequence[str] | None
+) -> dict[str, str]:
+    """Target-reported provenance, then the operator's flags on top.
+
+    The operator's flags win because the operator is the one committing the
+    pack and answering for it. The date defaults to the run's own UTC date;
+    nothing else is defaulted, because a defaulted model or commit would be a
+    value the harness invented.
+    """
+    provenance = target_provenance(target)
+    provenance.setdefault("target", target.name)
+    provenance.setdefault("date", started_at[:10])
+    provenance.update(_parse_provenance(flags))
+    return provenance
 
 
 def _select_target(args: argparse.Namespace) -> Target:
@@ -127,12 +167,14 @@ def _cmd_run(args: argparse.Namespace) -> int:
     scored = RunResult(target=target.name, gates=gates, started_at=now_iso())
     withheld = unscoreable_reason(scored, suites)
     # The reason travels with the results file, so a pack rendered from it
-    # later cannot report a verdict this run declined to reach.
+    # later cannot report a verdict this run declined to reach. Provenance is
+    # read after the run so the target's counters are final.
     run = RunResult(
         target=scored.target,
         gates=scored.gates,
         started_at=scored.started_at,
         verdict_withheld=withheld,
+        provenance=_assemble_provenance(target, scored.started_at, args.provenance),
     )
     if out_path is not None:
         run.write_json(out_path)
@@ -216,6 +258,13 @@ def _add_run_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     run_parser.add_argument("--http-url", help="evaluate an HTTP endpoint target")
     run_parser.add_argument("--callable", help="evaluate a Python target 'module:factory'")
     run_parser.add_argument("--out", help="write the results JSON to this path")
+    run_parser.add_argument(
+        "--provenance",
+        action="append",
+        metavar="KEY=VALUE",
+        help="record where this run came from (target_version, model, prompt_version, "
+        "commit, ...); repeatable, and the operator's values override the target's",
+    )
     run_parser.set_defaults(func=_cmd_run)
 
 

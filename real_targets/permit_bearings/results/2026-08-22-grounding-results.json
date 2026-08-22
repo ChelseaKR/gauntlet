@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "target": "permit-bearings-ai-service",
+  "started_at": "2026-08-22T03:42:24+00:00",
+  "passed": true,
+  "verdict_withheld": "",
+  "provenance": {
+    "commit": "cb5cc0430cec0af66745bc584bc389dc02e3ac88",
+    "daily_cap": "100",
+    "date": "2026-08-22",
+    "documents_fetched_for_quote_checks": "10",
+    "harness_commit": "cb5cc0430cec0af66745bc584bc389dc02e3ac88",
+    "model": "global.anthropic.claude-sonnet-4-6",
+    "model_observed_in_responses": "claude-sonnet-4-6",
+    "prompt_version": "ask=ask-v1, explain=explain-v1, intake=intake-v1, staff_questions=staff-questions-v1",
+    "quote_check_tools": "curl, pdftotext",
+    "quotes_checked": "52",
+    "quotes_not_found": "0",
+    "quotes_unverifiable": "2",
+    "quotes_unverifiable_reasons": "fetch failed: HTTP Error 404: Not Found",
+    "quotes_verified": "50",
+    "rate_limited_responses": "0",
+    "raw_log": "real_targets/permit_bearings/results/2026-08-22-grounding-raw.jsonl",
+    "requests_made": "4",
+    "target": "permit-bearings-ai-service",
+    "target_url": "https://tb4ekoqybhbxbrbn447ln5ad3e0arlwx.lambda-url.us-west-2.on.aws",
+    "target_version": "permit-bearings@74abdea5bb58f5dfb1fe04624265cd58584c3225",
+    "withheld_claims_total": "0"
+  },
+  "gates": [
+    {
+      "gate": "grounding",
+      "suite": "permit-bearings-grounding",
+      "suite_version": 1,
+      "key_version": null,
+      "threshold": 1.0,
+      "total": 4,
+      "passed_count": 4,
+      "pass_rate": 1.0,
+      "passed": true,
+      "counts_by_language": {
+        "en": {
+          "total": 2,
+          "passed": 2
+        },
+        "es": {
+          "total": 2,
+          "passed": 2
+        }
+      },
+      "failed_case_ids": [],
+      "cases": [
+        {
+          "case_id": "pb-gnd-en-davis-adu",
+          "language": "en",
+          "passed": true,
+          "detail": "15 citation(s), all present in the retrieved context",
+          "observed": "The City of Davis publishes three processing categories for ADU applications, and the matched rule flags that the category applicable to your project has not been determined by this screening result \u2014 you must confirm with City staff which category applies to your new detached ADU. There is an important uncertainty about the operative local rules: HCD's October 2025 technical-assistance letter states that the Davis ADU ordinance on file with HCD dates to 2019 and may be noncompliant, and that a noncompliant ordinance is treated as null and void under state law \u2014 meaning state standards would apply in its place until a compliant ordinance is adopted. Under state law, your ADU permit application must be reviewed ministerially \u2014 meaning without a discretionary hearing \u2014 and the City must give you written notice of whether your application is complete within 15 business days of receiving it. Because an existing single-family dwelling is already on your lot, the City must approve or deny your completed ADU application within 60 calendar days of receiving it; if the City does not act within that period, the application is deemed approved. Local rules such as lot-coverage, floor-area-ratio, open-space, front-setback, and minimum-lot-size requirements cannot be applied in a way that would prevent you from building a detached ADU of at least 800 square feet with four-foot side and rear setbacks, provided all other local development standards are met; separately, any local maximum unit size must still allow at least 850 square feet of interior livable space (or 1,000 square feet if your ADU has more than one bedroom). For your new detached ADU on a lot with an existing single-family dwelling, the base state-protected height is 16 feet; if your lot is within one-half mile walking distance of a qualifying major transit stop or high-quality transit corridor, the protected height rises to 18 feet, and an additional 2 feet is allowed if your ADU's roof pitch aligns with the primary dwelling's roof pitch \u2014 whether the transit condition applies to your specific lot is a fact you should verify. Because your project is a new detached ADU on a lot with an existing single-family dwelling, the City cannot impose an owner-occupancy requirement; the City may, however, require that the property be used only for rentals of 30 days or longer, but cannot require a rental term longer than 30 days. No parking standard may be imposed on your ADU if, for example, it is located within one-half mile walking distance of public transit; if that condition does not apply, any parking requirement is capped at one space per ADU or per bedroom, whichever is fewer \u2014 whether the transit exemption applies to your specific location is a fact you should verify with the City."
+        },
+        {
+          "case_id": "pb-gnd-es-davis-adu",
+          "language": "es",
+          "passed": true,
+          "detail": "11 citation(s), all present in the retrieved context",
+          "observed": "La ciudad de Davis publica tres categor\u00edas para tramitar las ADU: (1) ADU Exentas del Estado (solo permiso de construcci\u00f3n), (2) ADU Ministeriales y (3) ADU No Ministeriales. Consulte al personal de la Ciudad para determinar cu\u00e1l categor\u00eda corresponde a su proyecto espec\u00edfico. El estado le exige al municipio que apruebe o rechace su solicitud completa de ADU dentro de 60 d\u00edas calendario, dado que ya existe una vivienda unifamiliar en el lote. Si el municipio no act\u00faa dentro de ese plazo, la solicitud se considera aprobada autom\u00e1ticamente. El municipio debe determinar si su solicitud est\u00e1 completa y notificarle por escrito en un plazo no mayor a 15 d\u00edas h\u00e1biles desde la recepci\u00f3n. Si la solicitud est\u00e1 incompleta o es denegada, el municipio debe proporcionarle una lista de los elementos faltantes y una descripci\u00f3n de c\u00f3mo subsanarlos, adem\u00e1s de ofrecer un proceso de apelaci\u00f3n. Las normas locales sobre cobertura de lote, proporci\u00f3n de \u00e1rea de piso, espacio abierto, retiros frontales y tama\u00f1o m\u00ednimo de lote no pueden impedir la construcci\u00f3n de una ADU de al menos 800 pies cuadrados de espacio interior habitable con retiros laterales y traseros de cuatro pies, siempre que se cumplan los dem\u00e1s est\u00e1ndares locales de desarrollo aplicables. Para una ADU desvinculada (detached) en un lote con vivienda unifamiliar existente, el municipio no puede imponer un l\u00edmite de altura inferior a 16 pies. Si su lote est\u00e1 a menos de media milla caminando de una parada de tr\u00e1nsito mayor o corredor de tr\u00e1nsito de alta calidad, ese l\u00edmite m\u00ednimo protegido sube a 18 pies, y se pueden agregar hasta dos pies adicionales para acomodar una inclinaci\u00f3n de techo alineada con la de la vivienda principal. El municipio no puede exigir que el propietario viva en la propiedad como condici\u00f3n para la ADU. S\u00ed puede exigir que la ADU se arriende por per\u00edodos de al menos 30 d\u00edas, pero no puede imponer per\u00edodos m\u00ednimos m\u00e1s largos. Existe incertidumbre sobre qu\u00e9 ordenanza local aplica actualmente en Davis. HCD se\u00f1al\u00f3 en octubre de 2025 que la ordenanza m\u00e1s reciente en su expediente es de 2019 y podr\u00eda estar desactualizada; si una ordenanza no cumple con la ley estatal, es nula y el municipio debe aplicar los est\u00e1ndares estatales. Consulte directamente al personal de la Ciudad para confirmar qu\u00e9 normas locales est\u00e1n vigentes."
+        },
+        {
+          "case_id": "pb-gnd-en-woodland-conversion",
+          "language": "en",
+          "passed": true,
+          "detail": "14 citation(s), all present in the retrieved context",
+          "observed": "The City of Woodland adopted amendments to its ADU regulations on February 17, 2026; those amendments are intended to update local rules to align with state law, but the CEQA notice itself does not contain the operative ordinance requirements or a current application checklist, so applicants should review the current text of Municipal Code \u00a7 17.84.030 directly. The matched rule for ministerial review means Woodland must process the ADU permit application without discretionary review or a hearing; once a completed application is received and an existing single-family dwelling is on the lot, the city must approve or deny within 60 calendar days, and if it does not act within that period the application is deemed approved. Before the 60-day approval clock starts, Woodland must first tell the applicant in writing\u2014within 15 business days of receiving the application\u2014whether the application is complete; if it is incomplete, the city must provide a list of missing items and explain how to fix them. Because the confirmed project type is a conversion of existing space, no setback is required; this no-setback protection applies specifically to structures converted to an ADU within existing living area or rebuilt in the same location and dimensions. Because the project is an existing-space conversion, local objective standards related to height, lot coverage, landscape, design, and architectural requirements in the ADU ordinance do not apply; however, all applicable building, health-and-safety, and fire standards for dwellings still apply. Because the applicant confirmed the unit is unpermitted and was built before January 1, 2020, the matched rule means Woodland generally cannot deny the permit solely because the unit violates building standards; however, this protection does not apply if the building is found substandard under Health and Safety Code \u00a7 17920.3 (meaning it has conditions that make a building unsafe or unfit for occupancy). For the unpermitted unit, impact fees and connection or capacity charges (one-time charges for tying into utility infrastructure) generally cannot be required, with a narrow exception when utility infrastructure work is needed to meet Health and Safety Code \u00a7 17920.3 standards and the fee is separately authorized. Because the lot has an existing single-family dwelling, Woodland cannot require the owner to live on the property as a condition of the ADU permit; the city may require that the unit be rented for terms of at least 30 days, but cannot require a rental term longer than 30 days."
+        },
+        {
+          "case_id": "pb-gnd-es-woodland-conversion",
+          "language": "es",
+          "passed": true,
+          "detail": "12 citation(s), all present in the retrieved context",
+          "observed": "La solicitud de permiso para esta ADU (unidad de vivienda accesoria, tambi\u00e9n llamada ADU por sus siglas en ingl\u00e9s) debe revisarse de forma ministerial \u2014es decir, sin revisi\u00f3n discrecional ni audiencia p\u00fablica\u2014 seg\u00fan la regla aplicable. La ciudad de Woodland tiene 15 d\u00edas h\u00e1biles para notificar por escrito si la solicitud est\u00e1 completa; si est\u00e1 incompleta, debe indicar qu\u00e9 falta y c\u00f3mo subsanarlo. Como ya existe una vivienda unifamiliar en el lote, la agencia tiene 60 d\u00edas calendario desde que recibe la solicitud completa para aprobarla o denegarla; si no act\u00faa dentro de ese plazo, la solicitud se considera aprobada autom\u00e1ticamente. Dado que el proyecto es una conversi\u00f3n de espacio existente, no se puede exigir retiro (setback) respecto a los linderos; las normas locales de altura, cobertura de lote, dise\u00f1o y desarrollo tampoco aplican a esta conversi\u00f3n. Sin embargo, la ADU de conversi\u00f3n sigue sujeta a todas las normas aplicables de construcci\u00f3n, salud y seguridad, e incendio. Porque la unidad existente no tiene permiso y fue construida antes del 1.\u00b0 de enero de 2020, la regla aplicable establece que la ciudad no puede denegar el permiso \u00fanicamente por violaciones a normas de construcci\u00f3n, salvo que el inmueble sea declarado subest\u00e1ndar conforme al C\u00f3digo de Salud y Seguridad \u00a7 17920.3; adem\u00e1s, el solicitante no est\u00e1 obligado a pagar cargos de impacto ni cargos de conexi\u00f3n o capacidad, excepto cuando se requiera infraestructura de servicios p\u00fablicos para cumplir con esa secci\u00f3n. La ciudad de Woodland adopt\u00f3 el 17 de febrero de 2026 una ordenanza que modifica la Secci\u00f3n 17.84.030 del C\u00f3digo Municipal con el prop\u00f3sito de actualizar sus reglamentos locales de ADU; el aviso CEQA no contiene los requisitos operativos de la ordenanza, por lo que se recomienda consultar el texto actual del C\u00f3digo Municipal y los materiales de solicitud vigentes de la ciudad. La ciudad no puede imponer una condici\u00f3n de ocupaci\u00f3n por parte del propietario (owner-occupancy requirement); puede exigir que el inmueble se use para arrendamientos de 30 d\u00edas o m\u00e1s, pero la norma aplicable no obliga a un plazo mayor a 30 d\u00edas."
+        }
+      ]
+    }
+  ]
+}

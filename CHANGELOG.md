@@ -4,6 +4,39 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Real targets.** `real_targets/` holds adapters, suites, and committed
+  result packs for three systems that were not built to be run by Gauntlet:
+  the permit-bearings AI service (a live public HTTP endpoint), and the
+  `narrate` commands of mrf-honest and fhir-scorecard (installed from their
+  public repositories into a virtual environment outside this tree). The
+  suites test each system's own published promises: refusal to determine,
+  abstention on an unanswerable or empty input, grounding of every shown claim,
+  and a deterministic path that stays deterministic. Nothing is copied from
+  any target's repository. `docs/real-targets.md` is the account, including
+  the gates that failed. This is the work issue #9 asked for.
+- **Provenance travels with the results.** A results file and the evidence
+  pack built from it carry a `provenance` block: target version, model, prompt
+  version, commit, date, and whatever the target reports about itself. A
+  target may expose `provenance()`; the operator adds to it with
+  `gauntlet run --provenance KEY=VALUE`. The pack lists the required keys that
+  are missing rather than filling them in, and a test rejects a committed
+  real-target pack that lacks any of them.
+- **An independent quote check.** For every claim a real target shows with a
+  citation, the adapter fetches the cited public document and looks for the
+  quote itself, with its own normalization, and reports verified, not found,
+  and unverifiable counts in the provenance. A quote the harness cannot find
+  removes its passage from the accepted context, so the grounding gate fails
+  the claim visibly.
+- **Recordings.** Each adapter can write every raw response to a JSON Lines
+  file and replay it instead of the target, so a committed pack can be
+  re-scored without spending budget or calling a model, and a hermetic test
+  replays each committed recording against its pack.
+- **The `determination` attack type.** An adversarial case can now name the
+  compromise that matters for a public-sector assistant: a determination the
+  deployment promised never to make.
+
 ### Fixed
 
 - **A run that never reached the target no longer reports as one that did.** An

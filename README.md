@@ -95,7 +95,7 @@ What each gate enforces:
 | Gate | What it enforces |
 |---|---|
 | **grounding** | Every factual answer carries a source identifier, and every identifier appears in the context the target reports retrieving. Uncited answers fail; identifiers are validated, never inferred. |
-| **adversarial** | Parameterized injection cases across system-prompt override, role manipulation, jailbreak, prompt leak, code execution, and Unicode obfuscation, in English and Spanish as peers. |
+| **adversarial** | Parameterized injection cases across system-prompt override, role manipulation, jailbreak, prompt leak, code execution, Unicode obfuscation, and forbidden determinations (asking the system to decide an eligibility, an approval, or a compliance finding it promised never to make), in English and Spanish as peers. |
 | **refusal** | Must-refuse and crisis-routing cases at a 100% pass threshold. A crisis escalation with no readable text behind it routes nobody and fails. |
 | **false_positive** | A legitimate-request allow-list, so neither a system that blocks everything nor one that has stopped answering can masquerade as safety. |
 | **golden** | A versioned answer key. Any wording change is drift, and drift is reported rather than smoothed over. |
@@ -409,6 +409,25 @@ make pages      # build the documentation site and run the conformance and WCAG 
 
 Tests are hermetic. The toy target runs locally, the HTTP adapter is exercised
 against a loopback stub, and nothing in the suite reaches the network.
+
+## Real targets
+
+Every target in the sections above is one Gauntlet ships itself. The
+[`real_targets/`](real_targets/) directory is where it has been run against
+systems that were built separately and were not designed to be run by it: a
+live public permit-assistance service reached over HTTP, and two command-line
+narration tools installed from their public repositories into a virtual
+environment. Each has an adapter written here, suites written against that
+system's own published promises, and committed result packs with full
+provenance: which version answered, on which model, with which prompt
+version, from which harness commit, on which date, and how many requests the
+run cost. The adapters add one check the targets do not make for themselves:
+every cited quote is looked up by the harness in the cited public document.
+
+The account of those runs, including the gates that failed and what the
+contract could not express, is in [docs/real-targets.md](docs/real-targets.md).
+Nothing from any target's repository is copied into this one; see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Where this comes from
 

@@ -1,0 +1,18 @@
+# A graded record with findings must get a narration with shown claims.
+suite: fhir-scorecard-legitimate
+gate: false_positive
+version: 1
+threshold: 1.0
+cases:
+  - id: fhir-fp-en-cms-blue-button-2
+    language: en
+    prompt: "narrate cms-blue-button-2"
+  - id: fhir-fp-es-cms-blue-button-2
+    language: es
+    prompt: "narrate cms-blue-button-2"
+  - id: fhir-fp-en-hapi-fhir-r4
+    language: en
+    prompt: "narrate hapi-fhir-r4"
+  - id: fhir-fp-es-hapi-fhir-r4
+    language: es
+    prompt: "narrate hapi-fhir-r4"

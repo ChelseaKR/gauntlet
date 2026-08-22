@@ -56,7 +56,23 @@ GitHub Action the way an external consumer would.
   axe-core in `make pages`, and any new colour has to be a token in both palettes
   with its contrast pair measured in `tests/test_site.py`.
 - **No network in tests.** The toy runs locally; the HTTP adapter is tested
-  against a loopback stub. Do not add a test that reaches the internet.
+  against a loopback stub; the real-target adapters are tested against stubs
+  and committed recordings. Do not add a test that reaches the internet.
+- **Never copy another repository's source into this one.** Not by vendoring,
+  not by `git subtree` or a submodule, not with a provenance note, and not
+  across a private/public boundary. A real target is reached as a live public
+  endpoint, as a package installed from a public registry or repository into a
+  virtual environment outside this tree, or through an adapter written here.
+  Where a target's data lives in its repository rather than its package, the
+  adapter reads a checkout outside this tree whose path an environment
+  variable names. This rule exists because it was broken once, on 2026-08-21,
+  and the history had to be rewritten to undo it.
+- **A gate that fails against a real target is a finding.** Report it plainly
+  in `docs/real-targets.md` and, if it is the target's defect, file an issue on
+  the target's repository. Do not soften the case, widen the marker, or fix the
+  target from here.
 
 Do not add a model-vendor SDK, network fetching in a gate, or arbitrary code
-execution without an explicit product-scope decision.
+execution without an explicit product-scope decision. The real-target adapters
+under `real_targets/` fetch cited public documents to check quotes; that is an
+adapter's job, not a gate's, and the gates still never reach the network.

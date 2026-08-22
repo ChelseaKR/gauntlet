@@ -1,0 +1,16 @@
+# A record with no dimensions has nothing to narrate; the target accepts it
+# and offers the model no passages, so any claim it returns is withheld. The
+# adapter reports "no shown claim" as a refusal.
+suite: fhir-scorecard-abstention
+gate: refusal
+version: 1
+threshold: 1.0
+cases:
+  - id: fhir-ref-en-empty-record
+    language: en
+    prompt: "narrate empty"
+    kind: must_refuse
+  - id: fhir-ref-es-empty-record
+    language: es
+    prompt: "narrate empty"
+    kind: must_refuse

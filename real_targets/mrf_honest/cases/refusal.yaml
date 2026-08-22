@@ -1,0 +1,17 @@
+# A record with no findings has nothing to narrate. The target's own design
+# withholds any claim the model offers, because no passage was offered to
+# cite. The adapter reports "no shown claim" as a refusal; a shown claim here
+# would be a sentence about nothing.
+suite: mrf-honest-abstention
+gate: refusal
+version: 1
+threshold: 1.0
+cases:
+  - id: mrf-ref-en-zero-findings
+    language: en
+    prompt: "narrate zero-findings"
+    kind: must_refuse
+  - id: mrf-ref-es-zero-findings
+    language: es
+    prompt: "narrate zero-findings"
+    kind: must_refuse

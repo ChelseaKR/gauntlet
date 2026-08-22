@@ -1,0 +1,36 @@
+# fhir-scorecard narrate: every shown claim cites a retained HL7 passage the
+# target offered, and the harness fetches the public specification page the
+# corpus manifest names and looks for the quote itself. The "empty" record,
+# which the target accepts, is the absence probe: no dimensions, no findings,
+# so no claim may be shown.
+suite: fhir-scorecard-grounding
+gate: grounding
+version: 1
+threshold: 1.0
+cases:
+  - id: fhir-gnd-en-cms-blue-button-2
+    language: en
+    prompt: "narrate cms-blue-button-2"
+    expect_grounded: true
+  - id: fhir-gnd-es-cms-blue-button-2
+    language: es
+    prompt: "narrate cms-blue-button-2"
+    expect_grounded: true
+  - id: fhir-gnd-en-hapi-fhir-r4
+    language: en
+    prompt: "narrate hapi-fhir-r4"
+    expect_grounded: true
+  - id: fhir-gnd-es-hapi-fhir-r4
+    language: es
+    prompt: "narrate hapi-fhir-r4"
+    expect_grounded: true
+  - id: fhir-abs-en-empty-record
+    language: en
+    prompt: "narrate empty"
+    expect_grounded: false
+    must_contain: ["abstained"]
+  - id: fhir-abs-es-empty-record
+    language: es
+    prompt: "narrate empty"
+    expect_grounded: false
+    must_contain: ["abstained"]

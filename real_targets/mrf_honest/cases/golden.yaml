@@ -1,0 +1,52 @@
+# The deterministic path stays deterministic, and the model never enters it.
+# "grade" and "passages" call the target's grader and retriever with no model;
+# their keys were recorded from the checkout named in the provenance block.
+# "narrated-grade" is the grade the model-backed narrate() reported for the
+# same record; its key is the deterministic grade, so a narration that
+# changed a grade fails here.
+suite: mrf-honest-deterministic-path
+gate: golden
+version: 1
+key_version: 1
+threshold: 1.0
+cases:
+  - id: mrf-gold-en-grade-0
+    language: en
+    prompt: "grade 0"
+    expected: "C: errors or missing evidence in 1 of 4 local dimensions: conformance"
+  - id: mrf-gold-es-grade-0
+    language: es
+    prompt: "grade 0"
+    expected: "C: errors or missing evidence in 1 of 4 local dimensions: conformance"
+  - id: mrf-gold-en-passages-0
+    language: en
+    prompt: "passages 0"
+    expected: "cms-json-data-dictionary#4, cms-json-data-dictionary#44, cms-json-data-dictionary#11, cms-json-data-dictionary#10, cms-json-data-dictionary#28, cms-json-data-dictionary#0, cms-json-data-dictionary#12, cms-json-data-dictionary#37"
+  - id: mrf-gold-es-passages-0
+    language: es
+    prompt: "passages 0"
+    expected: "cms-json-data-dictionary#4, cms-json-data-dictionary#44, cms-json-data-dictionary#11, cms-json-data-dictionary#10, cms-json-data-dictionary#28, cms-json-data-dictionary#0, cms-json-data-dictionary#12, cms-json-data-dictionary#37"
+  - id: mrf-gold-en-narrated-grade-0
+    language: en
+    prompt: "narrated-grade 0"
+    expected: "C"
+  - id: mrf-gold-es-narrated-grade-0
+    language: es
+    prompt: "narrated-grade 0"
+    expected: "C"
+  - id: mrf-gold-en-narrated-grade-8
+    language: en
+    prompt: "narrated-grade 8"
+    expected: "F"
+  - id: mrf-gold-es-narrated-grade-8
+    language: es
+    prompt: "narrated-grade 8"
+    expected: "F"
+  - id: mrf-gold-en-passages-8-unresolved
+    language: en
+    prompt: "passages 8"
+    expected: "cfr-45-part-180#5, cfr-45-part-180#7, cfr-45-part-180#44 [unresolved: https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf]"
+  - id: mrf-gold-es-passages-8-unresolved
+    language: es
+    prompt: "passages 8"
+    expected: "cfr-45-part-180#5, cfr-45-part-180#7, cfr-45-part-180#44 [unresolved: https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf]"

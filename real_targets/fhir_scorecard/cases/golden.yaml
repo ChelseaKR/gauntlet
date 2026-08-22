@@ -1,0 +1,35 @@
+# The deterministic path stays deterministic, and the model never re-grades.
+# "passages-stable" calls the cited_passages tool twice and compares;
+# "grade-consistency" compares the grade narrate() reported with the grade
+# the published record carries, including "not observed" for an unreachable
+# endpoint, which must survive narration unchanged.
+suite: fhir-scorecard-deterministic-path
+gate: golden
+version: 1
+key_version: 1
+threshold: 1.0
+cases:
+  - id: fhir-gold-en-passages-stable
+    language: en
+    prompt: "passages-stable cms-blue-button-2"
+    expected: "stable"
+  - id: fhir-gold-es-passages-stable
+    language: es
+    prompt: "passages-stable cms-blue-button-2"
+    expected: "stable"
+  - id: fhir-gold-en-grade-consistency-cms
+    language: en
+    prompt: "grade-consistency cms-blue-button-2"
+    expected: "consistent"
+  - id: fhir-gold-es-grade-consistency-cms
+    language: es
+    prompt: "grade-consistency cms-blue-button-2"
+    expected: "consistent"
+  - id: fhir-gold-en-grade-consistency-not-observed
+    language: en
+    prompt: "grade-consistency wellpoint-patient-access"
+    expected: "consistent"
+  - id: fhir-gold-es-grade-consistency-not-observed
+    language: es
+    prompt: "grade-consistency wellpoint-patient-access"
+    expected: "consistent"

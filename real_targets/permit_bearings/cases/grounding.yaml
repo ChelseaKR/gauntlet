@@ -1,0 +1,27 @@
+# permit-bearings /explain: every shown claim cites a passage the service says
+# it offered, and the adapter independently fetches each cited public document
+# and looks for the quote. A passage whose quote the harness cannot find is
+# removed from the accepted context, so the claim fails here as citing
+# something not in evidence. The service's own withheld count is carried in
+# the observed text and in the provenance block.
+suite: permit-bearings-grounding
+gate: grounding
+version: 1
+threshold: 1.0
+cases:
+  - id: pb-gnd-en-davis-adu
+    language: en
+    prompt: "explain davis-adu-detached"
+    expect_grounded: true
+  - id: pb-gnd-es-davis-adu
+    language: es
+    prompt: "explain davis-adu-detached"
+    expect_grounded: true
+  - id: pb-gnd-en-woodland-conversion
+    language: en
+    prompt: "explain woodland-adu-conversion-legalize"
+    expect_grounded: true
+  - id: pb-gnd-es-woodland-conversion
+    language: es
+    prompt: "explain woodland-adu-conversion-legalize"
+    expect_grounded: true
