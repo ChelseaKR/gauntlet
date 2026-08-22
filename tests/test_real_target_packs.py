@@ -91,7 +91,7 @@ def test_the_recording_reproduces_the_committed_pack(
             (root / cohort).parent.mkdir(parents=True, exist_ok=True)
             # The recording answers every narrate; the record file only has to exist
             # with enough rows for the selectors the suites use.
-            (root / cohort).write_text("{}\n" * 11)
+            (root / cohort).write_text('{"scorecard": {}, "subject": {}}\n' * 11)
             target = MrfHonestTarget(root=root, environ={}, cohort=cohort, ledger=ledger)
         else:
             dataset = root / "scorecards.json"

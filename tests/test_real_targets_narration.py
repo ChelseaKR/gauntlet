@@ -234,6 +234,8 @@ def test_mrf_zero_findings_record_removes_every_finding() -> None:
     record = zero_findings_record(_mrf_record())
     assert all(block["findings"] == [] for block in record["scorecard"].values())
     assert all(block["status"] == "OBSERVED" for block in record["scorecard"].values())
+    with pytest.raises(TargetError, match="no scorecard"):
+        zero_findings_record({"subject": {}})
 
 
 def test_mrf_adapter_replays_narrations_and_reports_provenance(

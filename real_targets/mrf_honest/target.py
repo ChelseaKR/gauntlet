@@ -83,8 +83,11 @@ def _unassessed(record: dict[str, Any]) -> set[str]:
 def zero_findings_record(base: dict[str, Any]) -> dict[str, Any]:
     """The absence probe: the base record with every finding removed."""
     record: dict[str, Any] = json.loads(json.dumps(base))
+    scorecard = record.get("scorecard")
+    if not isinstance(scorecard, dict):
+        raise TargetError("the base record for the zero-findings probe has no scorecard")
     for dimension in DIMENSIONS:
-        block = record["scorecard"].get(dimension)
+        block = scorecard.get(dimension)
         if isinstance(block, dict):
             block["findings"] = []
             block["status"] = "OBSERVED"
