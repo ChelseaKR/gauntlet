@@ -13,6 +13,7 @@ There is no path that makes a failure quieter than a pass.
 from __future__ import annotations
 
 from gauntlet.evidence import ALIGNMENT_NOTICE, CLEAN_RUN_CAVEAT
+from gauntlet.results import PROVENANCE_MEANING
 
 __all__ = ["ALIGNMENT_NOTICE", "render_markdown"]
 
@@ -116,6 +117,37 @@ def _summary(lines: list[str], pack: dict[str, object]) -> None:
         lines.append("")
     lines.append("Every count in this document is counted from the cases that ran.")
     lines.append("")
+
+
+def _provenance(lines: list[str], pack: dict[str, object]) -> None:
+    provenance = pack.get("provenance")
+    provenance = provenance if isinstance(provenance, dict) else {}
+    missing = _strs(pack.get("provenance_missing"))
+    lines.append("## Provenance")
+    lines.append("")
+    lines.append(
+        "Where this run came from, as the target reported it and as the operator "
+        "recorded it. A number with no provenance cannot be rerun or compared, so a "
+        "committed pack is expected to name all of these."
+    )
+    lines.append("")
+    rows = [
+        [f"`{_cell(key)}`", _cell(value), _cell(PROVENANCE_MEANING.get(key, ""))]
+        for key, value in sorted(provenance.items())
+        if isinstance(key, str)
+    ]
+    if rows:
+        _table(lines, ["Field", "Value", "Meaning"], rows)
+    else:
+        lines.append("Nothing was recorded.")
+        lines.append("")
+    if missing:
+        lines.append(
+            "**Provenance incomplete.** Not recorded: "
+            + ", ".join(f"`{key}`" for key in missing)
+            + ". Nothing here is filled in on the run's behalf."
+        )
+        lines.append("")
 
 
 def _what_was_tested(lines: list[str], gates: list[dict[str, object]]) -> None:
@@ -471,6 +503,7 @@ def render_markdown(pack: dict[str, object]) -> str:
     lines.append(f"> **{ALIGNMENT_NOTICE}**")
     lines.append("")
     _summary(lines, pack)
+    _provenance(lines, pack)
     _what_was_tested(lines, _dicts(pack.get("gates")))
     _counts_by_language(lines, pack)
     _what_failed(lines, pack)

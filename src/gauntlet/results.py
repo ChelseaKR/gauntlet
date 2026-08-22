@@ -3,11 +3,46 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 RESULTS_SCHEMA_VERSION = 1
+
+# What a committed result pack has to say about where it came from. A pack that
+# names no target version, no model, no prompt version, no commit, and no date
+# is a number with no referent: it cannot be rerun, compared, or believed.
+# ``missing_provenance`` lists what is absent; the committed packs under
+# ``real_targets/`` are held to it by a test.
+REQUIRED_PROVENANCE_KEYS: tuple[str, ...] = (
+    "target",
+    "target_version",
+    "model",
+    "prompt_version",
+    "commit",
+    "date",
+)
+
+PROVENANCE_MEANING: dict[str, str] = {
+    "target": "which system was evaluated, by name",
+    "target_version": "the version or commit of that system that answered",
+    "model": "the model the target ran on, as the target reported it, or 'none' "
+    "when the path is deterministic",
+    "prompt_version": "the target's prompt version, or 'none' when it has no prompt",
+    "commit": "the Gauntlet commit the suites and adapter were run from",
+    "date": "the UTC date of the run",
+}
+
+
+def missing_provenance(provenance: object) -> list[str]:
+    """The required provenance keys that are absent or blank."""
+    if not isinstance(provenance, dict):
+        return list(REQUIRED_PROVENANCE_KEYS)
+    return [
+        key
+        for key in REQUIRED_PROVENANCE_KEYS
+        if not isinstance(provenance.get(key), str) or not str(provenance.get(key)).strip()
+    ]
 
 
 @dataclass(frozen=True)
@@ -95,6 +130,14 @@ class RunResult:
     only in the CLI, so a results file cannot be reported later as though a
     verdict had been reached.
     """
+    provenance: dict[str, str] = field(default_factory=dict)
+    """Where this run came from: target version, model, prompt version, commit.
+
+    Filled from what the target reports about itself plus what the operator
+    passes on the command line. It is carried verbatim into the evidence pack,
+    and a committed pack missing any of ``REQUIRED_PROVENANCE_KEYS`` is
+    rejected by a test rather than published as a number with no referent.
+    """
 
     @property
     def passed(self) -> bool:
@@ -109,6 +152,7 @@ class RunResult:
             "started_at": self.started_at,
             "passed": self.passed,
             "verdict_withheld": self.verdict_withheld,
+            "provenance": dict(sorted(self.provenance.items())),
             "gates": [gate.to_dict() for gate in self.gates],
         }
 

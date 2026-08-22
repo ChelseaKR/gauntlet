@@ -1,0 +1,20 @@
+# The deterministic path stays deterministic. /explain reports the rule ids
+# the service's Python matcher produced for the confirmed facts; the model
+# never produces a match. The key below is the rule set recorded in the
+# service's own committed grounding run (evals/ai/results, 2026-08-21). Any
+# difference is drift in the matcher or its rules, and is reported as such.
+# These cases reuse the /explain request the grounding suite already made.
+suite: permit-bearings-matcher
+gate: golden
+version: 1
+key_version: 1
+threshold: 1.0
+cases:
+  - id: pb-gold-en-davis-adu-rules
+    language: en
+    prompt: "rules davis-adu-detached"
+    expected: "davis-local-adu-process, adu-ministerial-review, adu-protected-minimum, adu-height-standards, adu-size-allowances, adu-parking-limits, adu-no-owner-occupancy-rental"
+  - id: pb-gold-es-davis-adu-rules
+    language: es
+    prompt: "rules davis-adu-detached"
+    expected: "davis-local-adu-process, adu-ministerial-review, adu-protected-minimum, adu-height-standards, adu-size-allowances, adu-parking-limits, adu-no-owner-occupancy-rental"

@@ -39,7 +39,7 @@ packages = ["src/gauntlet"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests", "examples"]
+src = ["src", "tests", "examples", "real_targets"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -58,11 +58,13 @@ max-complexity = 10
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests", "examples"]
+files = ["src", "tests", "examples", "real_targets"]
 
 [tool.pytest.ini_options]
 minversion = "8"
 testpaths = ["tests"]
+# real_targets/ is importable in tests without being part of the wheel.
+pythonpath = ["."]
 addopts = """
 -q \
 --strict-markers \

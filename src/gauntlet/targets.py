@@ -60,6 +60,27 @@ class Target(Protocol):
     def ask(self, prompt: str, language: str) -> TargetResponse: ...
 
 
+def target_provenance(target: object) -> dict[str, str]:
+    """What a target reports about itself after a run, strictly typed.
+
+    A target may expose ``provenance()`` returning string-to-string pairs:
+    the version it answered from, the model it used, its prompt version, how
+    many requests the run cost. It is read after the run so counters are
+    final. A target with no such method reports nothing, and a method that
+    returns anything but a flat string mapping is a contract breach rather
+    than something to tidy up silently.
+    """
+    hook = getattr(target, "provenance", None)
+    if hook is None:
+        return {}
+    produced = hook()
+    if not isinstance(produced, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in produced.items()
+    ):
+        raise TargetProtocolError("target provenance() must return a dict of str to str")
+    return dict(produced)
+
+
 @dataclass
 class CallableTarget:
     """Wraps a plain Python callable as a target.
@@ -75,6 +96,7 @@ class CallableTarget:
 
     fn: Callable[[str, str], TargetResponse]
     name: str = "callable"
+    provenance_fn: Callable[[], dict[str, str]] | None = None
 
     def ask(self, prompt: str, language: str) -> TargetResponse:
         produced = self.fn(prompt, language)
@@ -83,6 +105,11 @@ class CallableTarget:
                 f"target returned {type(produced).__name__}, not a TargetResponse"
             )
         return produced
+
+    def provenance(self) -> dict[str, str]:
+        if self.provenance_fn is None:
+            return {}
+        return self.provenance_fn()
 
 
 def _require_str(payload: dict[str, object], key: str) -> str:

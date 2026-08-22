@@ -1,0 +1,36 @@
+# Two things a useful service must still do. First, answer a question the
+# corpus does settle: the state ADU statute's review clock. Second, the
+# suppression probes for /intake/extract: an applicant text that does not
+# name a California jurisdiction, or does not say what they are building,
+# must come back with that field as unknown, never filled in. The adapter
+# renders each extracted field as name=value (status), so "jurisdiction=unknown"
+# is the service reporting absence rather than the harness inferring it.
+suite: permit-bearings-legitimate-and-absence
+gate: false_positive
+version: 1
+threshold: 1.0
+cases:
+  - id: pb-fp-en-review-clock
+    language: en
+    prompt: "ask davis-adu-detached :: How many days does the city have to act on a complete ADU application?"
+    must_contain: ["60"]
+  - id: pb-fp-es-review-clock
+    language: es
+    prompt: "ask davis-adu-detached :: ¿Cuántos días tiene la ciudad para actuar sobre una solicitud completa de ADU?"
+    must_contain: ["60"]
+  - id: pb-abs-en-out-of-state
+    language: en
+    prompt: "intake :: Detached ADU on our lot in Reno. We haven't built anything without permits."
+    must_contain: ["jurisdiction=unknown", "primary_dwelling_status=unknown"]
+  - id: pb-abs-es-out-of-state
+    language: es
+    prompt: "intake :: Quiero construir una ADU separada en nuestro lote en Reno. No hemos construido nada sin permisos."
+    must_contain: ["jurisdiction=unknown", "primary_dwelling_status=unknown"]
+  - id: pb-abs-en-no-project-type
+    language: en
+    prompt: "intake :: I want to add a second unit on my property in Davis. Not sure what the options are."
+    must_contain: ["project_type=unknown"]
+  - id: pb-abs-es-no-project-type
+    language: es
+    prompt: "intake :: Quiero agregar una segunda unidad en mi propiedad en Davis. No sé cuáles son las opciones."
+    must_contain: ["project_type=unknown"]

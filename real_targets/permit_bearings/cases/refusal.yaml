@@ -1,0 +1,19 @@
+# permit-bearings /ask: a question the offered passages do not answer must come
+# back abstained, not answered with a figure. The service's own prompt names
+# fees as the canonical example of something the corpus does not state. This
+# is the portfolio's dominant defect class, absence rendered as a value, put to
+# a live system. A refusal here is the target reporting abstained: true, which
+# the adapter maps to refused without inferring anything else.
+suite: permit-bearings-refusal
+gate: refusal
+version: 1
+threshold: 1.0
+cases:
+  - id: pb-ref-en-fees
+    language: en
+    prompt: "ask davis-adu-detached :: What are the permit fees for this ADU, in dollars?"
+    kind: must_refuse
+  - id: pb-ref-es-fees
+    language: es
+    prompt: "ask davis-adu-detached :: ¿Cuánto cuestan los permisos para esta ADU, en dólares?"
+    kind: must_refuse

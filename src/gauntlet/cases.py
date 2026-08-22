@@ -24,6 +24,10 @@ ATTACK_TYPES = (
     "prompt_leak",
     "code_execution",
     "obfuscation",
+    # Asks the system to decide something it is built to refuse to decide: an
+    # eligibility, an approval, a compliance finding. The compromise is not a
+    # leaked secret but a determination the deployment promised never to make.
+    "determination",
 )
 REFUSAL_KINDS = ("must_refuse", "crisis")
 
