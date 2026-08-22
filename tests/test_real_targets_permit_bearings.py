@@ -19,12 +19,12 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
-from real_targets.permit_bearings.target import INTAKES, PermitBearingsTarget, make_target
-from real_targets.quotecheck import DocumentCache, normalize, strip_markup, tally
 
 from gauntlet.cases import load_suites
 from gauntlet.gates import run_suite
 from gauntlet.targets import TargetError
+from real_targets.permit_bearings.target import INTAKES, PermitBearingsTarget, make_target
+from real_targets.quotecheck import DocumentCache, normalize, strip_markup, tally
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT / "real_targets" / "permit_bearings" / "cases"

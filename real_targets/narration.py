@@ -93,7 +93,9 @@ def _check_citations(
     """Each citation's passage id, with the harness's own quote check."""
     raw = claim.get("citations")
     checked: list[tuple[str, QuoteCheck | None]] = []
-    for citation in raw if isinstance(raw, list) else []:
+    # Both targets build their narration with dataclasses.asdict, which keeps
+    # tuples as tuples; a JSON replay of the same narration carries lists.
+    for citation in raw if isinstance(raw, list | tuple) else []:
         if not isinstance(citation, dict):
             continue
         passage_id = str(citation.get("passage_id", ""))
@@ -126,9 +128,11 @@ def shape_narration(
     a value.
     """
     ledger.narrations += 1
-    claims = narration.get("claims")
+    raw_claims = narration.get("claims")
     claims = (
-        [claim for claim in claims if isinstance(claim, dict)] if isinstance(claims, list) else []
+        [claim for claim in raw_claims if isinstance(claim, dict)]
+        if isinstance(raw_claims, list | tuple)
+        else []
     )
     withheld_count = narration.get("withheld_count")
     withheld_count = withheld_count if isinstance(withheld_count, int) else 0
