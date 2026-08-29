@@ -6,6 +6,24 @@ All notable changes will be documented here.
 
 ### Added
 
+- **Every documentation page says which page it is.** All five carried one
+  shared `SITE_DESCRIPTION`, so a search result or a share card for the
+  California mapping and one for the GitHub Action were the same sentence.
+  `PAGE_DESCRIPTIONS` gives each page a description written from headings and
+  prose already on it, and none of them states a count: the gate figures are
+  counted from the suites that load, and a number repeated in a meta tag would
+  be a second copy nothing derives. Each page also carries a self-referencing
+  `<link rel="canonical">`, `og:url`, `og:title`, `og:description`, `og:type`,
+  `og:site_name` and `twitter:card`. These pages are served at a path under an
+  origin five sibling projects publish under, and `https://chelseakr.github.io/`
+  is itself a 404, so every absolute self-reference carries `/gauntlet/`.
+  `render_site` refuses to build a page PAGE_DESCRIPTIONS has no entry for
+  rather than emitting `content=""`. `tests/test_site.py` fails on a canonical
+  naming the bare origin, on two pages sharing a title or a description, and on
+  any root-relative `href`, `src` or `content`; the expected origin is written
+  out there rather than read from `SITE_URL`, because a check that derives its
+  expectation from the constant it is checking moves with the mistake.
+
 - **The `judge` gate: a model grades against a rubric, after calibration.** A
   judge suite names a committed calibration set of response/verdict pairs a
   person labeled and a minimum agreement; the judge is measured against it
