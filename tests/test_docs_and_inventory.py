@@ -64,6 +64,27 @@ def test_prose_files_were_found() -> None:
     assert "california-mapping.md" in names
 
 
+def test_source_files_were_found() -> None:
+    """The same guard, for the list that did not have one.
+
+    PROSE_FILES has the check above and WORKFLOWS has its own; SOURCE_FILES had
+    neither. It feeds ``test_no_em_dashes_in_source_prose``, and pytest reports an
+    empty parameter set as SKIPPED while the run still exits 0. Measured on this
+    tree: pointing the three globs at directories that do not exist took this
+    module from 95 passed to 49 passed and 1 skipped, exit 0 both times. Forty-six
+    checks stopped happening, and the only trace was one line in a skip report.
+
+    Named files rather than a count, because a count drifts whenever somebody adds
+    a module, and a guard people have to keep updating is a guard people delete.
+    """
+    names = {path.name for path in SOURCE_FILES}
+    assert {"__init__.py", "cli.py"} <= names, (
+        f"src/gauntlet/**/*.py matched no package modules; SOURCE_FILES holds {sorted(names)}"
+    )
+    assert "test_docs_and_inventory.py" in names, "tests/*.py matched nothing"
+    assert "broken_target.py" in names, "examples/*.py matched nothing"
+
+
 @pytest.mark.parametrize("path", PROSE_FILES, ids=lambda p: str(p.name))
 def test_no_em_dashes_in_prose(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
