@@ -1,7 +1,8 @@
 # Gauntlet: scope
 
-*Scoping document, 2026-08-07. Repo name is provisional while private; renaming
-costs nothing until first publication.*
+*Scoping document, 2026-08-07. The repo name was provisional while the
+repository was private. It is public now, and `gauntlet-evals` 0.1.0 is on
+PyPI, so the name is settled and renaming is no longer free.*
 
 > **Correction, made by reading the source.** This document originally placed the
 > written contractor disclosure duty in SAM 4986.2. Reading the SAM 4986 series
@@ -115,10 +116,12 @@ publication decision, and any renaming, sits with the owner.
 
 ## Open questions for the owner
 
-1. Repo name: keep `gauntlet` or rename before publication.
+1. Repo name: settled by publication. The repository is public and
+   `gauntlet-evals` 0.1.0 is on PyPI under that name.
 2. License: Apache-2.0 assumed (matches exitdrill and portfolio convention).
 3. Whether M1's mapping table should be reviewed by a procurement-side reader
-   (an advocate contact or the DGS webinar Q&A) before the repo goes public.
+   (an advocate contact or the DGS webinar Q&A). Asked before the repo went
+   public, and still open now that it is.
 4. Whether the GitHub Action should be referenceable by tag rather than by
    commit SHA. The package question is settled: `v0.1.0` is tagged and
    `gauntlet-evals` 0.1.0 is on PyPI. The action is still pinned by SHA, and no

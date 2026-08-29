@@ -1,12 +1,18 @@
 // Run axe-core over every built page, headlessly, in a jsdom DOM.
 //
-// This is the WCAG gate. It loads each page into a real DOM implementation and runs
-// axe-core's WCAG 2.0/2.1/2.2 A and AA rule sets plus the best-practice set, and exits
-// non-zero on any violation. It is not a substitute for a person looking at the pages:
-// jsdom does no layout and computes no colours, so the rules that depend on rendered
-// geometry or on painted pixels cannot fire here. Colour contrast is measured
-// separately, off the palette itself, in tests/test_site.py, and what still needs a
-// person is named in README.md.
+// This is the accessibility gate. It loads each page into a real DOM implementation,
+// runs the axe tags in TAGS, and exits non-zero on any violation. The tags are what
+// this file configures and what it reports; it does not paraphrase them as WCAG
+// versions, because the paraphrase claims more than the tags select. axe-core
+// publishes no `wcag22a` tag at all, and the `wcag22aa` tag selects one rule that
+// jsdom cannot decide, so this gate settles nothing about WCAG 2.2 today. It prints
+// the rule count each tag selects, and how many of those can report here, so the
+// difference is in the output rather than in a sentence somebody typed.
+//
+// It is not a substitute for a person looking at the pages: jsdom does no layout and
+// computes no colours, so rules that depend on rendered geometry or on painted pixels
+// cannot fire here. Colour contrast is measured once, off the palette itself, in
+// tests/test_site.py, and what still needs a person is named in README.md.
 //
 // Usage: node tools/a11y.mjs <directory-of-html-files>
 
@@ -74,6 +80,36 @@ const pages = readdirSync(dir)
 
 if (pages.length === 0) {
   console.error(`no .html files in ${dir}; build the site first`);
+  process.exit(2);
+}
+
+// A configured tag that selects no rule is a tag doing nothing, and in a list like
+// TAGS it reads as coverage. axe does not object to one: an unknown tag simply
+// matches nothing. `wcag22a` is exactly that case, which is why this gate reports
+// what each tag selected rather than what the version numbers suggest.
+const coverage = TAGS.map((tag) => {
+  const selected = axe
+    .getRules()
+    .filter((rule) => rule.tags.includes(tag))
+    .map((rule) => rule.ruleId);
+  return {
+    tag,
+    selected,
+    effective: selected.filter((id) => !NEEDS_A_RENDERER.has(id)),
+  };
+});
+for (const { tag, selected, effective } of coverage) {
+  console.log(
+    `tag  ${tag.padEnd(14)} ${String(selected.length).padStart(3)} rule(s) selected, ` +
+      `${String(effective.length).padStart(3)} able to report in jsdom`,
+  );
+}
+const empty = coverage.filter(({ selected }) => selected.length === 0);
+if (empty.length > 0) {
+  console.error(
+    `\n${empty.map(({ tag }) => tag).join(", ")}: configured but selects no rule in ` +
+      `axe-core ${axe.version}. A tag that matches nothing is not coverage.`,
+  );
   process.exit(2);
 }
 

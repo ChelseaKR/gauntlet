@@ -37,9 +37,9 @@ jobs:
 
   # The documentation site, built and then checked without a browser: HTML
   # conformance and the markup-level accessibility rules through html-validate,
-  # and the WCAG 2.0/2.1/2.2 A and AA rule sets through axe-core in a headless
-  # DOM. Nothing is served and nothing is deployed here; both checkers read files
-  # off disk. Deploying is a separate workflow that runs only on main.
+  # and the six axe tags `tools/a11y.mjs` configures through axe-core in a
+  # headless DOM. Nothing is served and nothing is deployed here; both checkers
+  # read files off disk. Deploying is a separate workflow that runs only on main.
   site:
     runs-on: ubuntu-latest
     steps:
