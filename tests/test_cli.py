@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -345,7 +346,11 @@ def test_a_target_that_raises_exits_two_and_names_the_case(
     assert "503" in err
     # The operator is told where the run stopped instead of reading a traceback.
     assert "gate 'adversarial'" in err
-    assert "case " in err
+    # The case id itself, not the literal word "case": that word is part of the
+    # same f-string as "gate", so asserting it added nothing once "gate" passed.
+    match = re.search(r"case '([^']+)'", err)
+    assert match, err
+    assert match.group(1).startswith("adv-")
 
 
 def test_an_aborted_run_leaves_no_earlier_results_file_behind(tmp_path: Path) -> None:

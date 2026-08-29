@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -59,6 +59,7 @@ from gauntlet.site import (
     Table,
     broken_run,
     build_site,
+    gates_page,
     healthy_run,
     load_action,
     markdown_section,
@@ -314,18 +315,38 @@ FORBIDDEN_CLAIMS = (
 PACKAGE_BADGES = ("img.shields.io", "pypi.org/project", "badge.fury.io", "pypi version")
 
 
+def _assert_no_claim(text: str, where: str, phrases: tuple[str, ...], verb: str) -> None:
+    for phrase in phrases:
+        assert phrase not in text, f"{where} {verb} {phrase!r}"
+
+
 @pytest.mark.parametrize("name", PAGE_NAMES)
 def test_no_page_claims_state_approval_or_endorsement(built: Path, name: str) -> None:
     text = (built / name).read_text(encoding="utf-8").casefold()
-    for claim in FORBIDDEN_CLAIMS:
-        assert claim not in text, f"{name} claims {claim!r}"
+    _assert_no_claim(text, name, FORBIDDEN_CLAIMS, "claims")
+
+
+@pytest.mark.parametrize("phrase", FORBIDDEN_CLAIMS + PACKAGE_BADGES)
+def test_the_page_claim_rules_reject_the_phrases_they_name(phrase: str) -> None:
+    """The negative control the page scans never had.
+
+    Both page scans pass because the phrases are simply not in the rendered
+    HTML, and both would keep passing if their tuples were emptied, if the
+    ``casefold()`` were dropped, or if ``PAGE_NAMES`` went stale. These are the
+    highest stakes rules on the site and were the only ones with no
+    demonstration that they bite. Each phrase is run through the same scanner
+    here, in the casing a real page would carry.
+    """
+    phrases = FORBIDDEN_CLAIMS if phrase in FORBIDDEN_CLAIMS else PACKAGE_BADGES
+    doctored = f"<p>See {phrase.upper()} for details.</p>".casefold()
+    with pytest.raises(AssertionError, match=r"claims|implies"):
+        _assert_no_claim(doctored, "synthetic.html", phrases, "claims")
 
 
 @pytest.mark.parametrize("name", PAGE_NAMES)
 def test_no_page_implies_a_published_package(built: Path, name: str) -> None:
     text = (built / name).read_text(encoding="utf-8").casefold()
-    for badge in PACKAGE_BADGES:
-        assert badge not in text, f"{name} implies a published package via {badge!r}"
+    _assert_no_claim(text, name, PACKAGE_BADGES, "implies a published package via")
     # PyPI may be named, but only by the notice that says what is on it: the
     # harness, as gauntlet-evals, and never the action.
     assert text.count("pypi") == text.count("published to pypi as gauntlet-evals")
@@ -333,9 +354,16 @@ def test_no_page_implies_a_published_package(built: Path, name: str) -> None:
 
 @pytest.mark.parametrize("name", PAGE_NAMES)
 def test_every_page_carries_the_alignment_notice(built: Path, name: str) -> None:
-    """The notice is the harness's own constant, so it cannot drift from the pack."""
+    """The notice is the harness's own constant, so it cannot drift from the pack.
+
+    Previously this asserted only ``ALIGNMENT_NOTICE.split(". ")[0]``, the first
+    sentence, while the docstring promised the whole notice could not drift. The
+    middle of it could have been rewritten or dropped with this test green. The
+    page escapes the text for HTML, so the whole notice is compared in its
+    escaped form rather than shortened to fit.
+    """
     text = (built / name).read_text(encoding="utf-8")
-    assert ALIGNMENT_NOTICE.split(". ")[0] in text
+    assert escape(ALIGNMENT_NOTICE, quote=False) in text
     assert "have not reviewed, approved, endorsed, or certified" in text
 
 
@@ -390,11 +418,55 @@ def test_the_gate_table_matches_what_the_harness_loads(built: Path) -> None:
 
 
 def test_the_gate_table_moves_when_a_case_is_added() -> None:
-    """The counts are computed, not copied. Prove it by changing the input."""
+    """The counts are computed, not copied. Prove it by changing the input.
+
+    The previous version of this test changed nothing. It rendered the page
+    once and asserted that ``total_cases`` appeared and ``total_cases + 1`` did
+    not, which cannot fail: ``total_cases`` is the sum of every count in the
+    table, so it is the largest number the table can hold and no cell can ever
+    carry one more than it. The docstring promised a mutation experiment the
+    body never performed.
+    """
+    suites = builtin_suites()
+    baseline_inventory = build_inventory(suites)
+    baseline = gates_page(baseline_inventory)
+
+    # Change the input: one more Spanish grounding case, nothing else touched.
+    grounding = next(suite for suite in suites if suite.gate == "grounding")
+    with_extra = replace(
+        grounding,
+        cases=(*grounding.cases, replace(grounding.cases[0], id="gnd-es-added", language="es")),
+    )
+    moved_inventory = build_inventory(
+        tuple(with_extra if suite is grounding else suite for suite in suites)
+    )
+    moved = gates_page(moved_inventory)
+
+    # The counts moved by exactly one, in the total and in the Spanish column.
+    assert moved_inventory.total_cases == baseline_inventory.total_cases + 1
+    moved_gate = next(gate for gate in moved_inventory.gates if gate.gate == "grounding")
+    base_gate = next(gate for gate in baseline_inventory.gates if gate.gate == "grounding")
+    assert moved_gate.counts_by_language["es"] == base_gate.counts_by_language["es"] + 1
+    assert moved_gate.counts_by_language["en"] == base_gate.counts_by_language["en"]
+
+    # And the rendered page moved with them, which is the claim being tested.
+    assert moved != baseline
+    assert (
+        f"{len(baseline_inventory.gates)} gates, {baseline_inventory.total_cases} cases."
+        in baseline
+    )
+    assert (
+        f"{len(baseline_inventory.gates)} gates, {baseline_inventory.total_cases} cases."
+        not in moved
+    )
+    assert f"{len(moved_inventory.gates)} gates, {moved_inventory.total_cases} cases." in moved
+
+
+def test_the_published_page_carries_the_harness_count() -> None:
+    """The page the build publishes, not one rendered from a doctored inventory."""
     inventory = build_inventory(builtin_suites())
     page = render_site(load_action(ACTION))["gates.html"]
-    assert f'<td class="num">{inventory.total_cases}</td>' in page
-    assert f'<td class="num">{inventory.total_cases + 1}</td>' not in page
+    assert f"{len(inventory.gates)} gates, {inventory.total_cases} cases." in page
 
 
 def test_the_evidence_excerpts_are_real_output(built: Path) -> None:
@@ -586,6 +658,60 @@ def test_both_palettes_define_exactly_the_same_tokens() -> None:
 def test_every_token_is_used_by_the_stylesheet() -> None:
     for token in LIGHT:
         assert f"var(--{token})" in STYLESHEET, f"--{token} is defined but never used"
+
+
+# Tokens the stylesheet uses only as a decorative boundary. WCAG 1.4.11 applies
+# to a boundary that carries meaning or marks a control; a hairline that only
+# separates does not. Naming them here makes that a recorded decision rather
+# than an omission, and the test below turns red if a new token appears in the
+# stylesheet without landing in one list or the other.
+DECORATIVE_TOKENS = frozenset({"rule"})
+
+_FOREGROUND_IN_CSS = re.compile(r"(?<!-)\bcolor:\s*var\(--([a-z0-9-]+)\)")
+_BACKGROUND_IN_CSS = re.compile(r"background(?:-color)?:\s*var\(--([a-z0-9-]+)\)")
+
+
+def test_every_colour_the_stylesheet_pairs_is_actually_measured() -> None:
+    """Close the loop the other way: from the stylesheet back to the pair lists.
+
+    ``TEXT_PAIRS`` says it is "every foreground and background the stylesheet
+    puts together", but the tuple is written by hand and nothing checked it
+    against the stylesheet, so a new colour pairing added to the CSS was
+    silently unmeasured and no test went red. ``test_every_token_is_used_by_the
+    _stylesheet`` already closes this loop for the token definitions; this does
+    it for the pairings.
+
+    What this settles is that no colour the stylesheet paints text with, and no
+    colour it paints behind text, is missing from the measured set. What it
+    cannot settle is whether the specific pairings are the ones the cascade
+    actually produces: that needs a renderer, and README.md says so.
+    """
+    measured_foregrounds = {pair[0] for pair in TEXT_PAIRS} | {pair[0] for pair in BOUNDARY_PAIRS}
+    measured_backgrounds = {pair[1] for pair in TEXT_PAIRS} | {pair[1] for pair in BOUNDARY_PAIRS}
+
+    foregrounds = set(_FOREGROUND_IN_CSS.findall(STYLESHEET))
+    backgrounds = set(_BACKGROUND_IN_CSS.findall(STYLESHEET))
+    assert foregrounds, "no text colour was found in the stylesheet; the rule would be vacuous"
+    assert backgrounds, "no background was found in the stylesheet; the rule would be vacuous"
+
+    assert foregrounds <= measured_foregrounds, (
+        f"the stylesheet paints text in {sorted(foregrounds - measured_foregrounds)}, "
+        "which no contrast pair measures"
+    )
+    assert backgrounds <= measured_backgrounds, (
+        f"the stylesheet paints backgrounds in {sorted(backgrounds - measured_backgrounds)}, "
+        "which no contrast pair measures"
+    )
+
+    # And nothing measured has dropped out of the stylesheet, so a pair list
+    # cannot quietly accumulate colours the site no longer uses.
+    for token in measured_foregrounds | measured_backgrounds:
+        assert f"var(--{token})" in STYLESHEET, f"--{token} is measured but no longer used"
+
+    # Every defined token is either painted, measured, or recorded as decorative.
+    unaccounted = set(LIGHT) - foregrounds - backgrounds - DECORATIVE_TOKENS
+    unaccounted -= measured_foregrounds | measured_backgrounds
+    assert not unaccounted, f"{sorted(unaccounted)} is neither measured nor recorded as decorative"
 
 
 def test_the_stylesheet_defines_both_themes_and_honours_an_explicit_choice() -> None:

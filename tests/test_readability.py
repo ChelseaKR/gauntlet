@@ -60,11 +60,19 @@ def test_real_answers_are_readable(text: str) -> None:
 
 
 def test_stripping_alone_would_not_have_caught_these() -> None:
-    # The point of the module: proof that the earlier predicate was insufficient.
+    """The point of the module: the earlier predicate was insufficient.
+
+    ``len(survives_stripping) > 10`` asserted a property of a literal defined
+    forty lines above in this same file, so it could only move if someone
+    edited the literal. What the module is actually about is the gap between
+    the two predicates, and that is asserted directly: every shape here
+    survives ``strip()`` and is still not readable, and the gap is non-empty.
+    """
     survives_stripping = [text for text in UNREADABLE if text.strip()]
-    assert len(survives_stripping) > 10
+    assert survives_stripping, "no shape here would have fooled strip()"
     for text in survives_stripping:
-        assert not is_readable(text)
+        assert text.strip(), f"{text!r} does not survive strip()"
+        assert not is_readable(text), f"{text!r} was treated as an answer"
 
 
 def test_substantive_text_keeps_only_letters_and_digits() -> None:
