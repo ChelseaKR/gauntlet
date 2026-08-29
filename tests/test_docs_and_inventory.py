@@ -349,6 +349,7 @@ def test_action_never_interpolates_input_into_a_shell_command() -> None:
 
 
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+GITLEAKS_CONFIG = ROOT / ".gitleaks.toml"
 
 
 def test_the_workflows_were_found() -> None:
@@ -356,9 +357,55 @@ def test_the_workflows_were_found() -> None:
     assert {"ci.yml", "pages.yml"} <= names
 
 
+def test_the_gitleaks_allowlist_stays_scoped_to_the_evidence_packs() -> None:
+    """The one place a widened glob would silently disarm a scanner.
+
+    The secret-scan job failed once, on PR #16, when gitleaks' generic-api-key
+    rule matched a JSONL field named "key" sitting beside a request hash in a
+    committed evidence pack. The finding was real for the rule and wrong about
+    the repository, and it was resolved by renaming the field and allowlisting
+    the results directories.
+
+    An allowlist is a gate that stops covering what it names the moment its
+    pattern widens, and nothing here would have gone red if the path regex
+    became ``.*``. So the config is asserted to keep the default rules, and the
+    pattern is run against paths on both sides of its intended boundary.
+    """
+    import re
+    import tomllib
+
+    config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
+    assert config["extend"]["useDefault"] is True, "the default rule set must stay on"
+
+    patterns = config["allowlist"]["paths"]
+    assert len(patterns) == 1, "one scoped exception, not a growing list"
+    allowed = re.compile(patterns[0])
+
+    # Inside the exception: the committed packs the rule fires false positives on.
+    for path in (
+        "real_targets/permit_bearings/results/2026-08-22-judged-verdicts.jsonl",
+        "real_targets/mrf_honest/results/2026-08-22-results.json",
+    ):
+        assert allowed.search(path), f"{path} should be allowlisted"
+
+    # Outside it: everywhere a real credential could actually land.
+    for path in (
+        "src/gauntlet/judge.py",
+        "tests/test_judge.py",
+        ".github/workflows/ci.yml",
+        "real_targets/permit_bearings/target.py",
+        "real_targets/README.md",
+        "examples/broken_target.py",
+        ".env",
+        "secrets.yaml",
+    ):
+        assert not allowed.search(path), f"{path} must still be scanned for secrets"
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: str(p.name))
 def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
     workflow = yaml.safe_load(path.read_text("utf-8"))
+    pinned = 0
     for job in workflow["jobs"].values():
         for step in job.get("steps", []):
             reference = step.get("uses")
