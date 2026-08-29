@@ -14,7 +14,9 @@ covers every gate.
 
 from __future__ import annotations
 
+import collections
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -210,3 +212,123 @@ def test_the_recording_reproduces_the_committed_pack(
             assert case.observed == expected_observed, (pack, case.case_id)
             compared += 1
     assert compared > 0
+
+
+# ---------------------------------------------------------------------------
+# The prose account, counted from the same recordings.
+#
+# docs/real-targets.md is the human account of these runs, and its numbers were
+# typed. One paragraph said the target withheld 7 distinct claims and then broke
+# 7 down into 9, by adding the two Spanish withholdings to the four English ones
+# and listing them again; the table row above it reported all six as "no
+# citation" when two of them were "passage was not offered". Both numbers are
+# in the committed recording, so both are counted here instead.
+# ---------------------------------------------------------------------------
+
+ACCOUNT = ROOT / "docs" / "real-targets.md"
+
+_REASON_LABELS = {
+    "does not occur in the source text": "quote-not-in-source",
+    "passage was not offered": "passage-not-offered",
+    "no citation": "no-citation",
+}
+
+
+def _account_text() -> str:
+    """The account, unwrapped, so a hard-wrapped sentence matches as one line."""
+    return " ".join(ACCOUNT.read_text(encoding="utf-8").split())
+
+
+def _withheld_by_reason(recording: Path) -> collections.Counter[str]:
+    """Every withheld claim in a recording, labelled by the reason it carries."""
+    tally: collections.Counter[str] = collections.Counter()
+    for line in recording.read_text(encoding="utf-8").splitlines():
+        payload = json.loads(line).get("payload")
+        if not isinstance(payload, dict):
+            continue
+        for item in payload.get("withheld") or []:
+            reasons = item.get("reasons") or []
+            labels = {
+                label
+                for needle, label in _REASON_LABELS.items()
+                if any(needle in reason for reason in reasons)
+            }
+            assert len(labels) == 1, f"unclassified withheld reason in {recording.name}: {reasons}"
+            tally[labels.pop()] += 1
+    return tally
+
+
+def _annotated_cases(pack: Path) -> tuple[int, int]:
+    """Case evaluations carrying a withheld annotation, and the claims they add up to."""
+    run = json.loads(pack.read_text(encoding="utf-8"))
+    counts = [
+        int(found.group(1))
+        for gate in run["gates"]
+        for case in gate["cases"]
+        if (found := re.search(r"\[target withheld (\d+) claim\(s\)\]", case["observed"]))
+    ]
+    return len(counts), sum(counts)
+
+
+_MRF_PACK = REAL_TARGETS / "mrf_honest" / "results" / "2026-08-22-results.json"
+
+
+def test_the_account_totals_the_withheld_claims_the_recording_holds() -> None:
+    tally = _withheld_by_reason(_recording(_MRF_PACK))
+    cases, annotated = _annotated_cases(_MRF_PACK)
+    text = _account_text()
+
+    total = re.search(r"withheld (\d+) distinct claims in this run", text)
+    spread = re.search(
+        r"the (\d+) case evaluations that reuse those narrations carry (\d+) "
+        r"withheld-claim annotations",
+        text,
+    )
+    assert total is not None and spread is not None, "the account no longer states its totals"
+    assert int(total.group(1)) == sum(tally.values())
+    assert (int(spread.group(1)), int(spread.group(2))) == (cases, annotated)
+
+
+def test_the_accounts_breakdown_adds_up_to_its_own_total() -> None:
+    """The defect this test exists for: a total of 7 broken down into 9."""
+    tally = _withheld_by_reason(_recording(_MRF_PACK))
+    text = _account_text()
+    parts = re.search(
+        r"The \d+ break down as (\d+) whose quote did not occur in the source text, "
+        r"(\d+) that cited a passage that was not offered, and (\d+) with no citation at all",
+        text,
+    )
+    assert parts is not None, "the account no longer breaks its total down"
+    stated = {
+        "quote-not-in-source": int(parts.group(1)),
+        "passage-not-offered": int(parts.group(2)),
+        "no-citation": int(parts.group(3)),
+    }
+    assert stated == dict(tally), f"account states {stated}, recording holds {dict(tally)}"
+    total = re.search(r"withheld (\d+) distinct claims in this run", text)
+    assert total is not None
+    assert sum(stated.values()) == int(total.group(1)), (
+        "the breakdown does not add up to the total the same paragraph states"
+    )
+
+
+def test_the_refusal_row_names_the_reason_each_language_was_withheld_for() -> None:
+    """Four English claims and two Spanish ones, withheld for different reasons."""
+    per_language: dict[str, collections.Counter[str]] = collections.defaultdict(collections.Counter)
+    for line in _recording(_MRF_PACK).read_text(encoding="utf-8").splitlines():
+        entry = json.loads(line)
+        payload = entry["payload"]
+        if "zero-findings" not in entry["key"]:
+            continue
+        for item in payload.get("withheld") or []:
+            for needle, label in _REASON_LABELS.items():
+                if any(needle in reason for reason in item.get("reasons") or []):
+                    per_language[payload["language"]][label] += 1
+    assert per_language["en"] == collections.Counter({"no-citation": 4})
+    assert per_language["es"] == collections.Counter({"passage-not-offered": 2})
+
+    text = _account_text()
+    assert (
+        'The 4 in English were withheld with "no citation" and the 2 in Spanish '
+        'with "passage was not offered"' in text
+    ), "the refusal row no longer names a reason per language"

@@ -37,11 +37,13 @@ inventory:
 site:
 	uv run gauntlet site --out site
 
-# The WCAG gate over the built pages, two ways: html-validate for HTML conformance
-# and the markup-level accessibility rules, and axe-core in a headless DOM for the
-# WCAG 2.0/2.1/2.2 A and AA rule sets. Structure and colour contrast are checked
-# again in `test`, so `make verify` keeps a floor when the node toolchain is not
-# available. What none of this can do is look at the pages; README.md says so.
+# The accessibility gate over the built pages, two ways: html-validate for HTML
+# conformance and the markup-level rules, and axe-core in a headless DOM over the
+# six tags `tools/a11y.mjs` configures. Contrast is not one of them: axe's
+# `color-contrast` needs painted pixels, so it is discarded there and measured
+# once, in `test`, off the palette. Structure is checked in both, so `make verify`
+# keeps a floor when the node toolchain is not available. What none of this can do
+# is look at the pages; README.md says so.
 pages: site node-sync htmlvalidate a11y node-audit
 
 node-sync:

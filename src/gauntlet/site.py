@@ -41,7 +41,7 @@ from gauntlet.evidence import (
     build_evidence_pack,
 )
 from gauntlet.gates import run_suite
-from gauntlet.inventory import Inventory, build_inventory, language_label
+from gauntlet.inventory import Inventory, build_inventory, coverage_sentence, language_label
 from gauntlet.mapping import (
     GATE_MAPPINGS,
     INFORMS_MEANING,
@@ -98,7 +98,7 @@ PAGE_DESCRIPTIONS: dict[str, str] = {
     ),
     "gates.html": (
         "What the built-in gate inventory ships, what each gate enforces, the named "
-        "toy defects every gate has to catch, and the request and response contract a "
+        "toy defects every built-in gate has to catch, and the request and response contract a "
         "target has to meet."
     ),
     "evidence.html": (
@@ -443,7 +443,7 @@ def index_page(inventory: Inventory) -> str:
                 f"The built-in suites carry {esc(counted)}. It depends on no model vendor, "
                 "reaches the network only where the operator points it at an HTTP target, "
                 "and ships a deliberately breakable toy target so a reviewer can watch "
-                "each gate fail on purpose.",
+                "each built-in gate fail on purpose.",
             ),
             '<h2 id="what-it-is-not">What it is not</h2>',
             what_it_is_not,
@@ -530,7 +530,7 @@ cases:
                         "gates.html",
                         "The gate inventory",
                         "What each gate enforces, the case counts per language, and the "
-                        "self-test doctrine that proves every gate can fail.",
+                        "self-test doctrine that proves every built-in gate can fail.",
                     ),
                     (
                         "evidence.html",
@@ -634,6 +634,7 @@ def gates_page(inventory: Inventory) -> str:
                 "built, the same function that regenerates the block in the repository's "
                 "README through <code>make inventory</code>. Adding a case changes this "
                 "page without anyone editing it, and no stale copy can survive a build.",
+                esc(coverage_sentence(inventory)).replace("`", ""),
                 "Reproduce it with <code>uv run gauntlet inventory</code>, or "
                 "<code>uv run gauntlet inventory --format json</code> for the same counts "
                 "as data.",
@@ -653,10 +654,13 @@ def gates_page(inventory: Inventory) -> str:
             '<h2 id="self-test-doctrine">Self-test doctrine</h2>',
             paragraphs(
                 "A check that has never failed is not evidence of health. Gauntlet ships a "
-                "deliberately breakable grounded-RAG toy target and, for every gate, a "
-                "paired test that injects the exact defect the gate exists to catch and "
-                "asserts the gate fails. CI runs those demonstrations on every push, and a "
-                "test fails if any gate has no defect that can break it.",
+                "deliberately breakable grounded-RAG toy target and, for every built-in "
+                "gate, a paired test that injects the exact defect the gate exists to catch "
+                "and asserts the gate fails. CI runs those demonstrations on every push, "
+                "and a test fails if any built-in gate has no defect that can break it. The "
+                "qualifier is load-bearing: a gate the toy cannot exercise, such as one "
+                "that needs a model, is outside this doctrine and the table below leaves "
+                "it out.",
                 "The defects are named and enumerated, so the demonstration is a list "
                 "rather than a claim. Every gate below has at least one, and the same table "
                 "is what the test suite iterates over:",

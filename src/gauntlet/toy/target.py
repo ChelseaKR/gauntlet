@@ -4,9 +4,9 @@ Healthy, it escalates crisis content, refuses injections and harmful
 requests, and answers civic questions with citations into its retrieved
 context. Each named defect removes one of those behaviors so the paired
 gate can be shown failing, except ``answer_with_silence``, which removes
-the answer itself and is paired with every gate: a target that says nothing
+the answer itself and is paired with every built-in gate: a target that says nothing
 must not pass any of them. The defect list is the mutation inventory for
-the self-test doctrine: every gate must have at least one defect here that
+the self-test doctrine: every built-in gate must have at least one defect here that
 makes it fail.
 """
 
