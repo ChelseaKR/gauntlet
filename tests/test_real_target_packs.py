@@ -10,6 +10,35 @@ retriever), which is not installed in the harness's environment, so those
 gates are compared on the cases that the recording alone can answer. The
 permit-bearings recording includes ``/health`` and every POST, so its replay
 covers every gate.
+
+One thing the recordings do not carry, and the honest consequence
+-----------------------------------------------------------------
+
+A recording holds what the *target* said. It does not hold what the *harness*
+independently verified: the quote checks, which fetched the cited public
+document. Offline, ``GAUNTLET_QUOTE_CHECKS=off`` makes every check
+``unverifiable``, and ``quotecheck.counts_as_grounded`` accepts only
+``verified``, so on replay every cited passage is excluded from the accepted
+context and a grounding case that passed live must fail here.
+
+Until 2026-08-28 this test appeared to reproduce those grounding verdicts
+exactly. It did so only because ``unverifiable`` was counted as grounded, which
+means the comparison was reproducing a constant: the grounding gate returned
+the same verdict whether a quote had been verified or not. A test that agreed
+with the pack no matter what verification found was not checking verification
+at all.
+
+The divergence below is therefore pinned, not tolerated. Every diverging case
+is named, and each must diverge in exactly one way: the same verbatim response,
+a committed PASS, a replayed FAIL, and a detail saying the citations are absent
+from the retrieved context. A case that stops diverging, starts diverging, or
+diverges differently fails this test.
+
+Closing the gap for good needs the raw log to carry each quote-check outcome so
+a replay reproduces verification instead of skipping it. The committed
+recordings predate that and cannot be back-filled without inventing outcomes
+nobody measured, so they stay as they are and the pin records what they cannot
+show. See docs/plans/improvement-plan.md.
 """
 
 from __future__ import annotations
@@ -40,6 +69,63 @@ PACKS = sorted(
     and path not in JUDGED_PACKS
 )
 ALL_PACKS = sorted(REAL_TARGETS.glob("*/results/*-results.json"))
+
+
+# The detail the grounding gate gives when a citation is not in the accepted
+# context. Offline this is the only reason a committed pass may become a fail.
+ABSENT_FROM_CONTEXT = "cites identifiers absent from the retrieved context"
+
+# Cases whose committed verdict depended on a quote the harness verified live,
+# and which therefore cannot be reproduced from a recording that does not carry
+# the verification. Keyed by "<target>/<pack file>". See the module docstring:
+# this is a pin, and every entry is asserted to diverge in exactly one way.
+QUOTE_DEPENDENT_CASES: dict[str, frozenset[str]] = {
+    "fhir_scorecard/2026-08-22-results.json": frozenset(
+        {
+            "fhir-gnd-en-cms-blue-button-2",
+            "fhir-gnd-es-cms-blue-button-2",
+            "fhir-gnd-en-hapi-fhir-r4",
+            "fhir-gnd-es-hapi-fhir-r4",
+        }
+    ),
+    "mrf_honest/2026-08-22-results.json": frozenset(
+        {
+            "mrf-gnd-en-record-0",
+            "mrf-gnd-es-record-0",
+            "mrf-gnd-en-record-7",
+            "mrf-gnd-es-record-7",
+        }
+    ),
+    "permit_bearings/2026-08-22-grounding-results.json": frozenset(
+        {
+            "pb-gnd-en-davis-adu",
+            "pb-gnd-es-davis-adu",
+            "pb-gnd-en-woodland-conversion",
+            "pb-gnd-es-woodland-conversion",
+        }
+    ),
+}
+
+# How many cases each replay compares. Asserted exactly, not as "more than
+# zero": a suite that stops loading, or a gate that drops out of the replayable
+# set, would otherwise leave this test green over a fraction of the pack. The
+# repository has been bitten by a half-loading case directory before; see
+# tests/test_cases_schema.py.
+COMPARED_CASES: dict[str, int] = {
+    "fhir_scorecard/2026-08-22-results.json": 16,
+    "mrf_honest/2026-08-22-results.json": 16,
+    "permit_bearings/2026-08-22-grounding-results.json": 4,
+}
+
+JUDGED_COMPARED_CASES: dict[str, int] = {
+    "fhir_scorecard/2026-08-22-judged-results.json": 4,
+    "mrf_honest/2026-08-22-judged-results.json": 4,
+    "permit_bearings/2026-08-22-judged-results.json": 6,
+}
+
+
+def _key(pack: Path) -> str:
+    return f"{pack.parent.parent.name}/{pack.name}"
 
 
 def _recording(pack: Path) -> Path:
@@ -133,12 +219,22 @@ def test_judged_packs_replay_from_their_recordings(
         )
         assert result.judge["agreement"] == committed_judge["agreement"]
         assert result.judge["calibrated"] == committed_judge["calibrated"]
-    assert compared > 0
+    assert compared == JUDGED_COMPARED_CASES[_key(pack)], (pack, compared)
 
 
 def test_packs_were_found() -> None:
+    # Guard against a glob that silently matches nothing. An empty parametrize
+    # list is not a red test, it is a test that quietly stops existing, so
+    # every list that drives one is checked here rather than only some of them.
     assert ALL_PACKS, "no committed real-target pack found"
     assert PACKS, "no committed real-target pack has a recording beside it"
+    assert JUDGED_PACKS, "no committed judged pack found; the judged replay would not run"
+    # The pins are keyed by pack. A pack that is added, removed, or renamed
+    # without its pin being updated fails here instead of skipping its case
+    # comparison or its divergence check.
+    assert {_key(pack) for pack in PACKS} == set(QUOTE_DEPENDENT_CASES)
+    assert {_key(pack) for pack in PACKS} == set(COMPARED_CASES)
+    assert {_key(pack) for pack in JUDGED_PACKS} == set(JUDGED_COMPARED_CASES)
 
 
 @pytest.mark.parametrize("pack", ALL_PACKS, ids=lambda p: f"{p.parent.parent.name}/{p.name}")
@@ -198,15 +294,37 @@ def test_the_recording_reproduces_the_committed_pack(
             target = FhirScorecardTarget(
                 root=root, environ={}, scorecards=str(dataset), ledger=ledger
             )
+    key = _key(pack)
+    quote_dependent = QUOTE_DEPENDENT_CASES[key]
     committed = _committed_cases(pack)
     compared = 0
+    diverged: set[str] = set()
     for suite in load_suites(cases_dir):
         if suite.gate not in replayable_gates:
             continue
         result = run_suite(suite, target)  # type: ignore[arg-type]
         for case in result.cases:
             expected_passed, expected_observed = committed[(suite.gate, case.case_id)]
-            assert case.passed == expected_passed, (pack, case.case_id, case.detail)
-            assert case.observed == expected_observed, (pack, case.case_id)
             compared += 1
-    assert compared > 0
+            # The target's verbatim answer replays exactly, in every case and
+            # without exception. The harness annotates that answer only for a
+            # quote it looked for and did not find, which is a verdict about
+            # the target and is carried in the recording. What the harness
+            # could not check is reported in the run's provenance instead of
+            # being written into the target's words.
+            assert case.observed == expected_observed, (pack, case.case_id)
+            if case.case_id not in quote_dependent:
+                assert case.passed == expected_passed, (pack, case.case_id, case.detail)
+                continue
+            # A pinned case, and the only divergence the recording permits.
+            assert suite.gate == "grounding", (pack, case.case_id, suite.gate)
+            assert expected_passed, (pack, case.case_id, "pinned case did not pass live")
+            assert not case.passed, (pack, case.case_id, "pinned case passed offline")
+            assert case.detail.startswith(ABSENT_FROM_CONTEXT), (pack, case.case_id, case.detail)
+            diverged.add(case.case_id)
+    assert diverged == quote_dependent, (
+        pack,
+        sorted(quote_dependent - diverged),
+        sorted(diverged - quote_dependent),
+    )
+    assert compared == COMPARED_CASES[key], (pack, compared)
