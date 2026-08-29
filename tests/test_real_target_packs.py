@@ -22,9 +22,11 @@ from pathlib import Path
 import pytest
 
 from gauntlet.cases import load_suites
+from gauntlet.evidence import build_evidence_pack
 from gauntlet.gates import run_suite
 from gauntlet.judge import RecordingJudge
-from gauntlet.results import missing_provenance
+from gauntlet.report import render_json, render_markdown
+from gauntlet.results import load_run_dict, missing_provenance
 from real_targets.fhir_scorecard.target import FhirScorecardTarget
 from real_targets.mrf_honest.target import MrfHonestTarget
 from real_targets.narration import NarrationLedger
@@ -332,3 +334,67 @@ def test_the_refusal_row_names_the_reason_each_language_was_withheld_for() -> No
         'The 4 in English were withheld with "no citation" and the 2 in Spanish '
         'with "passage was not offered"' in text
     ), "the refusal row no longer names a reason per language"
+
+
+# ---------------------------------------------------------------------------
+# The rendered evidence packs beside each result set.
+#
+# ``*-results.json`` is a recording: the replay tests above prove the harness
+# still reaches the verdicts it holds. ``*-evidence.md`` and
+# ``*-evidence.json`` are not recordings. They are a pure function of that
+# result set and the code in this repository, rendered by ``gauntlet report``,
+# and nothing regenerated them. On 2026-08-29 the 2026-08-21 permit-bearings
+# pack was found stale: the adversarial gate's description in
+# ``gauntlet.mapping`` had grown a clause, every 2026-08-22 pack carried the
+# new wording, and that one pack still carried the old. It had been wrong since
+# the commit that introduced it, and every gate in the repository was green.
+#
+# So the committed bytes are compared against a fresh rendering here. The
+# rendering goes to ``tmp_path`` and the comparison reads the committed file;
+# nothing in this module may write into the working tree, because a gate that
+# heals the drift it is meant to report is the drift's best hiding place.
+
+EVIDENCE_FORMATS = ("md", "json")
+
+
+def _evidence_path(pack: Path, suffix: str) -> Path:
+    return pack.with_name(pack.name.replace("-results.json", f"-evidence.{suffix}"))
+
+
+COMMITTED_EVIDENCE = sorted(
+    path for path in REAL_TARGETS.glob("*/results/*-evidence.*") if path.suffix in {".md", ".json"}
+)
+
+
+def test_every_committed_evidence_file_has_a_result_set_that_renders_it() -> None:
+    """No evidence file may sit outside the comparison below.
+
+    The parametrized test walks the result sets. A pack file whose result set
+    was renamed or removed would then simply stop being checked, which is the
+    quiet failure this whole module exists to refuse. The two sets are asserted
+    equal instead.
+    """
+    assert COMMITTED_EVIDENCE, "no committed evidence pack found; the gate would be vacuous"
+    expected = {_evidence_path(pack, suffix) for pack in ALL_PACKS for suffix in EVIDENCE_FORMATS}
+    assert set(COMMITTED_EVIDENCE) == expected, sorted(
+        str(path.relative_to(ROOT)) for path in set(COMMITTED_EVIDENCE) ^ expected
+    )
+
+
+@pytest.mark.parametrize("suffix", EVIDENCE_FORMATS)
+@pytest.mark.parametrize("pack", ALL_PACKS, ids=lambda p: f"{p.parent.parent.name}/{p.name}")
+def test_the_committed_evidence_pack_is_what_the_renderer_produces_today(
+    pack: Path, suffix: str, tmp_path: Path
+) -> None:
+    committed = _evidence_path(pack, suffix)
+    evidence = build_evidence_pack(load_run_dict(pack), None)
+    rendered = render_json(evidence) if suffix == "json" else render_markdown(evidence)
+
+    regenerated = tmp_path / committed.name
+    regenerated.write_text(rendered, encoding="utf-8")
+
+    assert regenerated.read_bytes() == committed.read_bytes(), (
+        f"{committed.relative_to(ROOT)} is not what `gauntlet report {pack.relative_to(ROOT)}"
+        f"{'' if suffix == 'md' else ' --format json'}` renders today. Regenerate it; do not "
+        f"edit it by hand."
+    )

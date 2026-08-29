@@ -12,10 +12,23 @@ There is no path that makes a failure quieter than a pass.
 
 from __future__ import annotations
 
+import json
+
 from gauntlet.evidence import ALIGNMENT_NOTICE, CLEAN_RUN_CAVEAT
 from gauntlet.results import PROVENANCE_MEANING
 
-__all__ = ["ALIGNMENT_NOTICE", "render_markdown"]
+__all__ = ["ALIGNMENT_NOTICE", "render_json", "render_markdown"]
+
+
+def render_json(pack: dict[str, object]) -> str:
+    """The machine-readable form, exactly as ``gauntlet report --format json`` writes it.
+
+    The CLI calls this rather than serialising inline, so the one place that
+    decides the bytes of a committed evidence pack is the one place a gate can
+    render against. See tests/test_real_target_packs.py.
+    """
+    return json.dumps(pack, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
+
 
 _STATUS_WORDS = {
     "unchanged_pass": "unchanged, still passing",

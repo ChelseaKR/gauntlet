@@ -40,7 +40,7 @@ from gauntlet.inventory import (
     update_marked_block,
 )
 from gauntlet.judge import DEFAULT_JUDGE_REGION, BedrockJudge, Judge, JudgeError, RecordingJudge
-from gauntlet.report import render_markdown
+from gauntlet.report import render_json, render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
 from gauntlet.targets import (
@@ -223,10 +223,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     run = load_run_dict(Path(args.results))
     baseline = load_run_dict(Path(args.baseline)) if args.baseline else None
     pack = build_evidence_pack(run, baseline)
-    if args.format == "json":
-        rendered = json.dumps(pack, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
-    else:
-        rendered = render_markdown(pack)
+    rendered = render_json(pack) if args.format == "json" else render_markdown(pack)
     if args.out:
         out_path = _write(args.out, rendered)
         print(f"wrote {args.format} evidence pack to {out_path}")
