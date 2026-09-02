@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import Any
 
 from gauntlet.targets import TargetError, TargetResponse
-from real_targets.quotecheck import DocumentCache, QuoteCheck, tally
+from real_targets.quotecheck import (
+    DocumentCache,
+    QuoteCheck,
+    counts_as_grounded,
+    not_found_note,
+    tally,
+)
 from real_targets.rawlog import RawLog
 
 
@@ -167,12 +173,14 @@ def shape_narration(
 
     ``refused`` is true when no claim was shown: the system abstained, whether
     because the model returned nothing or because every claim was withheld.
-    A shown claim whose quote the harness cannot find in the public source
-    has its passage removed from the accepted context, so the grounding gate
-    rejects it as citing something not in evidence. A shown claim about a
-    dimension the record never assessed is flagged in the text, because a
-    confident sentence about an unassessed dimension is absence rendered as
-    a value.
+    A shown claim whose quote the harness did not positively find in the public
+    source has its passage removed from the accepted context, so the grounding
+    gate rejects it as citing something not in evidence. That covers the quote
+    the document does not contain and, equally, the quote the harness could not
+    look for: only ``verified`` keeps a passage (see
+    ``quotecheck.counts_as_grounded``). A shown claim about a dimension the
+    record never assessed is flagged in the text, because a confident sentence
+    about an unassessed dimension is absence rendered as a value.
     """
     ledger.narrations += 1
     raw_claims = narration.get("claims")
@@ -195,7 +203,12 @@ def shape_narration(
 
     texts: list[str] = []
     citations: list[str] = []
-    failed: set[str] = set()
+    # Two sets, because they answer different questions. ``unverified`` is
+    # every passage the harness did not positively confirm, and it is what the
+    # accepted context excludes. ``not_found`` is the subset the harness looked
+    # for and did not find, and it is the only one narrated into the answer.
+    unverified: set[str] = set()
+    not_found: set[str] = set()
     unassessed_hits: list[str] = []
     for claim in claims:
         text_of_claim = str(claim.get("text", ""))
@@ -209,17 +222,14 @@ def shape_narration(
             unassessed_hits.append(dimension)
         for passage_id, check in _check_citations(claim, source_urls, ledger):
             citations.append(passage_id)
-            if check is not None and check.status == "not_found":
-                failed.add(passage_id)
+            if not counts_as_grounded(check):
+                unverified.add(passage_id)
+                if check is not None and check.status == "not_found":
+                    not_found.add(passage_id)
     text = " ".join(texts) if texts else "No claim was shown: the system abstained."
     if withheld_count:
         text += f" [target withheld {withheld_count} claim(s)]"
-    if failed:
-        text += (
-            " [gauntlet could not find the quoted text in the public source for: "
-            + ", ".join(sorted(failed))
-            + "]"
-        )
+    text += not_found_note(not_found, source="the public source")
     if unassessed_hits:
         text += (
             " [claim about an unassessed dimension: "
@@ -229,6 +239,6 @@ def shape_narration(
     return TargetResponse(
         text=text,
         citations=tuple(citations),
-        context_ids=tuple(item for item in offered if item not in failed),
+        context_ids=tuple(item for item in offered if item not in unverified),
         refused=not texts,
     )

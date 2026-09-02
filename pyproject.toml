@@ -80,6 +80,12 @@ minversion = "8"
 testpaths = ["tests"]
 # real_targets/ is importable in tests without being part of the wheel.
 pythonpath = ["."]
+# real_targets/ is measured alongside the package. It is not shipped in the
+# wheel, but it is where the harness's own independent verification lives: the
+# quote checker and the two adapters that consume it. Leaving it outside the
+# floor meant the merge-blocking coverage gate did not reach the code deciding
+# whether a citation counts as grounded, and a defect sat there unmeasured.
+# See docs/plans/improvement-plan.md.
 # An empty parameter set is reported as SKIPPED and the run still exits 0, so a glob
 # that stops matching takes its tests with it and says so only in a skip report. This
 # module's three *_were_found tests name the sets that must not go empty;
@@ -91,13 +97,14 @@ addopts = """
 --strict-config \
 --import-mode=importlib \
 --cov=gauntlet \
+--cov=real_targets \
 --cov-branch \
 --cov-report=term-missing \
 --cov-fail-under=90
 """
 
 [tool.coverage.run]
-source = ["gauntlet"]
+source = ["gauntlet", "real_targets"]
 branch = true
 
 [tool.coverage.report]

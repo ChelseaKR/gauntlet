@@ -64,6 +64,20 @@ URL for the City of Davis ADU handout returns 404. The target's retained copy
 still verifies those two quotes; a reader following the citation gets nothing.
 That is also filed on the target's repository.
 
+> **That PASS would not stand today, and the reason is a defect in this
+> harness, not in the target.** When this run was made, both adapters removed a
+> passage from the accepted context only when a quote had been fetched and
+> *not found*. The two unverifiable quotes stayed in the context and were
+> scored as grounded, so the gate reported 4 / 4 and the run reported PASS
+> while two of its citations had been confirmed by nothing. It was corrected on
+> 2026-08-28: only a positively verified quote counts now
+> (`quotecheck.counts_as_grounded`). Run against the same 404, the passages
+> behind those two quotes leave the accepted context, the Davis ADU case fails
+> as citing something not in evidence, and a 100% threshold turns the gate and
+> the run red. The pack is kept as the record of what the harness did on
+> 2026-08-22, not edited to say what it should have done. See
+> [plans/improvement-plan.md](plans/improvement-plan.md).
+
 The checker's limits in run 1 were its own. Python's TLS verification could
 not build leginfo's certificate chain (the site omits an intermediate; `curl`
 with the system trust store can), and the checker did not read PDFs. Run 2

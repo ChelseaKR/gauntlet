@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from gauntlet.cases import BUILTIN_GATES
 from gauntlet.evidence import (
     ALIGNMENT_NOTICE,
@@ -57,12 +59,32 @@ def test_pack_is_versioned_and_carries_the_alignment_framing() -> None:
     assert "does not make a system compliant" in ALIGNMENT_NOTICE
 
 
+FORBIDDEN_IN_PACK = ("certified by", "approved by the state", "is compliant with")
+
+
+def _assert_pack_claims_nothing(text: str) -> None:
+    for forbidden in FORBIDDEN_IN_PACK:
+        assert forbidden not in text, f"pack claims {forbidden!r}"
+
+
 def test_pack_never_claims_certification() -> None:
     pack = build_evidence_pack(_run(_gate("grounding", {"a-en": True})))
     text = json.dumps(pack, ensure_ascii=False).casefold()
-    for forbidden in ("certified by", "approved by the state", "is compliant with"):
-        assert forbidden not in text
+    _assert_pack_claims_nothing(text)
     assert "not a substitute" in text
+
+
+@pytest.mark.parametrize("forbidden", FORBIDDEN_IN_PACK)
+def test_the_certification_rule_rejects_the_claim_it_names(forbidden: str) -> None:
+    """The negative control this rule never had.
+
+    ``test_pack_never_claims_certification`` passes because the phrases are not
+    in the pack, and would keep passing if the phrase tuple were emptied or the
+    casefold dropped. Each phrase is fed through the rule here and must be
+    caught, in the casing a real pack would carry.
+    """
+    with pytest.raises(AssertionError, match="claims"):
+        _assert_pack_claims_nothing(f"this run shows the system {forbidden.upper()}".casefold())
 
 
 def test_totals_are_counted_from_the_cases() -> None:
@@ -155,7 +177,13 @@ def test_github_output_lines_are_single_line_key_values() -> None:
     assert len(rendered["results-digest"]) == 64
     for line in lines:
         assert "\n" not in line
-        assert line.count("=") >= 1
+        # Not `line.count("=") >= 1`: the dict() above already raises on a line
+        # with no "=", so that assertion could never be reached with a false
+        # value. What can actually go wrong is a value containing a newline or
+        # an empty key, and both are checked here.
+        key, _, value = line.partition("=")
+        assert key, f"{line!r} has an empty key"
+        assert "\n" not in value
 
 
 def test_github_output_lines_without_drift() -> None:

@@ -29,13 +29,30 @@ it offered. Three things are the harness's own:
 
 - **An independent quote check.** For every shown claim the adapter fetches
   the cited public document and looks for the quote, using its own
-  normalization ([`quotecheck.py`](quotecheck.py)). A passage whose quote the
-  harness cannot find is removed from the accepted context, so the grounding
-  gate rejects the claim as citing something not in evidence, and the count
-  of verified, not-found, and unverifiable quotes is carried in the pack's
-  provenance. Unverifiable means the document could not be fetched or read
-  (a 404, a binary with no reader); it is never counted as either outcome.
-  `curl` and `pdftotext` are used when present and their use is recorded.
+  normalization ([`quotecheck.py`](quotecheck.py)). Only a quote the harness
+  positively found keeps its passage in the accepted context. Every other
+  outcome removes it, so the grounding gate rejects the claim as citing
+  something not in evidence, and the count of verified, not-found, and
+  unverifiable quotes is carried in the pack's provenance. The single
+  predicate both adapters use is `quotecheck.counts_as_grounded`.
+
+  The three outcomes are not three verdicts. `verified` and `not_found` are
+  verdicts about the target, and a `not_found` quote is named in the answer
+  text. `unverifiable` means the document could not be fetched or read (a 404,
+  a binary with no reader, or `GAUNTLET_QUOTE_CHECKS=off`), and it is never
+  counted as either outcome: the citation is not counted as grounded, and the
+  answer text is not annotated, because the failure is the harness's own and
+  writing it into the target's words would misattribute it. It is reported in
+  the run's provenance instead. A citation carrying no public URL or quote is
+  treated the same way, because nothing was checked. `curl` and `pdftotext`
+  are used when present and their use is recorded.
+
+  Until 2026-08-28 both adapters excluded a passage only on `not_found`, so an
+  unverifiable citation was silently accepted as grounded, which is the exact
+  defect this check exists to catch. Under `GAUNTLET_QUOTE_CHECKS=off` every
+  check is unverifiable, so during a replay the check could not fail at all.
+  See [docs/plans/improvement-plan.md](../docs/plans/improvement-plan.md) and
+  the paired self-tests in `tests/test_quote_verification_contract.py`.
 - **Provenance.** Each adapter reports the model the target ran on as the
   target reported it, the prompt version, request and withheld counts, and
   whatever else a reviewer needs to rerun the pack. The operator adds the

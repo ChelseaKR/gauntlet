@@ -61,12 +61,24 @@ def test_no_unverified_identifier_appears_in_the_mapping() -> None:
 
 
 def test_every_reference_names_a_source_that_was_read() -> None:
-    read_names = " ".join(source.name for source in mapping.SOURCES)
+    """Each cited framework must be one of the sources, matched whole.
+
+    This compared ``reference.framework in read_names``, an unanchored
+    substring over every source name joined into one string. ``"SIMM"`` alone,
+    or a value straddling the join, would have satisfied it. Every reference in
+    the mapping carries the same single framework value, so the loose form was
+    doing no work that an exact set membership does not do better.
+    """
+    read_names = {source.name for source in mapping.SOURCES}
+    checked = 0
     for entry in [*mapping.GATE_MAPPINGS.values(), mapping.SELF_TEST_DOCTRINE]:
         for reference in entry.references:
-            assert reference.framework in read_names, (
-                f"{reference.framework!r} is cited but is not in the sources-read table"
-            )
+            assert any(
+                reference.framework == name or name.startswith(reference.framework)
+                for name in read_names
+            ), f"{reference.framework!r} is cited but is not in the sources-read table"
+            checked += 1
+    assert checked, "no reference was checked; the rule would be vacuous"
 
 
 def test_every_mapping_entry_is_populated() -> None:
