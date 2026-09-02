@@ -47,7 +47,7 @@ uv run gauntlet run --cases path/to/cases --http-url https://your-service.exampl
 uv run gauntlet run --cases path/to/cases --callable your_package.module:make_target
 
 # Judge suites need a model and a signed calibration set; see the gate table below.
-uv run gauntlet run --cases path/to/judge-cases --http-url https://your-service.example/evaluate   --judge-model global.anthropic.claude-sonnet-5 --judge-record verdicts.jsonl
+uv run gauntlet run --cases path/to/judge-cases --http-url https://your-service.example/evaluate   --judge-model global.anthropic.claude-sonnet-4-6 --judge-record verdicts.jsonl
 
 # The gate inventory, counted from the suites that are loaded.
 uv run gauntlet inventory

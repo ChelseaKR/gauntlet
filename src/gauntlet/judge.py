@@ -32,10 +32,23 @@ from typing import Any, Protocol
 
 import yaml
 
-# Sonnet 5 on Amazon Bedrock, through the cross-region inference profile. The
-# operator overrides this with --judge-model or GAUNTLET_JUDGE_MODEL, and the
-# model actually used is recorded in every calibration block.
-DEFAULT_JUDGE_MODEL = "global.anthropic.claude-sonnet-5"
+# Sonnet 4.6 on Amazon Bedrock, through the cross-region inference profile.
+# The id is a Bedrock id because Bedrock is the judge's only path: the judge is
+# reached through the anthropic SDK's Bedrock client, so a first-party Anthropic
+# model id does not resolve here at all.
+#
+# This was global.anthropic.claude-sonnet-5 until 2026-09-01, and no run in this
+# repository could have used it. Every judged pack under real_targets/ was
+# produced by passing --judge-model global.anthropic.claude-sonnet-4-6, because
+# Sonnet 5 returns 403 on the account those packs come from; real_targets/
+# README.md and docs/real-targets.md both said so while this line kept naming
+# the id that had never worked. `gauntlet run` is unaffected either way, since
+# it refuses to judge at all without an explicit --judge-model or
+# GAUNTLET_JUDGE_MODEL; what this default reaches is BedrockJudge() constructed
+# in Python, which is to say the one caller who is given no chance to pick. It
+# is now the id the committed packs were actually judged with. The model
+# actually used is recorded in every calibration block, whichever way it is set.
+DEFAULT_JUDGE_MODEL = "global.anthropic.claude-sonnet-4-6"
 DEFAULT_JUDGE_REGION = "us-west-2"
 
 VERDICTS = ("meets", "violates")

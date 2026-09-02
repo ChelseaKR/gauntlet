@@ -30,8 +30,16 @@ product-scope decision. This ADR is that decision.
    Amazon Bedrock client, as the optional extra `gauntlet-evals[judge]`;
    credentials come from the environment and the model id comes from the
    operator (`--judge-model` / `GAUNTLET_JUDGE_MODEL`, default
-   `global.anthropic.claude-sonnet-5`). Nothing outside the judge imports the
+   `global.anthropic.claude-sonnet-4-6`). Nothing outside the judge imports the
    SDK, and the other five gates remain model-free.
+
+   *Amended 2026-09-01:* this ADR was written with the default
+   `global.anthropic.claude-sonnet-5`, which returns 403 on the AWS account
+   every judged pack in this repository was produced on. All three judged runs
+   therefore passed `--judge-model global.anthropic.claude-sonnet-4-6`, and the
+   default named an id no run here had ever reached. The default is now that
+   same id. Nothing else in this decision changes: the model is still the
+   operator's to set, and it is still recorded in every calibration block.
 2. **Calibration is required, and it is against a person.** A judge suite must
    name a committed calibration set: response/verdict pairs a person labeled,
    with `labeled_by` naming them. Before any verdict counts, the judge grades

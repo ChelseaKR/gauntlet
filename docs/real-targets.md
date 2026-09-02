@@ -29,9 +29,11 @@ pack rather than left to be inferred.
 A later pass added a `judge` gate (ADR 0001) and ran it against all three
 targets; those three runs, their request counts, and their model are in
 [Judge gate: measured, and withheld](#judge-gate-measured-and-withheld) below.
-`global.anthropic.claude-sonnet-5` is also the judge's configured default and
-is also 403 on this account, so those runs used `--judge-model
-global.anthropic.claude-sonnet-4-6` as well.
+`global.anthropic.claude-sonnet-5` was the judge's configured default when
+those runs were made, and is 403 on this account like the target defaults, so
+those runs passed `--judge-model global.anthropic.claude-sonnet-4-6` as well.
+The judge's default is now that same id, so reproducing these runs no longer
+depends on remembering the flag.
 
 ## permit-bearings AI service
 

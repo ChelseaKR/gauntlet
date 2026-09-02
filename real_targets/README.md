@@ -84,10 +84,13 @@ MRF_HONEST_RAW_LOG=real_targets/mrf_honest/results/<date>-raw.jsonl \
 MRF_HONEST_REPLAY=real_targets/mrf_honest/results/<date>-raw.jsonl ... gauntlet run ...
 
 # A judge suite (cases-judge/), separately, so an uncalibrated judge's
-# WITHHELD verdict never blocks the mechanical suites above. The default
-# judge model (global.anthropic.claude-sonnet-5) is 403 on the account these
-# packs were produced on; --judge-model overrides it. --judge-record makes
-# the verdicts replayable the same way --raw-log does for the target itself.
+# WITHHELD verdict never blocks the mechanical suites above. --judge-model is
+# written out here because a pack must record the model it was judged with
+# rather than inherit whatever the default happens to be; the id below is also
+# the current default, because the previous default
+# (global.anthropic.claude-sonnet-5) is 403 on the account these packs were
+# produced on. --judge-record makes the verdicts replayable the same way
+# --raw-log does for the target itself.
 uv run gauntlet run --cases real_targets/permit_bearings/cases-judge \
   --callable real_targets.permit_bearings.target:make_target \
   --judge-model global.anthropic.claude-sonnet-4-6 \
