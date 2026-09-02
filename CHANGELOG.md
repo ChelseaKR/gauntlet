@@ -6,6 +6,20 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- **The judge's default model was an id no run here has ever reached.**
+  `judge.DEFAULT_JUDGE_MODEL` was `global.anthropic.claude-sonnet-5`, which
+  returns 403 on the AWS account every judged pack in `real_targets/` was
+  produced on. All three judged runs passed
+  `--judge-model global.anthropic.claude-sonnet-4-6` instead, and
+  `real_targets/README.md` and `docs/real-targets.md` both said so, so the
+  code's default and every runnable command in the documentation named
+  different models. `gauntlet run` was never affected, because it refuses to
+  judge without an explicit `--judge-model` or `GAUNTLET_JUDGE_MODEL`; what the
+  default reaches is `BedrockJudge()` constructed in Python, the one caller
+  given no chance to choose. The default is now the id the committed packs were
+  judged with, and `tests/test_judge.py` walks the documentation and fails if
+  any `--judge-model` id in it stops matching the code's default. ADR 0001 is
+  amended rather than rewritten: the decision it records is unchanged.
 - **An unverifiable citation was counted as grounded.** The harness's own quote
   check reports `verified`, `not_found`, and `unverifiable`, and both
   `real_targets/README.md` and `quotecheck.py` said the third "is never counted

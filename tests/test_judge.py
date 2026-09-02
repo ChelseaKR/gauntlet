@@ -10,6 +10,7 @@ calibrated one grades, and both paths leave their measurement in the pack.
 from __future__ import annotations
 
 import json
+import re
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ from gauntlet.cli import main
 from gauntlet.evidence import build_evidence_pack
 from gauntlet.gates import judge_withheld_reason, run_suite, scores_capability
 from gauntlet.judge import (
+    DEFAULT_JUDGE_MODEL,
     MIN_CALIBRATION_PAIRS,
     BedrockJudge,
     JudgeError,
@@ -623,3 +625,115 @@ def test_calibration_pairs_need_every_field_and_a_sane_threshold() -> None:
     result = calibrate(_agreeing_judge(_pairs(MIN_CALIBRATION_PAIRS)), calibration_set, 1.5)
     assert not result.calibrated
     assert "min_agreement must be above 0 and at most 1" in result.reason
+
+
+# ---------------------------------------------------------------------------
+# The documented judge model and the code's default, held together.
+#
+# Until 2026-09-01 they disagreed, and the disagreement was published. The
+# code's default was `global.anthropic.claude-sonnet-5`; every runnable
+# `--judge-model` line in the documentation named
+# `global.anthropic.claude-sonnet-4-6`, because Sonnet 5 returns 403 on the
+# account the committed packs were judged on and two of those documents said
+# so in the same breath. A reader following the docs and a caller taking the
+# default got different models, and nothing failed.
+#
+# The rule is not "the default must be Sonnet 4.6", which would be this file
+# restating one line of judge.py. It is that a `--judge-model` id written into
+# the documentation, which is the id a reader will actually run, must be the id
+# the code would have chosen for them. Changing one and not the other fails.
+# ---------------------------------------------------------------------------
+
+_JUDGE_MODEL_FLAG = re.compile(r"--judge-model\s+(\S+)")
+
+# Directories that are not this project's prose: dependencies, caches, and
+# build output. The same set the markdown claim scans use.
+_NOT_OURS = frozenset(
+    {
+        ".git",
+        ".venv",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "__pycache__",
+        "node_modules",
+        "site",
+        "dist",
+    }
+)
+
+_DOCS_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _looks_like_a_model_id(token: str) -> bool:
+    """Whether the word after the flag is an id rather than the next word of a sentence.
+
+    ``--judge-model`` also appears in running prose ("--judge-model overrides
+    it"), where the next word is English and no instruction to run anything is
+    being given. Every model id this project can name carries a version number,
+    and no English word does, so a digit is what separates the two. Deliberately
+    not a match against `global.anthropic.*`: an id in the wrong namespace is
+    exactly the kind of mistake this scan should catch, not skip.
+    """
+    return bool(re.fullmatch(r"[A-Za-z0-9._:@/-]+", token)) and any(c.isdigit() for c in token)
+
+
+def _documented_judge_models() -> dict[Path, list[str]]:
+    """Every model id written after a ``--judge-model`` flag in the docs.
+
+    The text is unwrapped first, so a flag and its id split across two lines by
+    a hard wrap is read as one instruction rather than missed. Markdown and
+    sentence punctuation around the id is stripped, because a fenced command
+    and an id quoted mid-sentence are the same instruction to a reader.
+    """
+    found: dict[Path, list[str]] = {}
+    for path in sorted(_DOCS_ROOT.rglob("*.md")):
+        if _NOT_OURS.intersection(path.relative_to(_DOCS_ROOT).parts):
+            continue
+        unwrapped = " ".join(path.read_text(encoding="utf-8").split())
+        ids = [
+            stripped
+            for raw in _JUDGE_MODEL_FLAG.findall(unwrapped)
+            if _looks_like_a_model_id(stripped := raw.strip("`,.;:()[]\"'"))
+        ]
+        if ids:
+            found[path] = ids
+    return found
+
+
+def test_the_documented_judge_model_scan_found_the_documents() -> None:
+    """Guard against a walk that matches nothing and passes every assertion.
+
+    The check below is a loop over whatever this scan returns. Emptied, it
+    passes while checking nothing, which is the shape of failure this
+    repository refuses everywhere else. The three documents that carry a
+    runnable judge command are named, so a rename or a narrowed walk fails
+    here rather than going quiet.
+    """
+    scanned = {path.relative_to(_DOCS_ROOT).as_posix() for path in _documented_judge_models()}
+    assert {"README.md", "real_targets/README.md", "docs/real-targets.md"} <= scanned, scanned
+
+
+def test_every_documented_judge_model_is_the_one_the_code_would_choose() -> None:
+    offenders = {
+        path.relative_to(_DOCS_ROOT).as_posix(): [
+            model for model in models if model != DEFAULT_JUDGE_MODEL
+        ]
+        for path, models in _documented_judge_models().items()
+        if any(model != DEFAULT_JUDGE_MODEL for model in models)
+    }
+    assert not offenders, (
+        f"documented --judge-model ids that are not judge.DEFAULT_JUDGE_MODEL "
+        f"({DEFAULT_JUDGE_MODEL}): {offenders}"
+    )
+
+
+def test_the_default_judge_model_is_a_bedrock_id() -> None:
+    """The judge has exactly one path, and it is Bedrock.
+
+    ``BedrockJudge`` builds ``anthropic.AnthropicBedrock``, so a first-party
+    Anthropic model id (``claude-sonnet-4-6``) does not resolve through it at
+    all. A default without the Bedrock inference-profile prefix would be a
+    default that cannot be called, which is what this whole section is about.
+    """
+    assert DEFAULT_JUDGE_MODEL.startswith("global.anthropic."), DEFAULT_JUDGE_MODEL
