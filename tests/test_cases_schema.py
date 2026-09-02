@@ -48,15 +48,16 @@ def test_iter_case_counts_are_counted() -> None:
     assert ("es", 12) in adversarial
 
 
-@pytest.mark.parametrize(
-    ("mutation", "message"),
-    [
-        ("gate: grounding\n", "top level must be a mapping"),
-    ],
-)
-def test_non_mapping_top_level(mutation: str, message: str) -> None:
-    with pytest.raises(CaseFileError, match=message):
-        load_suite_text("- 1\n- 2\n", "bad")
+@pytest.mark.parametrize("document", ["- 1\n- 2\n", "just a string\n", "42\n"])
+def test_non_mapping_top_level(document: str) -> None:
+    """A case file whose top level is not a mapping is rejected, whatever it is.
+
+    This carried a two-value parametrize whose values the body never referenced,
+    so the table implied a set of mutations that did not exist and a new row
+    would have re-run one hardcoded input. The parameter is now the input.
+    """
+    with pytest.raises(CaseFileError, match="top level must be a mapping"):
+        load_suite_text(document, "bad")
 
 
 def test_unknown_suite_key_rejected() -> None:

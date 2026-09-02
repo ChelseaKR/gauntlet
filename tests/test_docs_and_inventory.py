@@ -36,11 +36,55 @@ ACTION = ROOT / "action.yml"
 EM_DASH = chr(0x2014)
 EN_DASH = chr(0x2013)
 
-PROSE_FILES = sorted(
-    path
-    for pattern in ("*.md", "docs/*.md", "examples/*.md", ".github/*.md", "real_targets/*.md")
-    for path in ROOT.glob(pattern)
+# Directories that are not this repository's prose: dependencies, caches, and
+# build output. Everything else that ends in .md is scanned by one of the two
+# lists below, and the partition is asserted rather than assumed.
+_NOT_OURS = frozenset(
+    {
+        ".git",
+        ".venv",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "__pycache__",
+        "node_modules",
+        "site",
+        "dist",
+    }
 )
+
+
+def _markdown_files() -> list[Path]:
+    """Every markdown file in the repository, found by walking rather than by
+    naming directories.
+
+    The previous version of this scan globbed ``docs/*.md``, which matches only
+    direct children, so the ADR log under ``docs/adr/`` was never opened by the
+    em-dash rule or the endorsement rule. ``real_targets/*.md`` likewise reached
+    only the one README and never the committed evidence packs. A recursive walk
+    picks up a new file wherever it lands, which a hand-listed directory cannot.
+    """
+    return sorted(
+        path
+        for path in ROOT.rglob("*.md")
+        if not _NOT_OURS.intersection(path.relative_to(ROOT).parts)
+    )
+
+
+def _is_recorded_evidence(path: Path) -> bool:
+    parts = path.relative_to(ROOT).parts
+    return len(parts) > 2 and parts[0] == "real_targets" and parts[2] == "results"
+
+
+# Prose this project wrote. Held to the house style rules and the claim rules.
+PROSE_FILES = sorted(path for path in _markdown_files() if not _is_recorded_evidence(path))
+
+# Evidence packs rendered from a run. They carry verbatim third-party output:
+# a target's answer, a judge's rationale. Held to the claim rules, because a
+# published pack must never claim state approval, but deliberately NOT to the
+# house style rules: a dash inside a recorded answer is that system's wording,
+# and editing it would falsify the evidence the pack exists to preserve.
+RECORDED_EVIDENCE = sorted(path for path in _markdown_files() if _is_recorded_evidence(path))
 SOURCE_FILES = sorted(
     [*ROOT.glob("src/gauntlet/**/*.py"), *ROOT.glob("tests/*.py"), *ROOT.glob("examples/*.py")]
 )
@@ -85,6 +129,41 @@ def test_source_files_were_found() -> None:
     assert "broken_target.py" in names, "examples/*.py matched nothing"
 
 
+def test_no_markdown_file_escapes_both_scans() -> None:
+    """Every .md file is in exactly one list, and the nested ones are named.
+
+    Checking a handful of top-level names guards against a glob that matches
+    nothing. It does not guard against a glob that matches some, which is the
+    failure this repository actually had: ``docs/*.md`` never opened the ADR
+    log, so two published documents sat outside the claim rules for as long as
+    they had existed. The nested paths are therefore named individually here,
+    so a glob narrowing back to direct children fails instead of going quiet.
+    """
+    every = _markdown_files()
+    assert set(PROSE_FILES) | set(RECORDED_EVIDENCE) == set(every)
+    assert not set(PROSE_FILES) & set(RECORDED_EVIDENCE)
+
+    adrs = [path for path in PROSE_FILES if path.parent.name == "adr"]
+    assert len(adrs) >= 2, "the ADR log is not being scanned"
+    assert ROOT / "docs" / "adr" / "0000-record-architecture-decisions.md" in PROSE_FILES
+    assert ROOT / "real_targets" / "README.md" in PROSE_FILES
+    assert ROOT / "examples" / "README.md" in PROSE_FILES
+
+    assert len(RECORDED_EVIDENCE) >= 7, "the committed evidence packs are not being scanned"
+    assert all(path.suffix == ".md" for path in RECORDED_EVIDENCE)
+
+
+@pytest.mark.parametrize("path", RECORDED_EVIDENCE, ids=lambda p: str(p.name))
+def test_a_published_evidence_pack_claims_no_state_approval(path: Path) -> None:
+    """The claim rules reach the packs, which are the most public prose here.
+
+    A pack is what a vendor attaches to a risk assessment. It is held to the
+    endorsement rule exactly as the README is. It is not held to the dash rule:
+    see RECORDED_EVIDENCE.
+    """
+    _assert_no_endorsement_claim(path.read_text(encoding="utf-8").casefold(), path)
+
+
 @pytest.mark.parametrize("path", PROSE_FILES, ids=lambda p: str(p.name))
 def test_no_em_dashes_in_prose(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
@@ -98,19 +177,57 @@ def test_no_em_dashes_in_source_prose(path: Path) -> None:
     assert EM_DASH not in text, f"{path} contains an em dash"
 
 
+# The claims no published surface of this project may make. Kept as a named
+# constant so the rule, the files it runs over, and the proof that it bites are
+# three separate things that cannot quietly become one.
+FORBIDDEN_CLAIMS = (
+    "approved by the state",
+    "endorsed by the state of california.",
+    "certified by cdt",
+    "california-compliant",
+    "simm 5305-f compliant",
+    "state-approved",
+    "officially recognized",
+)
+
+
+def _assert_no_endorsement_claim(casefolded: str, where: object) -> None:
+    for forbidden in FORBIDDEN_CLAIMS:
+        assert forbidden not in casefolded, f"{where} claims {forbidden!r}"
+
+
 @pytest.mark.parametrize("path", PUBLISHED_PROSE_FILES, ids=lambda p: str(p.name))
 def test_no_state_endorsement_claims(path: Path) -> None:
-    text = path.read_text(encoding="utf-8").casefold()
-    for forbidden in (
-        "approved by the state",
-        "endorsed by the state of california.",
-        "certified by cdt",
-        "california-compliant",
-        "simm 5305-f compliant",
-        "state-approved",
-        "officially recognized",
-    ):
-        assert forbidden not in text, f"{path} claims {forbidden!r}"
+    _assert_no_endorsement_claim(path.read_text(encoding="utf-8").casefold(), path)
+
+
+@pytest.mark.parametrize("forbidden", FORBIDDEN_CLAIMS)
+def test_the_endorsement_rule_rejects_the_claim_it_names(forbidden: str) -> None:
+    """The negative control the endorsement rule never had.
+
+    ``test_no_state_endorsement_claims`` passes because the phrases are not in
+    the files. It would pass just as quietly if ``FORBIDDEN_CLAIMS`` were
+    emptied, if the ``casefold()`` were dropped, or if the file list went stale,
+    and this repository's own doctrine for its five gates is that a check that
+    has never failed is not evidence of health. So every phrase is fed through
+    the scanner here and must be caught, in the casing a real document would
+    use rather than the casing the constant happens to be written in.
+    """
+    document = f"This project is {forbidden.upper()} and ready for procurement."
+    with pytest.raises(AssertionError, match="claims"):
+        _assert_no_endorsement_claim(document.casefold(), "synthetic")
+
+
+def test_the_endorsement_rule_allows_the_disclaimer_the_project_uses() -> None:
+    """And it must not fire on the denial, or the rule would forbid the truth."""
+    _assert_no_endorsement_claim(
+        (
+            "The State of California has not reviewed, approved, endorsed, or "
+            "certified this project. The language is 'aligned to', never "
+            "'approved by'."
+        ).casefold(),
+        "synthetic",
+    )
 
 
 def test_the_sites_source_is_scanned_for_claims() -> None:
@@ -154,10 +271,22 @@ def test_inventory_totals_match_the_suites_themselves() -> None:
 
 
 def test_inventory_describes_each_gate_from_the_mapping() -> None:
-    for gate in build_inventory(builtin_suites()).gates:
+    """Every loaded gate carries a description the inventory can render.
+
+    Two neighbouring assertions were removed from this test on 2026-08-28
+    because neither could fail. ``suite_version >= 1`` restates what the loader
+    enforces before ``build_inventory`` sees a suite at all, and the
+    ``key_version``/``golden`` equality restates what the loader sets
+    unconditionally in the same pass. Both are properties of the constructor,
+    not of the inventory, and are covered where they are decided, in
+    tests/test_cases_schema.py. What is genuinely the inventory's own job, and
+    is not enforced anywhere else, is that a loaded gate has a description to
+    show; that is what remains here.
+    """
+    gates = build_inventory(builtin_suites()).gates
+    assert len(gates) == len(BUILTIN_GATES)
+    for gate in gates:
         assert gate.enforces.strip(), f"{gate.gate} has no description"
-        assert gate.suite_version >= 1
-        assert (gate.key_version is None) == (gate.gate != "golden")
 
 
 def test_language_label_falls_back_to_the_code() -> None:
@@ -280,6 +409,7 @@ def test_action_never_interpolates_input_into_a_shell_command() -> None:
 
 
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+GITLEAKS_CONFIG = ROOT / ".gitleaks.toml"
 
 
 def test_the_workflows_were_found() -> None:
@@ -287,9 +417,55 @@ def test_the_workflows_were_found() -> None:
     assert {"ci.yml", "pages.yml"} <= names
 
 
+def test_the_gitleaks_allowlist_stays_scoped_to_the_evidence_packs() -> None:
+    """The one place a widened glob would silently disarm a scanner.
+
+    The secret-scan job failed once, on PR #16, when gitleaks' generic-api-key
+    rule matched a JSONL field named "key" sitting beside a request hash in a
+    committed evidence pack. The finding was real for the rule and wrong about
+    the repository, and it was resolved by renaming the field and allowlisting
+    the results directories.
+
+    An allowlist is a gate that stops covering what it names the moment its
+    pattern widens, and nothing here would have gone red if the path regex
+    became ``.*``. So the config is asserted to keep the default rules, and the
+    pattern is run against paths on both sides of its intended boundary.
+    """
+    import re
+    import tomllib
+
+    config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
+    assert config["extend"]["useDefault"] is True, "the default rule set must stay on"
+
+    patterns = config["allowlist"]["paths"]
+    assert len(patterns) == 1, "one scoped exception, not a growing list"
+    allowed = re.compile(patterns[0])
+
+    # Inside the exception: the committed packs the rule fires false positives on.
+    for path in (
+        "real_targets/permit_bearings/results/2026-08-22-judged-verdicts.jsonl",
+        "real_targets/mrf_honest/results/2026-08-22-results.json",
+    ):
+        assert allowed.search(path), f"{path} should be allowlisted"
+
+    # Outside it: everywhere a real credential could actually land.
+    for path in (
+        "src/gauntlet/judge.py",
+        "tests/test_judge.py",
+        ".github/workflows/ci.yml",
+        "real_targets/permit_bearings/target.py",
+        "real_targets/README.md",
+        "examples/broken_target.py",
+        ".env",
+        "secrets.yaml",
+    ):
+        assert not allowed.search(path), f"{path} must still be scanned for secrets"
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: str(p.name))
 def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
     workflow = yaml.safe_load(path.read_text("utf-8"))
+    pinned = 0
     for job in workflow["jobs"].values():
         for step in job.get("steps", []):
             reference = step.get("uses")
@@ -298,6 +474,12 @@ def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
             _, _, pin = reference.partition("@")
             assert len(pin) == 40, f"{path.name}: {reference} is not pinned to a full commit SHA"
             assert all(char in "0123456789abcdef" for char in pin), f"{reference} is not a SHA"
+            pinned += 1
+    # The guard the sibling action test has and this one did not. A workflow
+    # with no steps, or whose every step is a local `uses: ./`, would otherwise
+    # check nothing and pass. ci.yml already has three local uses that take the
+    # `continue` branch above.
+    assert pinned, f"{path.name} pins no external action; the rule would be vacuous"
 
 
 def test_the_pages_workflow_grants_no_permission_it_does_not_need() -> None:

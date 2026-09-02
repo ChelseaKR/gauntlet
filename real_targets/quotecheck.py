@@ -67,6 +67,48 @@ class QuoteCheck:
     note: str = ""
 
 
+def counts_as_grounded(check: QuoteCheck | None) -> bool:
+    """Whether a citation may stay in the context the grounding gate scores.
+
+    Only a positively verified quote may. ``not_found`` is a verdict against
+    the target. ``unverifiable`` and ``None`` are the *absence* of a verdict:
+    a dead link, a PDF with no reader, a citation carrying no URL or quote, or
+    ``GAUNTLET_QUOTE_CHECKS=off``. Rendering that absence as a pass is the
+    failure mode this module exists to prevent, and it would make the quote
+    check one that cannot fail: under ``GAUNTLET_QUOTE_CHECKS=off`` every
+    check is ``unverifiable``, so a run that verified nothing at all would
+    report the same grounding pass rate as one where every quote was
+    confirmed.
+    """
+    return check is not None and check.status == "verified"
+
+
+def not_found_note(passages: set[str], *, source: str) -> str:
+    """The bracketed note naming passages whose quote was looked for and missed.
+
+    Only ``not_found`` is narrated into the answer text, and deliberately so.
+    A quote the document does not contain is a verdict about the target, and
+    annotating its answer with it is fair. ``unverifiable`` is not a verdict
+    about the target at all, it is the record of what this run could not do
+    (a dead link, no PDF reader, ``GAUNTLET_QUOTE_CHECKS=off``). Writing that
+    into the target's answer would misattribute the harness's own limits to
+    the system under test, and would corrupt the verbatim response that every
+    other gate scores and that the evidence pack records as observed.
+
+    An unverified citation is still never dropped in silence. It is removed
+    from the accepted context, so the grounding gate fails the case and names
+    the identifiers, and ``tally`` reports the count and the reason in the
+    run's provenance.
+    """
+    if not passages:
+        return ""
+    return (
+        f" [gauntlet could not find the quoted text in {source} for: "
+        + ", ".join(sorted(passages))
+        + "]"
+    )
+
+
 def _is_pdf(raw: bytes, content_type: str) -> bool:
     return "pdf" in content_type.lower() or raw[:5] == b"%PDF-"
 

@@ -4,6 +4,64 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An unverifiable citation was counted as grounded.** The harness's own quote
+  check reports `verified`, `not_found`, and `unverifiable`, and both
+  `real_targets/README.md` and `quotecheck.py` said the third "is never counted
+  as either outcome". Both adapters did the opposite: they removed a passage
+  from the accepted context only on `not_found`, so a dead link, a PDF with no
+  reader, or a citation with nothing to check stayed in the context and the
+  grounding gate scored it as grounded. `GAUNTLET_QUOTE_CHECKS=off` makes every
+  check `unverifiable`, so during a replay the quote check could not fail at
+  all, and a run that verified nothing reported the same grounding pass rate as
+  one that verified everything. Both adapters now share one predicate,
+  `quotecheck.counts_as_grounded`, which accepts only `verified`. The answer
+  text is still annotated for `not_found` alone, because a quote the document
+  does not contain is a verdict about the target while a quote the harness
+  could not fetch is a fact about the run; the latter is reported in the
+  provenance and the case fails on the context. Closes #19.
+- **The pack-replay test was comparing a constant.**
+  `test_the_recording_reproduces_the_committed_pack` replays each committed
+  pack with quote checks off and asserted the verdicts reproduced case by case.
+  It passed only because unverified citations were accepted, which meant the
+  grounding gate returned the same verdict whether verification had happened or
+  not. A recording holds what the target said, never what the harness verified,
+  so those grounding verdicts were never reproducible. The 12 affected cases
+  are now pinned per pack and each must diverge in exactly one way, and the
+  replay asserts exact case counts instead of `compared > 0`.
+- **The prose scans never opened `docs/adr/`.** `docs/*.md` matches only direct
+  children, so the em-dash rule and the state-endorsement rule had never read
+  the ADR log, and `real_targets/*.md` never read the committed evidence packs.
+  The scan now walks the tree, the packs are held to the claim rules but not to
+  the house style rules (they carry verbatim third-party output), and the
+  nested paths are named in a guard so a glob narrowing back to direct children
+  fails.
+- **Checks that could not fail, removed or repaired.**
+  `test_the_gate_table_moves_when_a_case_is_added` never changed the input and
+  asserted a bound (`total_cases + 1`) the table can never contain; it now
+  renders the page twice around a real added case. The four claim rules (state
+  endorsement, page approval, published package, pack certification) had no
+  negative control and would have passed with their phrase lists emptied; each
+  phrase is now fed through its own scanner and must be caught. The alignment
+  notice was compared by its first sentence only. Two assertions in the
+  inventory test restated what the loader enforces before `build_inventory` is
+  reached. `line.count("=") >= 1` was unreachable behind a `dict()` that raises
+  first. The workflow-pinning test gained the anti-vacuity guard its sibling
+  already had.
+
+### Changed
+
+- **The coverage floor now reaches `real_targets/`.** The 90% branch-coverage
+  gate measured only `gauntlet`, so the quote checker and the two adapters, the
+  code deciding whether a citation counts as grounded, sat outside the gate the
+  README calls merge-blocking. Total coverage over the larger denominator is
+  94.5%.
+- **The gitleaks allowlist is pinned by a test.** `.gitleaks.toml` scopes one
+  path exception to `real_targets/**/results/`. A test asserts the default rule
+  set stays on, that there is exactly one pattern, and that the pattern matches
+  the evidence packs and no source, workflow, or dotfile path.
+
 ### Added
 
 - **Every documentation page says which page it is.** All five carried one

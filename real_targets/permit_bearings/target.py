@@ -43,7 +43,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from gauntlet.targets import TargetError, TargetResponse
-from real_targets.quotecheck import DocumentCache, QuoteCheck, tally
+from real_targets.quotecheck import (
+    DocumentCache,
+    QuoteCheck,
+    counts_as_grounded,
+    not_found_note,
+    tally,
+)
 from real_targets.rawlog import RawLog
 
 DEFAULT_URL = "https://tb4ekoqybhbxbrbn447ln5ad3e0arlwx.lambda-url.us-west-2.on.aws"
@@ -212,7 +218,13 @@ class PermitBearingsTarget:
         texts: list[str] = []
         citations: list[str] = []
         checks: list[QuoteCheck] = []
-        failed_passages: set[str] = set()
+        # Two sets, because they answer different questions. ``unverified`` is
+        # every passage the harness did not positively confirm, and it is what
+        # the accepted context excludes. ``not_found`` is the subset the
+        # harness looked for and did not find, and it is the only one narrated
+        # into the answer.
+        unverified: set[str] = set()
+        not_found: set[str] = set()
         for claim in claims:
             if not isinstance(claim, dict):
                 continue
@@ -221,8 +233,10 @@ class PermitBearingsTarget:
                 citations.append(passage_id)
                 if check is not None:
                     checks.append(check)
-                    if check.status == "not_found":
-                        failed_passages.add(passage_id)
+                if not counts_as_grounded(check):
+                    unverified.add(passage_id)
+                    if check is not None and check.status == "not_found":
+                        not_found.add(passage_id)
         if self._observations:
             self._observations[-1].withheld_count = withheld_count
             self._observations[-1].checks = checks
@@ -237,16 +251,14 @@ class PermitBearingsTarget:
             )
         if withheld_count:
             text += f" [target withheld {withheld_count} claim(s)]"
-        if failed_passages:
-            text += (
-                " [gauntlet could not find the quoted text in the cited public document for: "
-                + ", ".join(sorted(failed_passages))
-                + "]"
-            )
-        # A passage whose quote the harness could not find in the public
-        # document is removed from the context the grounding gate accepts, so
-        # the claim fails visibly as citing something not in evidence.
-        context_ids = tuple(item for item in offered if item not in failed_passages)
+        text += not_found_note(not_found, source="the cited public document")
+        # A passage whose quote the harness did not positively verify in the
+        # public document is removed from the context the grounding gate
+        # accepts, so the claim fails visibly as citing something not in
+        # evidence. "Did not verify" covers the quote that is not in the
+        # document and, equally, the quote the harness could not look for: a
+        # citation nobody checked is not a citation anybody confirmed.
+        context_ids = tuple(item for item in offered if item not in unverified)
         return TargetResponse(
             text=text,
             citations=tuple(citations),
