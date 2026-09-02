@@ -4,6 +4,27 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **A share of any documentation page rendered as a blank grey box, and the
+  README never named the pages at all.** The head carried `og:title`,
+  `og:description` and `og:url` but no image, so `twitter:card` was correctly
+  held at `summary` and the card had nothing to show. `gauntlet site` now emits
+  `og:image` with its dimensions and alt text, `twitter:image`, and
+  `twitter:card` of `summary_large_image`, and copies
+  `src/gauntlet/assets/social-card.png` out beside the pages so the URL every
+  head names actually resolves. The asset lives inside the package because
+  `gauntlet site` has to work from an installed wheel, where there is no
+  repository to read a file out of. The card carries the project name and one
+  sentence and no counts: every number these pages print is counted from the
+  suites that load, and a figure painted into a PNG is a claim nothing
+  recounts. `tests/test_site.py` fails on a card tag that is present but empty,
+  on a card URL that is relative or drops the project path, and on a build that
+  names a card it does not publish, and `build_site` refuses outright when the
+  asset is missing rather than publishing five heads pointing at a 404.
+  https://chelseakr.github.io/gauntlet/ is now linked from the top of
+  README.md, where it had never appeared.
+
 ### Fixed
 
 - **The judge's default model was an id no run here has ever reached.**

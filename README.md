@@ -4,6 +4,12 @@ Merge-blocking evaluation gates for generative AI features, plus an evidence
 pack that cross-references what the gates found to California's published GenAI
 risk and procurement framework.
 
+**Live documentation: [chelseakr.github.io/gauntlet](https://chelseakr.github.io/gauntlet/)**
+The gate inventory, an excerpt from a failing evidence pack, the California
+mapping, and the GitHub Action. Those pages are generated from the harness by
+`gauntlet site`: the gate counts are counted from the suites that load, and the
+evidence excerpts are output from runs made while the pages were built.
+
 Gauntlet runs YAML-driven gate suites against any HTTP endpoint or Python
 callable, fails the build when a gate fails, and emits the run in two forms: a
 versioned JSON pack a machine can diff, and a document a reviewer can attach to
