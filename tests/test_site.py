@@ -272,11 +272,53 @@ def test_the_page_carries_a_share_card_that_agrees_with_the_page(built: Path, na
     doc = parse(built / name)
     assert og_of(built / name, "og:type") == "website"
     assert og_of(built / name, "og:site_name") == SITE_NAME
-    assert '<meta name="twitter:card" content="summary">' in head_of(built / name)
+    assert '<meta name="twitter:card" content="summary_large_image">' in head_of(built / name)
     # The card and the page are two statements about the same thing, so they
     # are held equal rather than each checked for being non-empty.
     assert og_of(built / name, "og:title") == escape(doc.title, quote=True)
     assert og_of(built / name, "og:description") == escape(doc.metas["description"], quote=True)
+    # A card tag that exists and carries an empty string reads as "described"
+    # to everything that looks and unfurls as nothing, which is the same
+    # failure `content=""` is refused for at build time above.
+    for prop in ("og:title", "og:description", "og:image", "og:image:alt"):
+        value = og_of(built / name, prop)
+        assert value is not None and value.strip(), prop
+
+
+# Spelled out for the reason PUBLISHED_AT is: an expectation derived from the
+# constant it is checking moves with the mistake and stays green.
+PUBLISHED_CARD = "https://chelseakr.github.io/gauntlet/social-card.png"
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_card_the_page_names_is_absolute_and_keeps_the_project_path(
+    built: Path, name: str
+) -> None:
+    # A crawler unfurling a link has no document to resolve a relative
+    # reference against, and the bare origin is five sibling projects and a
+    # 404, so a card URL without /gauntlet/ in it is a card for nothing.
+    assert og_of(built / name, "og:image") == PUBLISHED_CARD
+    assert head_tag(built / name, r'<meta name="twitter:image" content="([^"]*)"') == PUBLISHED_CARD
+
+
+def test_the_build_publishes_the_card_every_page_names(built: Path) -> None:
+    # The head naming a card the build does not emit is the failure that hides:
+    # the render succeeds, the deploy succeeds, every check stays green, and the
+    # shared link renders blank against a 404. So the file is asserted to exist
+    # beside the pages, non-empty, at the name the head points at.
+    card = built / PUBLISHED_CARD.rsplit("/", 1)[-1]
+    assert card.is_file(), sorted(path.name for path in built.iterdir())
+    assert card.stat().st_size > 0
+
+
+def test_a_build_with_no_card_to_publish_refuses(tmp_path: Path) -> None:
+    # And it refuses at the build, where the message can say what is missing,
+    # rather than at the far end of a shared link where nobody sees it.
+    with (
+        mock.patch("gauntlet.site.ASSETS", tmp_path / "not-here"),
+        pytest.raises(FileNotFoundError, match=re.escape("social-card.png")),
+    ):
+        build_site(tmp_path / "site", action_file=ACTION)
 
 
 def test_no_two_pages_share_a_description(built: Path) -> None:

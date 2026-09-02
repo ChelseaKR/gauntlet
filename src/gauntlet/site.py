@@ -26,6 +26,7 @@ passed in, and the same commit renders byte-identical pages.
 from __future__ import annotations
 
 import html
+import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,6 +69,29 @@ REPO_URL = "https://github.com/ChelseaKR/gauntlet"
 SITE_URL = "https://chelseakr.github.io/gauntlet/"
 
 SITE_NAME = "Gauntlet"
+
+# The card a share of any of these pages unfurls into.
+#
+# It is a file, not markup, so it lives in the package and the build copies it
+# beside the pages: `gauntlet site` has to work from an installed wheel, where
+# there is no repository to read an asset out of. ASSETS is inside src/gauntlet
+# for that reason, and hatchling ships it.
+#
+# The URL has to be absolute and it has to carry /gauntlet/, for the same
+# reason every other self-reference here does: a crawler resolving a card has
+# no document to resolve a relative reference against, and the bare origin is
+# five other projects and a 404.
+#
+# The card says the project name and one sentence and no numbers. Every number
+# these pages print is counted from the suites that load; a figure painted into
+# a PNG is a claim nothing recounts, free to drift the moment a suite changes,
+# which is the failure this repository exists to argue against.
+ASSETS = Path(__file__).resolve().parent / "assets"
+SITE_IMAGE = "social-card.png"
+SITE_IMAGE_URL = SITE_URL + SITE_IMAGE
+SITE_IMAGE_ALT = (
+    "Gauntlet, and the line: merge-blocking evaluation gates for generative AI features."
+)
 
 SITE_DESCRIPTION = (
     "Documentation for Gauntlet: CI-runnable evaluation gates for generative AI "
@@ -373,7 +397,12 @@ def page(
 <meta property="og:url" content="{esc(canonical)}">
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(description)}">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="{esc(SITE_IMAGE_URL)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{esc(SITE_IMAGE_ALT)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{esc(SITE_IMAGE_URL)}">
 <style>{STYLESHEET}</style>
 </head>
 <body>
@@ -1187,4 +1216,17 @@ def build_site(out_dir: Path, *, action_file: Path, generated: str = "") -> tupl
         path = out_dir / name
         path.write_text(document, encoding="utf-8")
         written.append(path)
+    # Every page names the card in its head, so a build that renders the pages
+    # and does not emit the file publishes five heads pointing at a 404 and
+    # nothing goes red: the deploy succeeds, the pages are correct, and the
+    # share renders blank. The copy is part of the build for that reason, and
+    # a missing source refuses here rather than at the far end of a link.
+    source = ASSETS / SITE_IMAGE
+    if not source.is_file():
+        raise FileNotFoundError(
+            f"{source} is missing, so every page would name a card that is not published"
+        )
+    card = out_dir / SITE_IMAGE
+    shutil.copyfile(source, card)
+    written.append(card)
     return tuple(written)
