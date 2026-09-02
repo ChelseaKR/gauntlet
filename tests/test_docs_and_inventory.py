@@ -8,21 +8,26 @@ and the documented gate inventory matches what the harness actually loads.
 
 from __future__ import annotations
 
+import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import yaml
 
-from gauntlet.cases import BUILTIN_GATES, builtin_suites, load_suites
+from gauntlet.cases import BUILTIN_GATES, GATES, builtin_suites, load_suites
 from gauntlet.inventory import (
     BEGIN_MARKER,
     END_MARKER,
     InventoryError,
     build_inventory,
+    coverage_sentence,
     language_label,
     render_inventory_markdown,
     update_marked_block,
 )
+from gauntlet.mapping import mapping_for
+from gauntlet.toy import GATE_DEFECTS
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
@@ -101,6 +106,27 @@ def test_prose_files_were_found() -> None:
     names = {path.name for path in PROSE_FILES}
     assert {"README.md", "SCOPE.md", "CONTRIBUTING.md", "SECURITY.md"} <= names
     assert "california-mapping.md" in names
+
+
+def test_source_files_were_found() -> None:
+    """The same guard, for the list that did not have one.
+
+    PROSE_FILES has the check above and WORKFLOWS has its own; SOURCE_FILES had
+    neither. It feeds ``test_no_em_dashes_in_source_prose``, and pytest reports an
+    empty parameter set as SKIPPED while the run still exits 0. Measured on this
+    tree: pointing the three globs at directories that do not exist took this
+    module from 95 passed to 49 passed and 1 skipped, exit 0 both times. Forty-six
+    checks stopped happening, and the only trace was one line in a skip report.
+
+    Named files rather than a count, because a count drifts whenever somebody adds
+    a module, and a guard people have to keep updating is a guard people delete.
+    """
+    names = {path.name for path in SOURCE_FILES}
+    assert {"__init__.py", "cli.py"} <= names, (
+        f"src/gauntlet/**/*.py matched no package modules; SOURCE_FILES holds {sorted(names)}"
+    )
+    assert "test_docs_and_inventory.py" in names, "tests/*.py matched nothing"
+    assert "broken_target.py" in names, "examples/*.py matched nothing"
 
 
 def test_no_markdown_file_escapes_both_scans() -> None:
@@ -292,6 +318,40 @@ cases:
     assert inventory.gates[0].key_version == 2
 
 
+def test_the_coverage_sentence_adds_nothing_when_nothing_is_missing(tmp_path: Path) -> None:
+    """Every defined gate counted and mapped leaves the sentence with no clauses.
+
+    The generated block only names what the table leaves out. When it leaves
+    nothing out it must not invent a gap to report, so both clauses are
+    exercised in both directions.
+    """
+    (tmp_path / "g.yaml").write_text(
+        """
+suite: solo
+gate: golden
+version: 1
+key_version: 1
+threshold: 1.0
+cases:
+  - id: only
+    language: en
+    prompt: hello
+    expected: hi
+""",
+        encoding="utf-8",
+    )
+    inventory = build_inventory(load_suites(tmp_path))
+    complete = replace(inventory, defined_gates=("golden",))
+    sentence = coverage_sentence(complete)
+    assert sentence.endswith("and this table counts 1.")
+    assert "not counted here" not in sentence
+    assert "verified framework reference" not in sentence
+    # And the other way: the real inventory does report both.
+    real = build_inventory(builtin_suites())
+    assert "`judge`" in coverage_sentence(real)
+    assert real.gates_not_counted == real.gates_without_verified_reference
+
+
 def test_update_marked_block_replaces_only_the_block(tmp_path: Path) -> None:
     document = f"before\n\n{BEGIN_MARKER}\n\nold\n\n{END_MARKER}\n\nafter\n"
     updated = update_marked_block(document, "new")
@@ -457,3 +517,163 @@ def test_action_survives_a_failing_gate_long_enough_to_report_it() -> None:
     capture = script.index("run_status=$?")
     restore = script.index("set -e\n", disable)
     assert disable < invoke < capture < restore, "errexit is not disabled around the run"
+
+
+# ---------------------------------------------------------------------------
+# Claims about coverage, checked against the thing they claim to cover.
+#
+# Each of these sentences was true when it was written and stopped being true
+# without anything noticing: `every gate` was written when GATES held five,
+# `Keep-a-Changelog` when nobody had looked at CHANGELOG.md's headings, and the
+# WCAG paraphrase when nobody had asked axe which rules a tag selects. Each
+# test derives the claim's truth condition rather than pinning the sentence.
+# ---------------------------------------------------------------------------
+
+CHANGELOG = ROOT / "CHANGELOG.md"
+A11Y = ROOT / "tools" / "a11y.mjs"
+
+
+def _standards_row(standard: str) -> str:
+    prefix = f"| {standard} |"
+    rows = [
+        line for line in README.read_text(encoding="utf-8").splitlines() if line.startswith(prefix)
+    ]
+    assert len(rows) == 1, (
+        f"expected one {standard!r} row in the standards table, found {len(rows)}"
+    )
+    return rows[0]
+
+
+def _unwrapped(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").split())
+
+
+_DOCTRINE_CLAIMS = (
+    "for every gate, a paired test",
+    "every gate is demonstrated failing against",
+    "paired with every gate",
+    "every gate must be shown able to fail",
+    "every gate has a paired test",
+    "no gate can be passed by a target that says nothing",
+    "prove each gate can fail",
+    "watch each gate catch it",
+    "if any gate has no defect",
+    "self-test doctrine that proves every gate can fail",
+)
+
+
+def test_the_doctrine_is_claimed_over_no_more_gates_than_it_covers() -> None:
+    """`every gate` was written when `GATES` held five and the toy covered all five.
+
+    It holds six. `judge` needs a model and a signed calibration set, so the
+    toy cannot exercise it and it has no paired defect, and the tests that
+    enforce the doctrine iterate `BUILTIN_GATES`. The unqualified sentence
+    outlived the fact. If a later change gives every gate in `GATES` a paired
+    defect, the qualifier is free to come back out and this test passes either
+    way, which is the point of deriving the condition rather than banning the
+    words.
+    """
+    uncovered = sorted(set(GATES) - set(GATE_DEFECTS))
+    if not uncovered:
+        return
+    offenders = [
+        (path.name, claim)
+        for path in PUBLISHED_PROSE_FILES
+        for claim in _DOCTRINE_CLAIMS
+        if claim in _unwrapped(path)
+    ]
+    assert not offenders, (
+        f"gates with no paired toy defect: {uncovered}. "
+        f"These claim the doctrine over all of them: {offenders}"
+    )
+
+
+_MAPPING_CLAIMS = (
+    "maps each gate to the SIMM",
+    "a table mapping each gate to the",
+)
+
+
+def test_the_mapping_is_claimed_over_no_more_gates_than_it_maps() -> None:
+    """A gate with no verified reference is reported as unmapped, never linked.
+
+    `mapping_for('judge')` is None on purpose: a model grading a model informs
+    no SIMM 5305-F item that was read. The README said the mapping covered each
+    gate anyway.
+    """
+    unmapped = sorted(gate for gate in GATES if mapping_for(gate) is None)
+    if not unmapped:
+        return
+    offenders = [
+        (path.name, claim)
+        for path in PUBLISHED_PROSE_FILES
+        for claim in _MAPPING_CLAIMS
+        if claim in _unwrapped(path)
+    ]
+    assert not offenders, f"gates with no verified reference: {unmapped}; claimed by {offenders}"
+
+
+def _changelog_headings() -> list[str]:
+    return re.findall(r"^## +(.+?)\s*$", CHANGELOG.read_text(encoding="utf-8"), re.M)
+
+
+def test_the_readme_claims_keep_a_changelog_exactly_when_the_changelog_is_one() -> None:
+    """Keep a Changelog's defining structure is a section per release.
+
+    CHANGELOG.md has exactly one `##` heading, `[Unreleased]`, at `main` and at
+    the `v0.1.0` tag alike, so the release that shipped is still filed as
+    unreleased. The Release & Versioning row claimed the format anyway. The
+    assertion is a biconditional: add a release section and the row has to say
+    so again.
+    """
+    released = [head for head in _changelog_headings() if "unreleased" not in head.casefold()]
+    row = _standards_row("Release & Versioning")
+    claims = re.search(r"(?<!not )Keep[- ]a[- ]Changelog", row) is not None
+    assert claims == bool(released), (
+        f"CHANGELOG.md release sections: {released or 'none'}; the README row "
+        f"{'claims' if claims else 'does not claim'} Keep-a-Changelog"
+    )
+
+
+def _a11y_list(name: str) -> tuple[str, ...]:
+    """Read one string list out of tools/a11y.mjs, so the docs cannot restate it."""
+    block = re.search(
+        rf"{name}\s*=\s*(?:new Set\()?\[(.*?)\]", A11Y.read_text(encoding="utf-8"), re.S
+    )
+    assert block is not None, f"tools/a11y.mjs no longer defines {name}"
+    values = tuple(re.findall(r'"([^"]+)"', block.group(1)))
+    assert values, f"{name} in tools/a11y.mjs parsed as empty; the reader is broken"
+    return values
+
+
+def test_the_readme_names_the_axe_tags_the_gate_configures() -> None:
+    """The gate runs tags, not WCAG versions, and the README now says which.
+
+    "the WCAG 2.0/2.1/2.2 A and AA rule sets" claimed a level the tag list
+    cannot select: axe-core publishes no `wcag22a` tag at all. Naming the tags
+    keeps the claim the same size as the configuration, and `tools/a11y.mjs`
+    exits non-zero on a configured tag that selects no rule.
+    """
+    readme = _unwrapped(README)
+    for tag in _a11y_list("TAGS"):
+        assert f"`{tag}`" in readme, f"README does not name the configured axe tag {tag}"
+    assert "WCAG 2.0/2.1/2.2 A and AA rule sets" not in _standards_row("Accessibility")
+
+
+def test_the_contrast_claim_matches_what_axe_is_allowed_to_report() -> None:
+    """Contrast is measured once, and the README said it was measured again.
+
+    `tools/a11y.mjs` discards `color-contrast` because jsdom paints no pixels,
+    so axe never reports it and `tests/test_site.py` is the only place contrast
+    is measured. Both documents now name the discarded rules.
+    """
+    discarded = _a11y_list("NEEDS_A_RENDERER")
+    readme = _unwrapped(README)
+    for rule in discarded:
+        assert f"`{rule}`" in readme, f"README does not name the discarded rule {rule}"
+    if "color-contrast" in discarded:
+        assert "Colour contrast is measured once, not twice." in readme
+        assert "colour contrast in both themes are measured again" not in readme.casefold()
+        assert "structure and contrast checked again in `make verify`" not in readme.casefold()
+    else:
+        assert "measured once, not twice" not in readme

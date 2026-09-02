@@ -34,6 +34,7 @@ from dataclasses import dataclass, replace
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -53,6 +54,8 @@ from gauntlet.site import (
     DARK,
     LIGHT,
     PAGES,
+    SITE_NAME,
+    SITE_URL,
     STYLESHEET,
     ActionMetadataError,
     Column,
@@ -208,6 +211,105 @@ def test_the_page_has_a_title_and_a_description(built: Path, name: str) -> None:
     doc = parse(built / name)
     assert doc.title.strip()
     assert doc.metas.get("description", "").strip()
+
+
+# ---------------------------------------------------------------------------
+# The head, and the shared origin it has to survive
+#
+# These pages are served at a path under chelseakr.github.io, which five
+# sibling projects also publish under, and https://chelseakr.github.io/ is
+# itself a 404. Nothing in a browser shows the difference between a canonical
+# that names the project path and one that names the origin, because the
+# browser already has the page. So it is checked here.
+# ---------------------------------------------------------------------------
+
+
+def head_of(path: Path) -> str:
+    return path.read_text(encoding="utf-8").split("</head>", 1)[0]
+
+
+def head_tag(path: Path, pattern: str) -> str | None:
+    found = re.search(pattern, head_of(path))
+    return found.group(1) if found else None
+
+
+def canonical_of(path: Path) -> str | None:
+    return head_tag(path, r'<link rel="canonical" href="([^"]*)"')
+
+
+def og_of(path: Path, prop: str) -> str | None:
+    return head_tag(path, rf'<meta property="{prop}" content="([^"]*)"')
+
+
+# Spelled out rather than built from gauntlet.site.SITE_URL. Deriving the
+# expected value from the constant under test is the shape of check that cannot
+# fail: point SITE_URL at the bare origin and a derived assertion moves with it
+# and stays green, which is precisely the mistake this file exists to catch.
+# Written out, it fails.
+PUBLISHED_AT = "https://chelseakr.github.io/gauntlet/"
+
+
+def test_the_constant_the_pages_are_built_from_is_the_published_path() -> None:
+    assert SITE_URL == PUBLISHED_AT
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_page_canonical_is_itself_and_keeps_the_project_path(built: Path, name: str) -> None:
+    expected = PUBLISHED_AT if name == "index.html" else PUBLISHED_AT + name
+    assert canonical_of(built / name) == expected
+    assert og_of(built / name, "og:url") == expected
+
+
+def test_every_page_claims_a_different_address(built: Path) -> None:
+    # A canonical copied from one page to another silently merges the two.
+    claimed = [canonical_of(built / name) for name in PAGE_NAMES]
+    assert len(set(claimed)) == len(PAGE_NAMES), claimed
+    assert all(url is not None and url.startswith(PUBLISHED_AT) for url in claimed), claimed
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_page_carries_a_share_card_that_agrees_with_the_page(built: Path, name: str) -> None:
+    doc = parse(built / name)
+    assert og_of(built / name, "og:type") == "website"
+    assert og_of(built / name, "og:site_name") == SITE_NAME
+    assert '<meta name="twitter:card" content="summary">' in head_of(built / name)
+    # The card and the page are two statements about the same thing, so they
+    # are held equal rather than each checked for being non-empty.
+    assert og_of(built / name, "og:title") == escape(doc.title, quote=True)
+    assert og_of(built / name, "og:description") == escape(doc.metas["description"], quote=True)
+
+
+def test_no_two_pages_share_a_description(built: Path) -> None:
+    # Every page carried the same sentence until PAGE_DESCRIPTIONS existed, so
+    # a result for the California mapping and one for the GitHub Action read
+    # identically. This is the assertion that would have said so.
+    descriptions = [parse(built / name).metas["description"] for name in PAGE_NAMES]
+    assert len(set(descriptions)) == len(PAGE_NAMES), descriptions
+
+
+def test_no_two_pages_share_a_title(built: Path) -> None:
+    titles = [parse(built / name).title.strip() for name in PAGE_NAMES]
+    assert len(set(titles)) == len(PAGE_NAMES), titles
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_page_makes_no_root_relative_reference(built: Path, name: str) -> None:
+    # `href="/x"` resolves against chelseakr.github.io, not against
+    # /gauntlet/, so it lands on another project or on nothing. Protocol-
+    # relative `//host/x` is a different thing and is not caught here.
+    text = (built / name).read_text(encoding="utf-8")
+    rooted = re.findall(r'(?:href|src|content)="(/(?!/)[^"]*)"', text)
+    assert rooted == [], f"{name} escapes /gauntlet/ via {rooted}"
+
+
+def test_a_page_without_a_description_is_a_build_failure() -> None:
+    # The empty-description case is the one worth naming: `content=""` reads as
+    # "described" to everything that looks at it, so the build refuses rather
+    # than rendering it.
+    with mock.patch.dict("gauntlet.site.PAGE_DESCRIPTIONS", clear=False) as descriptions:
+        del descriptions["gates.html"]
+        with pytest.raises(ValueError, match=re.escape("gates.html")):
+            render_site(load_action(ACTION))
 
 
 @pytest.mark.parametrize("name", PAGE_NAMES)

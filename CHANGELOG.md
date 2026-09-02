@@ -64,6 +64,24 @@ All notable changes will be documented here.
 
 ### Added
 
+- **Every documentation page says which page it is.** All five carried one
+  shared `SITE_DESCRIPTION`, so a search result or a share card for the
+  California mapping and one for the GitHub Action were the same sentence.
+  `PAGE_DESCRIPTIONS` gives each page a description written from headings and
+  prose already on it, and none of them states a count: the gate figures are
+  counted from the suites that load, and a number repeated in a meta tag would
+  be a second copy nothing derives. Each page also carries a self-referencing
+  `<link rel="canonical">`, `og:url`, `og:title`, `og:description`, `og:type`,
+  `og:site_name` and `twitter:card`. These pages are served at a path under an
+  origin five sibling projects publish under, and `https://chelseakr.github.io/`
+  is itself a 404, so every absolute self-reference carries `/gauntlet/`.
+  `render_site` refuses to build a page PAGE_DESCRIPTIONS has no entry for
+  rather than emitting `content=""`. `tests/test_site.py` fails on a canonical
+  naming the bare origin, on two pages sharing a title or a description, and on
+  any root-relative `href`, `src` or `content`; the expected origin is written
+  out there rather than read from `SITE_URL`, because a check that derives its
+  expectation from the constant it is checking moves with the mistake.
+
 - **The `judge` gate: a model grades against a rubric, after calibration.** A
   judge suite names a committed calibration set of response/verdict pairs a
   person labeled and a minimum agreement; the judge is measured against it
@@ -112,6 +130,52 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- **Six published claims that were true when they were written and had stopped
+  being true.** Each is now derived from the thing it describes, or removed.
+  - The Standards table said the changelog follows Keep-a-Changelog. This file
+    has exactly one `##` heading, `[Unreleased]`, on `main` and at the `v0.1.0`
+    tag alike, so the release that shipped is still filed as unreleased. The row
+    says that instead, and a test asserts the claim exactly when a release
+    section exists.
+  - `docs/real-targets.md` said mrf-honest withheld 7 distinct claims and then
+    broke 7 down into 9, by adding the 2 Spanish withholdings to the 4 English
+    ones and then listing the 2 again. The recording holds 7: one whose quote
+    did not occur in the source text, two for a passage that was not offered,
+    four with no citation. The same table's refusal row reported all six on the
+    zero-findings record as "no citation" when the Spanish two were "passage was
+    not offered". Both figures are now counted out of
+    `2026-08-22-raw.jsonl` and `2026-08-22-results.json` by
+    `tests/test_real_target_packs.py`, including the arithmetic: a breakdown
+    that does not add up to its own total fails.
+  - The README said page structure and colour contrast were measured "again" in
+    pytest. `tools/a11y.mjs` discards `color-contrast`, because jsdom paints no
+    pixels and a rule that could not run must not be reported as one that
+    passed. Contrast is measured once, off the palette. Said plainly now, and
+    checked against the discard list rather than restated.
+  - "the WCAG 2.0/2.1/2.2 A and AA rule sets" claimed a level the configured
+    tags cannot select. axe-core publishes no `wcag22a` tag at all, and in the
+    pinned axe-core the `wcag22aa` tag selects one rule, `target-size`, which
+    jsdom cannot decide and which is discarded, so this gate currently settles
+    nothing about WCAG 2.2. The documents name the six tags instead of
+    paraphrasing them, a test reads the tag list out of `tools/a11y.mjs`, and
+    `make pages` now prints how many rules each tag selected and how many can
+    report, and exits 2 on a configured tag that selects none. Adding `wcag22a`
+    to make the old sentence true turns the gate red.
+  - "every gate" was written across the README, SECURITY.md, this file, the
+    mapping, and the documentation site while `GATES` held five. It holds six.
+    `judge` needs a model and a signed calibration set, so the toy cannot
+    exercise it, it has no paired defect, and it has no verified framework
+    reference; the tests that enforce the doctrine already iterated
+    `BUILTIN_GATES`. The sentences say "built-in gate" now, and two tests derive
+    the condition from `GATE_DEFECTS` and `mapping_for` rather than banning the
+    words, so the qualifier can come back out if a later change earns it.
+  - `gauntlet inventory` now emits what the table leaves out: how many gates the
+    harness defines against how many the table counts, which defined gates no
+    suite runs, and which carry no verified framework reference. The README
+    block and the site's gates page both render that sentence, so the `judge`
+    gap is generated rather than typed, and the existing staleness test catches
+    it. SCOPE.md's front matter still called the repository private; it is
+    public, and `gauntlet-evals` 0.1.0 is on PyPI, so the name is settled.
 - README's Standards table, SECURITY.md, SCOPE.md, and every page of the
   documentation site still said nothing was published to a registry and the
   supported install was from a checkout, three days after the Status section
@@ -167,8 +231,8 @@ All notable changes will be documented here.
     suite would have failed it for that. The message names the suites that would
     make the run scoreable.
   - The toy gains an `answer_with_silence` defect that cycles through those
-    empty shapes. It is paired with every gate in the self-test doctrine, so a
-    gate a mute target can pass fails the test suite.
+    empty shapes. It is paired with every built-in gate in the self-test
+    doctrine, so a built-in gate a mute target can pass fails the test suite.
   - The withheld verdict travels in the results JSON (`verdict_withheld`) and
     through to the evidence pack, so a results file from an unscoreable run
     cannot be reported later as a pass. The document renders
@@ -193,9 +257,9 @@ All notable changes will be documented here.
 
 ### Added
 
-- California mapping (`docs/california-mapping.md`): a table mapping each gate to
-  the SIMM 5305-F (August 2025) items its results inform and the disclosure
-  content it supports, built by reading the source page by page. Cites SIMM
+- California mapping (`docs/california-mapping.md`): a table mapping each mapped
+  gate to the SIMM 5305-F (August 2025) items its results inform and the
+  disclosure content it supports, built by reading the source page by page. Cites SIMM
   5305-F sections by their document structure, SAM 4986.2 and 4986.9, Government
   Code 11549.64(b), and the genai.ca.gov disclosure page. Lists the identifiers
   it could not verify and therefore omitted, and carries a prominent
@@ -211,9 +275,9 @@ All notable changes will be documented here.
 - Target adapters for any Python callable or HTTP endpoint, with a strict
   response contract and no dependency on any model vendor.
 - A deliberately breakable grounded-RAG toy target and a paired self-test for
-  every gate that injects the defect the gate exists to catch and asserts the
-  gate fails.
-- Bilingual built-in suites for every gate. The counts are emitted by
+  every built-in gate that injects the defect the gate exists to catch and
+  asserts the gate fails.
+- Bilingual built-in suites for every built-in gate. The counts are emitted by
   `gauntlet inventory` rather than restated here.
 - CI (SHA-pinned actions): `make verify` with a 90% coverage gate, wheel build,
   dependency audit, secret scan, SAST, and workflow static analysis. Dependabot

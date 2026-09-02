@@ -424,11 +424,13 @@ GATE_MAPPINGS: dict[str, GateMapping] = {
 SELF_TEST_DOCTRINE = GateMapping(
     gate="self_test_doctrine",
     enforces="A harness property rather than a gate: a deliberately breakable toy target "
-    "ships in-repo, and every gate has a paired test that injects the defect the gate "
-    "exists to catch and asserts the gate fails. One of those defects removes the answer "
-    "itself, and every gate is demonstrated failing against it, so no gate can be passed "
-    "by a target that says nothing. A check that has never failed is not evidence of "
-    "health.",
+    "ships in-repo, and every built-in gate has a paired test that injects the defect the "
+    "gate exists to catch and asserts the gate fails. One of those defects removes the "
+    "answer itself, and every built-in gate is demonstrated failing against it, so no "
+    "built-in gate can be passed by a target that says nothing. A gate the toy cannot "
+    "exercise, such as one that needs a model, is outside this doctrine and the pack "
+    "reports it as unmapped rather than covered. A check that has never failed is not "
+    "evidence of health.",
     references=(
         FrameworkReference(
             framework=SIMM,
@@ -441,7 +443,7 @@ SELF_TEST_DOCTRINE = GateMapping(
             framework=SIMM,
             locator="Risk Assessment Part 2, Details of Transparency, item (b)",
             informs="Auditability of the system: a reviewer can break the toy and watch "
-            "each gate catch it, rather than trusting that the gates work.",
+            "each built-in gate catch it, rather than trusting that the gates work.",
         ),
     ),
     disclosure_support="Makes the evidence pack inspectable by a skeptical reviewer: the "

@@ -41,7 +41,7 @@ from gauntlet.evidence import (
     build_evidence_pack,
 )
 from gauntlet.gates import run_suite
-from gauntlet.inventory import Inventory, build_inventory, language_label
+from gauntlet.inventory import Inventory, build_inventory, coverage_sentence, language_label
 from gauntlet.mapping import (
     GATE_MAPPINGS,
     INFORMS_MEANING,
@@ -57,11 +57,66 @@ from gauntlet.toy.target import defects_named
 
 REPO_URL = "https://github.com/ChelseaKR/gauntlet"
 
+# Where these pages are served from, in full, including the project path.
+#
+# GitHub Pages serves this repository at a path on an origin five sibling
+# projects also publish under, and https://chelseakr.github.io/ is itself a
+# 404. So a canonical or an og:url naming the bare origin would not be a
+# shorter way of saying the same thing: it would tell a crawler that six
+# unrelated projects are one page. Every absolute self-reference below carries
+# `/gauntlet/`, and tests/test_site.py fails on one that does not.
+SITE_URL = "https://chelseakr.github.io/gauntlet/"
+
+SITE_NAME = "Gauntlet"
+
 SITE_DESCRIPTION = (
     "Documentation for Gauntlet: CI-runnable evaluation gates for generative AI "
     "features, with an evidence pack aligned to California's published GenAI risk "
     "and procurement framework."
 )
+
+# One description per page, said in that page's own terms.
+#
+# All five pages used to carry SITE_DESCRIPTION, which meant a search result or
+# a share card for the California mapping and one for the GitHub Action were the
+# same sentence. That is not only a duplicate-content problem; it is the site
+# declining to say what any individual page is about, on a site whose whole
+# argument is that a claim should be specific enough to check.
+#
+# Every sentence here is assembled from headings and prose already on the page
+# it describes. None of them states a count: the gate counts on gates.html are
+# counted from the suites that load, so a number repeated here would be a second
+# copy nothing derives, free to drift the moment a suite changes. The California
+# sentence keeps the mapping's own verb, "cross-referenced to", because
+# "aligned to" is the strongest word the project allows itself and
+# tests/test_site.py enumerates the ones it does not.
+PAGE_DESCRIPTIONS: dict[str, str] = {
+    "index.html": (
+        "Gauntlet runs YAML-driven evaluation gate suites against an HTTP endpoint or "
+        "a Python callable, fails the build when a gate fails, and emits the run as a "
+        "versioned JSON pack and as a document a reviewer can read."
+    ),
+    "gates.html": (
+        "What the built-in gate inventory ships, what each gate enforces, the named "
+        "toy defects every built-in gate has to catch, and the request and response contract a "
+        "target has to meet."
+    ),
+    "evidence.html": (
+        "What a run emits, in both of its forms: an excerpt from a failing run against "
+        "the in-repo toy target, the guardrails that make a pack state what it does "
+        "not establish, and the digest of what the run observed."
+    ),
+    "california.html": (
+        "How gate outcomes are cross-referenced to California's published GenAI risk "
+        "and procurement framework, the limits that mapping enforces on itself, the "
+        "sources read, and the identifiers omitted because they could not be verified."
+    ),
+    "action.html": (
+        "Using the composite GitHub Action from another repository: the workflow to "
+        "copy, its inputs and its outputs, all read out of action.yml while this page "
+        "was built."
+    ),
+}
 
 PACKAGE_NOTICE = (
     "The harness is published to PyPI as gauntlet-evals, from the tagged release. The "
@@ -282,7 +337,20 @@ PAGES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def page(*, title: str, body: str, active: str, generated: str = "") -> str:
+def page(
+    *,
+    title: str,
+    body: str,
+    active: str,
+    filename: str,
+    description: str,
+    generated: str = "",
+) -> str:
+    # The page's own address, project path included. index.html is the
+    # directory, so it is served at /gauntlet/ rather than /gauntlet/index.html
+    # and its canonical says so: two URLs for one page is the duplicate a
+    # canonical exists to resolve, not one to introduce.
+    canonical = SITE_URL if filename == "index.html" else SITE_URL + filename
     links = "".join(
         f'<a href="{href}"{' aria-current="page"' if key == active else ""}>{esc(label)}</a>'
         for href, label, key in PAGES
@@ -298,7 +366,14 @@ def page(*, title: str, body: str, active: str, generated: str = "") -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>
-<meta name="description" content="{esc(SITE_DESCRIPTION)}">
+<meta name="description" content="{esc(description)}">
+<link rel="canonical" href="{esc(canonical)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{esc(SITE_NAME)}">
+<meta property="og:url" content="{esc(canonical)}">
+<meta property="og:title" content="{esc(title)}">
+<meta property="og:description" content="{esc(description)}">
+<meta name="twitter:card" content="summary">
 <style>{STYLESHEET}</style>
 </head>
 <body>
@@ -368,7 +443,7 @@ def index_page(inventory: Inventory) -> str:
                 f"The built-in suites carry {esc(counted)}. It depends on no model vendor, "
                 "reaches the network only where the operator points it at an HTTP target, "
                 "and ships a deliberately breakable toy target so a reviewer can watch "
-                "each gate fail on purpose.",
+                "each built-in gate fail on purpose.",
             ),
             '<h2 id="what-it-is-not">What it is not</h2>',
             what_it_is_not,
@@ -455,7 +530,7 @@ cases:
                         "gates.html",
                         "The gate inventory",
                         "What each gate enforces, the case counts per language, and the "
-                        "self-test doctrine that proves every gate can fail.",
+                        "self-test doctrine that proves every built-in gate can fail.",
                     ),
                     (
                         "evidence.html",
@@ -559,6 +634,7 @@ def gates_page(inventory: Inventory) -> str:
                 "built, the same function that regenerates the block in the repository's "
                 "README through <code>make inventory</code>. Adding a case changes this "
                 "page without anyone editing it, and no stale copy can survive a build.",
+                esc(coverage_sentence(inventory)).replace("`", ""),
                 "Reproduce it with <code>uv run gauntlet inventory</code>, or "
                 "<code>uv run gauntlet inventory --format json</code> for the same counts "
                 "as data.",
@@ -578,10 +654,13 @@ def gates_page(inventory: Inventory) -> str:
             '<h2 id="self-test-doctrine">Self-test doctrine</h2>',
             paragraphs(
                 "A check that has never failed is not evidence of health. Gauntlet ships a "
-                "deliberately breakable grounded-RAG toy target and, for every gate, a "
-                "paired test that injects the exact defect the gate exists to catch and "
-                "asserts the gate fails. CI runs those demonstrations on every push, and a "
-                "test fails if any gate has no defect that can break it.",
+                "deliberately breakable grounded-RAG toy target and, for every built-in "
+                "gate, a paired test that injects the exact defect the gate exists to catch "
+                "and asserts the gate fails. CI runs those demonstrations on every push, "
+                "and a test fails if any built-in gate has no defect that can break it. The "
+                "qualifier is load-bearing: a gate the toy cannot exercise, such as one "
+                "that needs a model, is outside this doctrine and the table below leaves "
+                "it out.",
                 "The defects are named and enumerated, so the demonstration is a list "
                 "rather than a claim. Every gate below has at least one, and the same table "
                 "is what the test suite iterates over:",
@@ -1079,11 +1158,19 @@ def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str
         "california.html": ("The California mapping: Gauntlet", california_page()),
         "action.html": ("The GitHub Action: Gauntlet", action_page(action)),
     }
+    # A page named in PAGES with no description would otherwise render an empty
+    # `content=""`, which reads as "described" to everything that looks. Fail
+    # instead: the two lists are edited by hand and this is the seam.
+    missing = [name for name, _label, _key in PAGES if name not in PAGE_DESCRIPTIONS]
+    if missing:
+        raise ValueError(f"PAGE_DESCRIPTIONS has no entry for {', '.join(missing)}")
     return {
         name: page(
             title=title,
             body=body,
             active=key,
+            filename=name,
+            description=PAGE_DESCRIPTIONS[name],
             generated=generated,
         )
         for name, _label, key in PAGES

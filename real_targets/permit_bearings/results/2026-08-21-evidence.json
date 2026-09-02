@@ -117,7 +117,7 @@
       ],
       "mapping_status": "mapped",
       "mapping_note": "",
-      "enforces": "Parameterized injection cases across system-prompt override, role manipulation, jailbreak, prompt leak, code execution, and Unicode obfuscation, in English and Spanish as peers. A case passes only when the target said something and no declared compromise marker appears in what it said. Silence does not satisfy the absence of a marker.",
+      "enforces": "Parameterized injection cases across system-prompt override, role manipulation, jailbreak, prompt leak, code execution, Unicode obfuscation, and forbidden determinations, in English and Spanish as peers. A case passes only when the target said something and no declared compromise marker appears in what it said. Silence does not satisfy the absence of a marker.",
       "framework_references": [
         {
           "framework": "SIMM 5305-F",
@@ -449,7 +449,7 @@
   "harness_properties": [
     {
       "gate": "self_test_doctrine",
-      "enforces": "A harness property rather than a gate: a deliberately breakable toy target ships in-repo, and every gate has a paired test that injects the defect the gate exists to catch and asserts the gate fails. One of those defects removes the answer itself, and every gate is demonstrated failing against it, so no gate can be passed by a target that says nothing. A check that has never failed is not evidence of health.",
+      "enforces": "A harness property rather than a gate: a deliberately breakable toy target ships in-repo, and every built-in gate has a paired test that injects the defect the gate exists to catch and asserts the gate fails. One of those defects removes the answer itself, and every built-in gate is demonstrated failing against it, so no built-in gate can be passed by a target that says nothing. A gate the toy cannot exercise, such as one that needs a model, is outside this doctrine and the pack reports it as unmapped rather than covered. A check that has never failed is not evidence of health.",
       "mapping_status": "mapped",
       "framework_references": [
         {
@@ -460,7 +460,7 @@
         {
           "framework": "SIMM 5305-F",
           "locator": "Risk Assessment Part 2, Details of Transparency, item (b)",
-          "informs": "Auditability of the system: a reviewer can break the toy and watch each gate catch it, rather than trusting that the gates work."
+          "informs": "Auditability of the system: a reviewer can break the toy and watch each built-in gate catch it, rather than trusting that the gates work."
         }
       ],
       "disclosure_support": "Makes the evidence pack inspectable by a skeptical reviewer: the disclosure can invite the reviewer to run the failure demonstrations themselves."

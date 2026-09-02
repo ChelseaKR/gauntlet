@@ -86,6 +86,11 @@ pythonpath = ["."]
 # floor meant the merge-blocking coverage gate did not reach the code deciding
 # whether a citation counts as grounded, and a defect sat there unmeasured.
 # See docs/plans/improvement-plan.md.
+# An empty parameter set is reported as SKIPPED and the run still exits 0, so a glob
+# that stops matching takes its tests with it and says so only in a skip report. This
+# module's three *_were_found tests name the sets that must not go empty;
+# fail_at_collect catches every other parametrized test fed by a glob.
+empty_parameter_set_mark = "fail_at_collect"
 addopts = """
 -q \
 --strict-markers \

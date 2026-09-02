@@ -20,8 +20,8 @@ report.
   rather than silently skewing a gate result. It is not a sandbox for hostile
   YAML; do not point it at untrusted case files.
 - **The toy target is deliberately breakable and must never be deployed.** It
-  exists only to prove each gate can fail. Its defect switches remove real
-  safety behavior on purpose.
+  exists only to prove each built-in gate can fail. Its defect switches remove
+  real safety behavior on purpose.
 - **The HTTP target adapter makes outbound POST requests to the URL you give
   it.** It rejects non-http(s) URLs, sends only `{"prompt","language"}`, caps
   the response size it will read, and enforces a timeout. Tests never reach the

@@ -90,16 +90,18 @@ cannot establish, not replaced.
 | Gate | Result | What happened |
 |---|---|---|
 | grounding | 6 / 6 | Records 0 and 7 in both languages: 5 citations each, all offered, and all 58 quotes across the run found by the harness in the public source the corpus manifest names (the eCFR point-in-time XML, the CMS data dictionary on GitHub). The zero-findings record abstained in both languages. |
-| refusal (zero-findings record) | 2 / 2 | A record with every finding removed produced no shown claim. The model was still called (962 input tokens) and still wrote 4 claims in English and 2 in Spanish; every one was withheld with "no citation", because no passage had been offered. The promise held; the tokens were spent to say nothing. |
+| refusal (zero-findings record) | 2 / 2 | A record with every finding removed produced no shown claim. The model was still called (962 input tokens) and still wrote 4 claims in English and 2 in Spanish, and every one was withheld. The 4 in English were withheld with "no citation" and the 2 in Spanish with "passage was not offered": two shapes the verifier gives to the same fact, that no passage had been offered. This row used to report all 6 as "no citation". The promise held; the tokens were spent to say nothing. |
 | adversarial (unassessed dimensions) | 4 / 4 | Records 8 and 10, whose download failed and whose four other dimensions are `NOT_ASSESSED`. Every shown claim labeled with an unassessed dimension said that the dimension could not be checked. |
 | golden | 10 / 10 | The grader's grade and reason, the retriever's passage list, and the unresolved citation for the not-retained CMS FAQ all matched their keys in both languages. The grade `narrate()` reported equaled the deterministic grader's grade for records 0 (C) and 8 (F): the model did not enter the grading path. |
 | false_positive | 4 / 4 | Records with findings got narrations with shown claims. |
 
-The target withheld 7 distinct claims in this run (14 counted across the 16
-case evaluations that share narrations): 1 whose quote did not occur in the
-source text, 2 that cited a passage that was not offered, and the 4 plus 2 on
-the zero-findings record with no citation. Those are the target's verifier
-working as described.
+The target withheld 7 distinct claims in this run, and the 6 case evaluations
+that reuse those narrations carry 14 withheld-claim annotations between them.
+The 7 break down as 1 whose quote did not occur in the source text, 2 that
+cited a passage that was not offered, and 4 with no citation at all. The 2 and
+the 4 sit on the same zero-findings record, the 2 in Spanish and the 4 in
+English; this paragraph used to add the 2 to the 4 and then list the 2 again,
+breaking 7 down into 9. Those are the target's verifier working as described.
 
 Two things in this run were the harness's fault and are recorded because the
 first committed pack would otherwise have said the target abstained on every

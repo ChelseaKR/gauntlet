@@ -91,6 +91,8 @@ actually loads, so the numbers cannot rot.
 
 5 gates, 66 cases. Counted by `gauntlet inventory`, not asserted in prose. Regenerate this block with `make inventory`.
 
+Gauntlet defines 6 gates and this table counts 5. Defined but not counted here, because no suite above runs it: `judge`. Carrying no verified framework reference: `judge`. An evidence pack reports such a gate as unmapped rather than inventing a link for it.
+
 <!-- END GENERATED: gauntlet inventory -->
 
 What each gate enforces:
@@ -139,19 +141,28 @@ scoreable again, because each of those can only pass if the target produced a
 usable answer.
 
 The toy ships an `answer_with_silence` defect that cycles through those empty
-shapes, and it is paired with every gate in the self-test doctrine below. A gate
-that a mute target can pass fails the test suite.
+shapes, and it is paired with every built-in gate in the self-test doctrine
+below. A built-in gate that a mute target can pass fails the test suite.
 
 ## Self-test doctrine
 
 A check that has never failed is not evidence of health. Gauntlet ships a
 deliberately breakable grounded-RAG toy target
-([`src/gauntlet/toy`](src/gauntlet/toy)) and, for every gate, a paired test that
-injects the exact defect the gate exists to catch and asserts the gate fails
-([`tests/test_self_test_doctrine.py`](tests/test_self_test_doctrine.py)). One of
-those defects removes the answer itself, and every gate is demonstrated failing
-against it, so no gate can be passed by a target that says nothing. CI runs those
-demonstrations on every push. A reviewer can run them too, which is the point.
+([`src/gauntlet/toy`](src/gauntlet/toy)) and, for every built-in gate, a paired
+test that injects the exact defect the gate exists to catch and asserts the gate
+fails ([`tests/test_self_test_doctrine.py`](tests/test_self_test_doctrine.py)).
+One of those defects removes the answer itself, and every built-in gate is
+demonstrated failing against it, so no built-in gate can be passed by a target
+that says nothing. CI runs those demonstrations on every push. A reviewer can
+run them too, which is the point.
+
+"Built-in" is the whole of the claim, and this paragraph said "every gate"
+while `GATES` held five. It holds six. `judge` needs a model and a signed
+calibration set, so the toy cannot exercise it and it has no paired defect; the
+tests that enforce this doctrine iterate `BUILTIN_GATES`, and the generated
+block above names what the count leaves out. The judge fails closed instead, on
+its own terms: an uncalibrated judge fails every judge case and withholds the
+run's verdict.
 
 ## The evidence pack
 
@@ -342,9 +353,12 @@ method.
 
 ## The California mapping, and its limits
 
-[docs/california-mapping.md](docs/california-mapping.md) maps each gate to the
-SIMM 5305-F (August 2025) items its results inform and to the disclosure content
-it supports. [`src/gauntlet/mapping.py`](src/gauntlet/mapping.py) is the same
+[docs/california-mapping.md](docs/california-mapping.md) maps each mapped gate
+to the SIMM 5305-F (August 2025) items its results inform and to the disclosure
+content it supports. Not every gate is mapped: a model grading a model informs
+no item that was read, so `judge` carries no verified reference and an evidence
+pack reports it as unmapped rather than inventing a link. The generated block
+above names which gates those are. [`src/gauntlet/mapping.py`](src/gauntlet/mapping.py) is the same
 mapping in machine-readable form, and it is what the evidence pack cites.
 
 Its purpose is narrow. A vendor making the written contractor disclosure that
@@ -390,9 +404,22 @@ outputs are read from `action.yml`. The build consults no clock unless a date is
 passed to `--generated`, so the same commit renders byte-identical pages.
 
 Accessibility is gated rather than asserted. `make pages` runs html-validate for
-HTML conformance and the markup-level rules, and axe-core in a headless DOM for
-the WCAG 2.0/2.1/2.2 A and AA rule sets. Page structure and colour contrast in
-both themes are measured again in [`tests/test_site.py`](tests/test_site.py), so
+HTML conformance and the markup-level rules, and axe-core in a headless DOM over
+six rule sets, named here as the axe tags they actually are: `wcag2a`,
+`wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`, and `best-practice`. This line
+used to paraphrase them as "the WCAG 2.0/2.1/2.2 A and AA rule sets", which
+claimed more than the tags select. axe-core publishes no `wcag22a` tag, so WCAG
+2.2 at level A is not a rule set this gate could ask for, and the `wcag22aa` tag
+selects exactly one rule in the pinned axe-core, `target-size`, which needs box
+geometry jsdom does not compute and is discarded. What this gate settles about
+WCAG 2.2 today is nothing. A configured tag that selects no rule at all fails
+the gate rather than passing silently.
+
+Colour contrast is measured once, not twice. `color-contrast` is discarded for
+the same reason `target-size` is: jsdom paints no pixels, and a rule that could
+not run must not be reported as a rule that passed. Contrast is measured in
+[`tests/test_site.py`](tests/test_site.py), as arithmetic over both palettes,
+and that is the only place it is measured. Page structure is checked in both, so
 `make verify` keeps a floor when the node toolchain is unavailable.
 
 What still needs a person: none of this looks at the pages. Layout, reflow at
@@ -478,15 +505,15 @@ row that records a gap says so rather than being left out.
 | Standard | State |
 |---|---|
 | Responsible-Tech Framework | Applies: the refusals are the product. "What it is not" above is enforced in the artifact, every evidence pack carries its own limits on its face, and the language stays "aligned to" rather than "approved by". No dated audit record is committed yet, so this row is the declaration and the enforcement is the evidence |
-| Code Quality | Applies: single root `pyproject.toml`, committed `uv.lock`, `.python-version`, Ruff lint and format over the tree, strict mypy, pytest with a 90% branch-coverage floor over both `src/` and `real_targets/`, mccabe complexity capped at 10, and `.pre-commit-config.yaml` for the same checks locally. `make verify` is the gate, and CI runs that exact target |
+| Code Quality | Applies: single root `pyproject.toml`, committed `uv.lock` checked against `pyproject.toml` by `make lockfile` before any other gate runs and never resynced from under a gate, `.python-version`, Ruff lint and format over the tree, strict mypy, pytest with a 90% branch-coverage floor over both `src/` and `real_targets/`, mccabe complexity capped at 10, every committed evidence pack regenerated and byte-compared against the result set it renders, and `.pre-commit-config.yaml` for the same checks locally. `make verify` is the gate, and CI runs that exact target |
 | Security & Supply-Chain | Applies: every action pinned to a full commit SHA, least-privilege workflow permissions, gitleaks, Semgrep `p/python`, strict pip-audit over the exported runtime set, and `npm audit` at high for the site toolchain. Nothing is muted and no scanner is dispatch-only. The trust boundaries, including the ones the harness does not defend, are enumerated in [SECURITY.md](SECURITY.md) |
 | CI/CD | Applies: `ci.yml` runs the same `make` targets a contributor runs, then proves the published composite action from an external-consumer checkout, including that a failing gate blocks and that an unscoreable run fails rather than reporting a pass. The site build must produce byte-identical output twice |
-| Release & Versioning | Applies: SemVer, Keep-a-Changelog, `v0.1.0` tagged. `release.yml` builds once, re-runs the gates before anything is uploaded, and hands the verified artifacts to a separate publish job that uses PyPI Trusted Publishing, so no token exists. `gauntlet-evals` 0.1.0 is on PyPI, uploaded from the `v0.1.0` tag by that workflow; the Status section above records the refused first attempt. The GitHub Action is not on any registry and is pinned by commit SHA |
+| Release & Versioning | Applies: SemVer, `v0.1.0` tagged. The changelog is not Keep-a-Changelog and this row used to say it was: CHANGELOG.md carries a single `## [Unreleased]` heading and no per-release section, on `main` and at the `v0.1.0` tag alike, so the release that shipped is still filed as unreleased. `release.yml` builds once, re-runs the gates before anything is uploaded, and hands the verified artifacts to a separate publish job that uses PyPI Trusted Publishing, so no token exists. `gauntlet-evals` 0.1.0 is on PyPI, uploaded from the `v0.1.0` tag by that workflow; the Status section above records the refused first attempt. The GitHub Action is not on any registry and is pinned by commit SHA |
 | Observability | Applies (scoped): a single-run CLI and a CI action, not a hosted service. The observable output is the exit code, the versioned JSON pack, and the rendered evidence document, all reproducible from the commit. No tracing, metrics, or SLO surface exists, and none is claimed |
 | Performance | Applies (scoped): the documentation site is deterministically generated static HTML built from the harness itself, with no network call and no data fetch at build or view time. No transfer-size or timing budget is enforced in CI and none is claimed |
-| Accessibility | Applies: the built pages are checked two ways on every pull request, html-validate for HTML conformance and the markup-level rules, and axe-core in a headless DOM for the WCAG 2.0/2.1/2.2 A and AA rule sets, with structure and contrast checked again in `make verify`. No human assistive-technology review has been done, and the site says so |
+| Accessibility | Applies: the built pages are checked two ways on every pull request, html-validate for HTML conformance and the markup-level rules, and axe-core in a headless DOM over the `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` and `best-practice` tags. Two of the rules those tags select need a renderer jsdom does not provide and are discarded rather than reported as passes, `color-contrast` and `target-size`, so contrast is measured once and not twice: as arithmetic over both palettes in `make verify`. Structure is checked in both. No human assistive-technology review has been done, and the site says so |
 | Internationalization | Applies: the built-in gate suites run in English and Spanish, and a report renders whatever language the cases are written in. The CLI's own operator output is English only and there is no message catalog. No declaration has been recorded either way |
-| AI Evaluation | Applies (this repository's own subject matter): the self-test doctrine is that every gate must be shown able to fail: the toy target's defect switches remove real behaviour on purpose, and CI runs the deliberately broken target and the mute target to prove a failure blocks and that silence is not scored as a pass |
+| AI Evaluation | Applies (this repository's own subject matter): the self-test doctrine is that every built-in gate must be shown able to fail: the toy target's defect switches remove real behaviour on purpose, and CI runs the deliberately broken target and the mute target to prove a failure blocks and that silence is not scored as a pass. `judge` is outside the doctrine, because the toy cannot exercise a gate that needs a model; it fails closed on its own terms instead |
 | Documentation | Applies: README, [SCOPE.md](SCOPE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), CHANGELOG, CITATION.cff, the ADR log under `docs/adr/`, and a generated documentation site. The gate table above is generated from the loaded suites, so it cannot drift from the harness |
 | Quality & Metrics | Applies: the merge-blocking floors are the 90% branch-coverage gate, which measures the real-target adapters as well as the package, zero Ruff findings, zero strict-mypy errors, zero Semgrep and gitleaks findings, and the action self-tests. The gate inventory is counted, never typed |
 | AI Development Measurement | Applies: no tool-usage counter is collected and none gates a merge. `make verify` and the CI gates above are what a change clears regardless of how it was authored |
