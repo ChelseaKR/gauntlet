@@ -63,6 +63,22 @@ it offered. Three things are the harness's own:
   provenance. The recording holds the target's verbatim output and is
   committed alongside the pack; treat it like production logs.
 
+  It also holds the harness's own quote-check outcomes, one line per checked
+  citation, keyed `quotecheck <url> :: <normalized quote>`. Without them a
+  replay could reproduce only what the target said, never what the harness
+  verified, so it ran with every quote unverifiable and reached a grounding
+  verdict the live run had not. A replay now reads the outcomes back, and its
+  provenance reports `quote_checks_replayed` and
+  `quote_checks_without_a_recorded_outcome` so a replay that had to skip
+  verification says how often rather than looking like one that verified
+  nothing. Only a check that was made is written: with
+  `GAUNTLET_QUOTE_CHECKS=off` nothing is recorded, because a look nobody took
+  is not an outcome. The four recordings committed before this predate the
+  format and are left exactly as they were, since an outcome added to a
+  finished run was not measured by it;
+  `tests/test_real_target_packs.py` names them and fails a new recording that
+  omits its outcomes.
+
 The adapters do not fix the target, soften a result, or turn a failing case
 into a note. A gate that fails against a real target is a finding, and the
 account of each run is in [docs/real-targets.md](../docs/real-targets.md).

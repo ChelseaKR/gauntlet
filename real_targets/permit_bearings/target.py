@@ -111,6 +111,18 @@ class PermitBearingsTarget:
     _documents: DocumentCache = field(default_factory=DocumentCache)
     raw_log: RawLog = field(default_factory=RawLog)
 
+    def __post_init__(self) -> None:
+        """The quote checker writes to and reads from the same log as the service.
+
+        See ``NarrationLedger.__post_init__``: an explicitly supplied cache
+        that already has a log keeps it, and the default one is joined to this
+        target's, so a recording carries the harness's verification alongside
+        the responses it verified.
+        """
+        log = self._documents.raw_log
+        if log.write_path is None and log.replay_path is None:
+            self._documents.raw_log = self.raw_log
+
     # -- the target contract -------------------------------------------------
 
     def ask(self, prompt: str, language: str) -> TargetResponse:

@@ -7,6 +7,16 @@ log to answer the same requests without touching the target. A replayed run
 reports where it came from in the provenance, so a pack built from a
 recording never passes as a fresh measurement.
 
+The log also holds the harness's own quote-check outcomes, one entry per
+checked citation, written by ``quotecheck.DocumentCache``. A recording that
+holds only what the target said cannot reproduce what the harness verified, so
+a replay of one has to skip verification and report a verdict the live run
+never reached. Recording the outcomes is what lets a replay reproduce the
+grounding decision instead. Recordings made before this existed are not
+back-filled: an outcome nobody measured is not evidence, and
+``tests/test_real_target_packs.py`` names them and refuses a new one that
+omits its outcomes.
+
 The log holds the target's verbatim output. SECURITY.md's guidance on
 evidence packs applies to it as well: treat it like production logs.
 """
@@ -44,10 +54,18 @@ class RawLog:
     def replaying(self) -> bool:
         return self.replay_path is not None
 
-    def lookup(self, key: str) -> dict[str, Any] | None:
-        """The recorded entry for a request, when replaying."""
+    def lookup(self, key: str, *, count: bool = True) -> dict[str, Any] | None:
+        """The recorded entry for a key, when replaying.
+
+        ``count`` feeds ``responses_replayed`` in the provenance, which is a
+        count of target responses. A log also carries the harness's own
+        quote-check outcomes, which are not responses and are counted
+        separately by the checker that reads them, so that reader passes
+        ``count=False``. A single counter over both would report a number no
+        reader could interpret.
+        """
         entry = self._replay.get(key)
-        if entry is not None:
+        if entry is not None and count:
             self.replayed += 1
         return entry
 
