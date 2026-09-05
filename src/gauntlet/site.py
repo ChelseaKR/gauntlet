@@ -1124,8 +1124,13 @@ def action_page(action: ActionMetadata) -> str:
             paragraphs(
                 "Pin the action to a commit SHA, the way the repository pins the actions it "
                 "uses itself. The action is not distributed through a package registry and "
-                "no release tag is implied. From inside this repository the same steps run against a local "
-                "checkout with <code>uses: ./</code>.",
+                "is on no marketplace. An immutable version tag resolves too, "
+                "<code>uses: ChelseaKR/gauntlet@v0.1.0</code>, and tags here are never moved "
+                "once pushed; there is no <code>@v1</code>, because a movable major tag is a "
+                "reference that changes what it points at after you have reviewed it. ADR "
+                "0002 records that decision and the argument on both sides. From inside this "
+                "repository the same steps run against a local checkout with "
+                "<code>uses: ./</code>.",
                 "A failing gate is the expected outcome of a working gate, so the action "
                 "does not abort before the evidence pack exists: the gates step captures a "
                 "non-zero exit, the pack is built and posted, and a separate step blocks "
