@@ -35,10 +35,19 @@ from the retrieved context. A case that stops diverging, starts diverging, or
 diverges differently fails this test.
 
 Closing the gap for good needs the raw log to carry each quote-check outcome so
-a replay reproduces verification instead of skipping it. The committed
-recordings predate that and cannot be back-filled without inventing outcomes
-nobody measured, so they stay as they are and the pin records what they cannot
-show. See docs/plans/improvement-plan.md.
+a replay reproduces verification instead of skipping it. The log carries them
+as of 2026-09-05. The committed recordings predate that and cannot be
+back-filled without inventing outcomes nobody measured, so they stay as they
+are and the pin records what they cannot show.
+
+What is new here is the rule that stops the next pack repeating it.
+``RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES`` names the four files the gap
+covers, and ``test_a_recording_carries_its_quote_check_outcomes`` fails a
+recording outside that list which carries no outcomes, and equally fails one
+inside it that has acquired some, because the only honest way off the list is a
+fresh run. ``ATTEMPTED_CHECKS`` pins how many checks each replay makes, which
+is where the fixture's own limit is written down. See
+docs/plans/improvement-plan.md.
 """
 
 from __future__ import annotations
@@ -60,6 +69,7 @@ from real_targets.fhir_scorecard.target import FhirScorecardTarget
 from real_targets.mrf_honest.target import MrfHonestTarget
 from real_targets.narration import NarrationLedger
 from real_targets.permit_bearings.target import PermitBearingsTarget
+from real_targets.quotecheck import STATUSES, DocumentCache, is_check_key
 from real_targets.rawlog import RawLog
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +83,7 @@ PACKS = sorted(
     and path not in JUDGED_PACKS
 )
 ALL_PACKS = sorted(REAL_TARGETS.glob("*/results/*-results.json"))
+RECORDINGS = sorted(REAL_TARGETS.glob("*/results/*-raw.jsonl"))
 
 
 # The detail the grounding gate gives when a citation is not in the accepted
@@ -127,9 +138,70 @@ JUDGED_COMPARED_CASES: dict[str, int] = {
     "permit_bearings/2026-08-22-judged-results.json": 6,
 }
 
+# Recordings made before the raw log carried the harness's own quote-check
+# outcomes, named rather than detected.
+#
+# These files are the reason the pin above exists. They cannot be repaired: a
+# recording is the evidence of one run, and outcomes written into it afterwards
+# were not measured by that run, which is exactly the defect ("absence rendered
+# as a value") this repository is built to refuse. So they stay as they are and
+# this set records precisely how far the gap reaches.
+#
+# The set must not grow. A recording made from here on carries its outcomes,
+# and the test below fails a new one that does not, so the next pack cannot
+# repeat the gap in silence. It must also not shrink by editing: a file on this
+# list that has acquired outcomes fails just as loudly, because the only honest
+# way off the list is a fresh run.
+RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES = frozenset(
+    {
+        "fhir_scorecard/2026-08-22-raw.jsonl",
+        "mrf_honest/2026-08-22-raw.jsonl",
+        "permit_bearings/2026-08-22-grounding-raw.jsonl",
+        "permit_bearings/2026-08-22-judged-raw.jsonl",
+    }
+)
+
+# How many quote checks each replay below attempts, and why two of them are
+# zero.
+#
+# permit-bearings puts the cited URL on the citation, so its replay attempts a
+# check for all 52 and every one of them is a check this recording cannot
+# answer. The two narration adapters resolve a citation's URL through the
+# target's own corpus manifest, and the fake checkout these tests build has an
+# empty one, so no check is attempted at all: their four pinned cases diverge
+# because no check was made, not because a check came back unverifiable. That
+# is the honest limit of the hermetic fixture, and it means recording the
+# outcomes closes the replay gap for permit-bearings and, for the other two,
+# only for a reviewer replaying against a real target checkout, where the
+# manifest resolves. Recording the manifest as well is the next step and is not
+# this change; see docs/plans/improvement-plan.md.
+#
+# Pinned exactly, for the reason COMPARED_CASES is: a zero nobody wrote down
+# reads exactly like a check that passed.
+ATTEMPTED_CHECKS: dict[str, int] = {
+    "fhir_scorecard/2026-08-22-results.json": 0,
+    "mrf_honest/2026-08-22-results.json": 0,
+    "permit_bearings/2026-08-22-grounding-results.json": 52,
+}
+
 
 def _key(pack: Path) -> str:
     return f"{pack.parent.parent.name}/{pack.name}"
+
+
+def _recording_key(recording: Path) -> str:
+    return f"{recording.parent.parent.name}/{recording.name}"
+
+
+def _recorded_quote_checks(recording: Path) -> dict[str, dict[str, object]]:
+    """Every quote-check outcome a recording carries, by key."""
+    return {
+        entry["key"]: entry["quote_check"]
+        for entry in (
+            json.loads(line) for line in recording.read_text("utf-8").splitlines() if line.strip()
+        )
+        if is_check_key(entry["key"])
+    }
 
 
 def _recording(pack: Path) -> Path:
@@ -241,6 +313,60 @@ def test_packs_were_found() -> None:
     assert {_key(pack) for pack in JUDGED_PACKS} == set(JUDGED_COMPARED_CASES)
 
 
+def test_every_recording_is_classified_and_the_named_ones_still_exist() -> None:
+    """The same guard, for the recordings and the list of the ones that predate outcomes.
+
+    A name on that list that no longer matches a file is a rule pointing at
+    nothing, and it would let the file it used to cover be replaced by one held
+    to no standard at all.
+    """
+    assert RECORDINGS, "no committed recording found; the rule below would be vacuous"
+    found = {_recording_key(path) for path in RECORDINGS}
+    assert found >= RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES, sorted(
+        RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES - found
+    )
+    assert {_key(pack) for pack in PACKS} == set(ATTEMPTED_CHECKS)
+
+
+@pytest.mark.parametrize("recording", RECORDINGS, ids=_recording_key)
+def test_a_recording_carries_its_quote_check_outcomes(recording: Path) -> None:
+    """A new pack records what the harness verified; an old one is left as it was.
+
+    This is the forward-looking half of the deferred item in
+    docs/plans/improvement-plan.md. Nothing enforced it, so the next pack added
+    could silently repeat the gap: a recording holding only the target's
+    answers, replayed with every quote unverifiable, and a grounding verdict
+    the live run never reached.
+
+    Both directions are asserted from the same rule. A recording on the
+    predates list must carry no outcomes, because back-filling one means
+    writing down what nobody measured. Every other recording must carry them.
+    """
+    outcomes = _recorded_quote_checks(recording)
+    key = _recording_key(recording)
+    if key in RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES:
+        assert not outcomes, (
+            f"{key} is recorded as predating quote-check outcomes and now carries "
+            f"{len(outcomes)} of them. A recording is the evidence of one run, and an "
+            f"outcome added to it afterwards was not measured by that run. Either the "
+            f"outcomes were back-filled, which must be undone, or the pack was genuinely "
+            f"re-recorded, in which case take it off "
+            f"RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES and drop its QUOTE_DEPENDENT_CASES "
+            f"pin."
+        )
+        return
+    assert outcomes, (
+        f"{key} carries no quote-check outcome. A replay of it would skip the harness's "
+        f"own verification and reach a grounding verdict the live run never reached. "
+        f"Record the pack with quote checks on, so the log carries what was verified."
+    )
+    for check_id, outcome in sorted(outcomes.items()):
+        assert isinstance(outcome, dict), (key, check_id)
+        assert outcome.get("status") in STATUSES, (key, check_id, outcome.get("status"))
+        assert outcome.get("url"), (key, check_id)
+        assert outcome.get("quote"), (key, check_id)
+
+
 @pytest.mark.parametrize("pack", ALL_PACKS, ids=lambda p: f"{p.parent.parent.name}/{p.name}")
 def test_every_committed_pack_carries_full_provenance(pack: Path) -> None:
     run = json.loads(pack.read_text(encoding="utf-8"))
@@ -257,11 +383,15 @@ def test_the_recording_reproduces_the_committed_pack(
     cases_dir = target_dir / "cases"
     replayable_gates = {"grounding", "adversarial", "refusal", "false_positive", "golden"}
     if target_dir.name == "permit_bearings":
-        target: object = PermitBearingsTarget(
+        permit_bearings = PermitBearingsTarget(
             base_url="http://127.0.0.1:9",
             min_interval=0.0,
             raw_log=RawLog(replay_path=_recording(pack)),
         )
+        target: object = permit_bearings
+        # The checker the replay reads its quote-check outcomes through, held so
+        # the counts below can be asserted rather than inferred from the verdicts.
+        documents: DocumentCache = permit_bearings._documents
         if "grounding" in pack.name:
             cases_dir = target_dir / "cases-grounding-only"
     else:
@@ -270,6 +400,7 @@ def test_the_recording_reproduces_the_committed_pack(
         (root / "corpus").mkdir(parents=True)
         (root / "corpus" / "SOURCES.json").write_text('{"sources": []}')
         ledger = NarrationLedger(raw_log=RawLog(replay_path=_recording(pack)))
+        documents = ledger.documents
         if target_dir.name == "mrf_honest":
             cohort = run["provenance"]["cohort_file"]
             (root / cohort).parent.mkdir(parents=True, exist_ok=True)
@@ -332,6 +463,25 @@ def test_the_recording_reproduces_the_committed_pack(
         sorted(diverged - quote_dependent),
     )
     assert compared == COMPARED_CASES[key], (pack, compared)
+
+    # What the recording could and could not answer, stated as counts rather
+    # than left to be inferred from the divergence above. The divergence says a
+    # verdict changed; these say why, and they are what turns over when a pack
+    # is re-recorded with the outcomes in it.
+    attempted = documents.checks_replayed + documents.checks_without_a_recording
+    assert attempted == ATTEMPTED_CHECKS[key], (pack, attempted)
+    if _recording_key(_recording(pack)) in RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES:
+        assert documents.checks_replayed == 0, (
+            pack,
+            documents.checks_replayed,
+            "a recording that predates quote-check outcomes answered one",
+        )
+    else:
+        assert documents.checks_without_a_recording == 0, (
+            pack,
+            documents.checks_without_a_recording,
+            "the recording carries outcomes, but not for every citation this replay checked",
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -6,6 +6,47 @@ All notable changes will be documented here.
 
 ### Added
 
+- **A recording carries what the harness verified, not only what the target
+  said.** A raw log held the target's responses and nothing about the quote
+  checks the harness ran against the cited public documents, so a replay of one
+  had to run with `GAUNTLET_QUOTE_CHECKS=off`, every citation came back
+  `unverifiable`, and a grounding case that passed live failed offline. Twelve
+  such cases are pinned in `tests/test_real_target_packs.py` as the divergence
+  the committed recordings cannot avoid. The log now carries one entry per
+  check, keyed by the document and the normalized quote, and a replay reads the
+  outcomes back and reaches the verdict the live run reached. The flag now
+  means "do not fetch", not "know nothing": a recorded outcome is read back
+  with it off, and a check the recording does not carry still reports
+  unverifiable. Nothing is written while the flag is off, because a look nobody
+  took is not an outcome and a later replay would read it back as one, and one
+  check is written once however many claims cite it. The provenance gains
+  `quote_checks_replayed` and `quote_checks_without_a_recorded_outcome`, always
+  both, so a replay that skipped verification says how often instead of looking
+  like a run that verified nothing.
+
+  The four committed recordings are not back-filled. An outcome written into a
+  finished run was not measured by that run, which is the defect this
+  repository exists to refuse, so they are named in
+  `RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES` and a test fails a recording
+  outside that list that carries no outcomes, and equally fails one inside it
+  that has acquired some. `ATTEMPTED_CHECKS` pins how many checks each replay
+  makes, which records the one thing this does not close: the two narration
+  adapters resolve a citation's URL through the target's corpus manifest, the
+  hermetic fixture has an empty one, and so those replays attempt no check at
+  all. Recording the manifest as well is the next step and is not this change.
+  Closes #31.
+- **ADR 0002: how the GitHub Action is meant to be referenced, decided rather
+  than left silent.** SCOPE.md's fourth open question for the owner asked
+  whether the action should be referenceable by tag rather than by commit SHA,
+  and three documents told a consumer to pin a SHA without recording that this
+  was a choice. The decision keeps the SHA as the recommended reference, because
+  a movable tag resolves at job start to whatever the publisher has repointed it
+  at since a reviewer looked, and this repository pins every action it consumes
+  for that reason. It also records what the SHA costs, and two things the
+  documentation had wrong by omission: `uses: ChelseaKR/gauntlet@v0.1.0` already
+  resolves, because the tagged tree contains `action.yml`, and the site said
+  "no release tag is implied" while a usable one existed. No `@v1` will be
+  published, and no tag was created by this change. Closes #33.
 - **A share of any documentation page rendered as a blank grey box, and the
   README never named the pages at all.** The head carried `og:title`,
   `og:description` and `og:url` but no image, so `twitter:card` was correctly
@@ -102,6 +143,18 @@ All notable changes will be documented here.
 
 ### Changed
 
+- **The release that shipped is filed as a release.** `gauntlet-evals` 0.1.0
+  has been on PyPI since 2026-08-19, uploaded from the `v0.1.0` tag, and this
+  file still carried a single `## [Unreleased]` heading, so the only durable
+  record of what that release contained said it had not happened. The content
+  this file held at the tag now sits under a dated `## [0.1.0]` section,
+  unedited except for the wording corrections already applied to it, and
+  `## [Unreleased]` holds only what landed afterwards. Nothing was invented to
+  fill the section: the split is the tag's own text, and `git show
+  v0.1.0:CHANGELOG.md` is the check. The Release & Versioning row claims
+  Keep-a-Changelog again, which the existing biconditional test in
+  `tests/test_docs_and_inventory.py` now requires rather than forbids.
+  Closes #32.
 - **The coverage floor now reaches `real_targets/`.** The 90% branch-coverage
   gate measured only `gauntlet`, so the quote checker and the two adapters, the
   code deciding whether a citation counts as grounded, sat outside the gate the
@@ -183,10 +236,12 @@ All notable changes will be documented here.
 - **Six published claims that were true when they were written and had stopped
   being true.** Each is now derived from the thing it describes, or removed.
   - The Standards table said the changelog follows Keep-a-Changelog. This file
-    has exactly one `##` heading, `[Unreleased]`, on `main` and at the `v0.1.0`
-    tag alike, so the release that shipped is still filed as unreleased. The row
-    says that instead, and a test asserts the claim exactly when a release
-    section exists.
+    had exactly one `##` heading, `[Unreleased]`, on `main` and at the `v0.1.0`
+    tag alike, so the release that shipped was still filed as unreleased. The
+    row was rewritten to say that instead, and a test asserts the claim exactly
+    when a release section exists. The `[0.1.0]` section below closes the gap
+    the row described; see "The release that shipped is filed as a release"
+    under Changed.
   - `docs/real-targets.md` said mrf-honest withheld 7 distinct claims and then
     broke 7 down into 9, by adding the 2 Spanish withholdings to the 4 English
     ones and then listing the 2 again. The recording holds 7: one whose quote
@@ -304,6 +359,17 @@ All notable changes will be documented here.
   distributions that get uploaded, which zizmor flags as a cache-poisoning path
   to runtime artifacts and which failed CI on `main`. The cache is off in that
   job; a release does not need it.
+
+## [0.1.0] - 2026-08-15
+
+The first release. Tagged `v0.1.0` on 2026-08-15 and published to PyPI as
+`gauntlet-evals` 0.1.0 on 2026-08-19, after the first upload attempt was
+refused for a Trusted Publishing publisher that did not yet exist; the Notes
+below record that, and the republish was dispatched against the tag rather
+than `main`, so what is on PyPI is the tagged tree. Everything from here down
+is the content this file carried at the `v0.1.0` tag, with the wording
+corrections later applied to it in place. Everything above this heading landed
+after the tag and is genuinely unreleased.
 
 ### Added
 

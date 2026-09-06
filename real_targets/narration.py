@@ -43,6 +43,19 @@ class NarrationLedger:
     documents: DocumentCache = field(default_factory=DocumentCache)
     raw_log: RawLog = field(default_factory=RawLog)
 
+    def __post_init__(self) -> None:
+        """The quote checker writes to and reads from the same log as the target.
+
+        A ledger built with an explicit cache that already has a log of its own
+        keeps it; the default cache has none, and would otherwise record its
+        outcomes nowhere while the target's responses were being recorded
+        beside it, which is exactly the recording this repository already has
+        and cannot replay.
+        """
+        log = self.documents.raw_log
+        if log.write_path is None and log.replay_path is None:
+            self.documents.raw_log = self.raw_log
+
     def provenance(self) -> dict[str, str]:
         counts = {
             "model": ", ".join(sorted(self.models)),

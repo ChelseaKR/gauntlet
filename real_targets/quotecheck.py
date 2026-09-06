@@ -18,6 +18,13 @@ present, and their use is recorded in the provenance: ``curl`` when Python's
 TLS verification cannot build a certificate chain the system trust store can
 (some state sites omit an intermediate certificate), and ``pdftotext`` for
 PDF documents, which the standard library does not read.
+
+Every outcome is written to the run's raw log, keyed by the document and the
+normalized quote, so a replay reproduces the verification instead of skipping
+it. Only a check that was actually made is written: under
+``GAUNTLET_QUOTE_CHECKS=off`` nothing is recorded, because recording "the
+harness did not look" as an outcome would put an absence in the log where a
+measurement belongs, and a later replay would read it back as a result.
 """
 
 from __future__ import annotations
@@ -33,6 +40,9 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+
+from gauntlet.targets import TargetError
+from real_targets.rawlog import RawLog
 
 _TAG = re.compile(r"<[^>]+>")
 _SCRIPT = re.compile(r"<(script|style)\b.*?</\1>", re.IGNORECASE | re.DOTALL)
@@ -59,6 +69,14 @@ def strip_markup(document: str) -> str:
     return html.unescape(_TAG.sub(" ", without_scripts))
 
 
+STATUSES = ("verified", "not_found", "unverifiable")
+
+# The prefix every quote-check entry in a raw log carries, so a reader can tell
+# the harness's own outcomes from the target responses in the same file without
+# parsing either.
+CHECK_KEY_PREFIX = "quotecheck"
+
+
 @dataclass(frozen=True)
 class QuoteCheck:
     url: str
@@ -67,18 +85,34 @@ class QuoteCheck:
     note: str = ""
 
 
+def check_key(url: str, quote: str) -> str:
+    """The raw-log key for one quote check.
+
+    The outcome is a function of the document and of the normalized quote, and
+    of nothing else, so the key is exactly those two things. Normalizing the
+    quote into the key rather than hashing it keeps the log readable and keeps
+    two spellings that this checker cannot tell apart from being filed as two
+    different checks with, potentially, two different recorded answers.
+    """
+    return f"{CHECK_KEY_PREFIX} {url} :: {normalize(quote)}"
+
+
+def is_check_key(key: str) -> bool:
+    return key.startswith(f"{CHECK_KEY_PREFIX} ")
+
+
 def counts_as_grounded(check: QuoteCheck | None) -> bool:
     """Whether a citation may stay in the context the grounding gate scores.
 
     Only a positively verified quote may. ``not_found`` is a verdict against
     the target. ``unverifiable`` and ``None`` are the *absence* of a verdict:
     a dead link, a PDF with no reader, a citation carrying no URL or quote, or
-    ``GAUNTLET_QUOTE_CHECKS=off``. Rendering that absence as a pass is the
-    failure mode this module exists to prevent, and it would make the quote
-    check one that cannot fail: under ``GAUNTLET_QUOTE_CHECKS=off`` every
-    check is ``unverifiable``, so a run that verified nothing at all would
-    report the same grounding pass rate as one where every quote was
-    confirmed.
+    ``GAUNTLET_QUOTE_CHECKS=off`` with no recorded outcome to read back.
+    Rendering that absence as a pass is the failure mode this module exists to
+    prevent, and it would make the quote check one that cannot fail: with
+    checks off and nothing recorded, every check is ``unverifiable``, so a run
+    that verified nothing at all would report the same grounding pass rate as
+    one where every quote was confirmed.
     """
     return check is not None and check.status == "verified"
 
@@ -122,23 +156,46 @@ def _decode(raw: bytes) -> str:
 
 def checks_enabled() -> bool:
     """``GAUNTLET_QUOTE_CHECKS=off`` disables fetching, for replaying a recording
-    without the network. Every check then reports unverifiable, never verified."""
+    without the network.
+
+    It disables *looking*, not *knowing*. A check whose outcome the recording
+    carries is answered from the recording with the flag off, because reading a
+    measurement back is not a fetch. A check the recording does not carry
+    reports unverifiable, never verified, which is the state every recording
+    made before the log carried outcomes leaves a replay in."""
     return os.environ.get("GAUNTLET_QUOTE_CHECKS", "on").lower() not in ("off", "0", "false")
 
 
 class DocumentCache:
-    """Fetch each URL once per run and remember the outcome."""
+    """Fetch each URL once per run and remember the outcome.
+
+    Given a raw log, it also writes each outcome to it and reads each outcome
+    back from it, so that a replayed run reproduces the harness's own
+    verification rather than skipping it. ``checks_replayed`` and
+    ``checks_without_a_recording`` are reported in the provenance: a replay that
+    had to skip verification says how often, instead of returning the same
+    unverifiable for a citation nobody checked and one whose recording is simply
+    older than this format.
+    """
 
     def __init__(
-        self, timeout: float = 30.0, max_bytes: int = 8_000_000, enabled: bool | None = None
+        self,
+        timeout: float = 30.0,
+        max_bytes: int = 8_000_000,
+        enabled: bool | None = None,
+        raw_log: RawLog | None = None,
     ) -> None:
         self._timeout = timeout
         self._max_bytes = max_bytes
         self._documents: dict[str, str | None] = {}
         self._notes: dict[str, str] = {}
+        self._recorded: set[str] = set()
         self.fetches = 0
         self.tools_used: set[str] = set()
         self.enabled = checks_enabled() if enabled is None else enabled
+        self.raw_log = raw_log if raw_log is not None else RawLog()
+        self.checks_replayed = 0
+        self.checks_without_a_recording = 0
 
     def text_for(self, url: str) -> tuple[str | None, str]:
         if url in self._documents:
@@ -227,6 +284,43 @@ class DocumentCache:
         return normalize(_decode(completed.stdout)), "text extracted with pdftotext"
 
     def check(self, url: str, quote: str) -> QuoteCheck:
+        key = check_key(url, quote)
+        replayed = self._replayed(key, url, quote)
+        if replayed is not None:
+            return replayed
+        outcome = self._measure(url, quote)
+        self._record(key, outcome)
+        return outcome
+
+    def _replayed(self, key: str, url: str, quote: str) -> QuoteCheck | None:
+        """The recorded outcome for this check, when the recording holds one.
+
+        A miss is counted rather than raised. A recording made before this
+        format existed holds no outcomes at all, and those recordings are not
+        back-filled, so the replay of one has to fall through to
+        ``_measure`` and report what it can. The count is what keeps that
+        honest: the provenance says how many checks the recording could not
+        answer, rather than letting the run look like one that verified
+        nothing because there was nothing to verify.
+        """
+        if not self.raw_log.replaying:
+            return None
+        entry = self.raw_log.lookup(key, count=False)
+        if entry is None:
+            self.checks_without_a_recording += 1
+            return None
+        recorded = entry.get("quote_check")
+        if not isinstance(recorded, dict):
+            raise TargetError(f"replay entry for {key!r} carries no quote_check object")
+        status = str(recorded.get("status", ""))
+        if status not in STATUSES:
+            raise TargetError(
+                f"replay entry for {key!r} has status {status!r}, not one of STATUSES"
+            )
+        self.checks_replayed += 1
+        return QuoteCheck(url, quote, status, str(recorded.get("note", "")))
+
+    def _measure(self, url: str, quote: str) -> QuoteCheck:
         needle = normalize(quote)
         if len(needle) < MIN_QUOTE_CHARS:
             return QuoteCheck(url, quote, "not_found", "quote too short to be a verbatim span")
@@ -241,6 +335,31 @@ class DocumentCache:
             return QuoteCheck(url, quote, "verified", note)
         return QuoteCheck(url, quote, "not_found", "quote does not occur in the fetched document")
 
+    def _record(self, key: str, outcome: QuoteCheck) -> None:
+        """Write one measured outcome to the raw log, once per run.
+
+        Nothing is written when checks are disabled. That outcome is not a
+        measurement, it is the record of a look nobody took, and a log holding
+        it would hand a later replay an ``unverifiable`` to reproduce as though
+        the harness had tried and failed. The same key is written once: a
+        citation repeated across cases is one check, and a log with the same
+        key twice invites the two entries to disagree.
+        """
+        if not self.enabled or key in self._recorded:
+            return
+        self._recorded.add(key)
+        self.raw_log.record(
+            key,
+            {
+                "quote_check": {
+                    "url": outcome.url,
+                    "quote": outcome.quote,
+                    "status": outcome.status,
+                    "note": outcome.note,
+                }
+            },
+        )
+
 
 def tally(checks: list[QuoteCheck], cache: DocumentCache | None = None) -> dict[str, str]:
     """Counts for the provenance block, as strings."""
@@ -252,6 +371,14 @@ def tally(checks: list[QuoteCheck], cache: DocumentCache | None = None) -> dict[
     }
     if cache is not None:
         counts["quote_check_tools"] = ", ".join(sorted(cache.tools_used)) or "standard library only"
+        if cache.raw_log.replaying:
+            # Both, always, and never only the first. A replay that reports how
+            # many outcomes it read back without reporting how many it could not
+            # find is the same shape of claim as a pass rate with no denominator.
+            counts["quote_checks_replayed"] = str(cache.checks_replayed)
+            counts["quote_checks_without_a_recorded_outcome"] = str(
+                cache.checks_without_a_recording
+            )
         unverifiable_notes = sorted(
             {check.note for check in checks if check.status == "unverifiable"}
         )

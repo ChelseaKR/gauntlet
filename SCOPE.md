@@ -123,6 +123,9 @@ publication decision, and any renaming, sits with the owner.
    (an advocate contact or the DGS webinar Q&A). Asked before the repo went
    public, and still open now that it is.
 4. Whether the GitHub Action should be referenceable by tag rather than by
-   commit SHA. The package question is settled: `v0.1.0` is tagged and
-   `gauntlet-evals` 0.1.0 is on PyPI. The action is still pinned by SHA, and no
-   badge implies a registry for it.
+   commit SHA: settled, and written down in
+   [ADR 0002](docs/adr/0002-the-action-is-consumed-by-commit-sha.md). The
+   recommended reference stays a full commit SHA, an immutable version tag such
+   as `@v0.1.0` is supported and now documented as the second form, and no
+   movable major tag will be published. No badge implies a registry for the
+   action.

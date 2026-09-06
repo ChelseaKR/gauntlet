@@ -178,12 +178,10 @@ pass.
 
 ## Deferred, with the reason
 
-- **Recordings do not carry quote-check outcomes.** Closing the replay gap for
-  good needs the raw log to record each check so a replay reproduces
-  verification rather than skipping it. The committed recordings predate that
-  and cannot be back-filled without inventing outcomes nobody measured, so they
-  stay as they are and the pin in `test_real_target_packs.py` records what they
-  cannot show. Any new pack should carry the outcomes.
+- ~~**Recordings do not carry quote-check outcomes.**~~ Closed 2026-09-05, see
+  the Log below. The committed recordings still do not carry them and are still
+  not back-filled; what changed is that the format carries them and a test now
+  refuses a new recording that omits them.
 - **pip-audit could not be run locally**: `ensurepip` fails inside the sandbox's
   temporary venv. Not a vulnerability. The runtime dependency surface is one
   package, `pyyaml==6.0.3`, and CI's `dependency-scan` job passed on the most
@@ -206,3 +204,37 @@ pass.
 - 2026-08-28 Landed on `bugfix/sweep-2026-08-23` once commit permission was
   granted, in five commits grouped by finding. `make verify` re-run on the
   committed tree: EXIT=0.
+- 2026-09-05 The deferred recording item closed, as issue #31. The raw log
+  carries one entry per quote check, keyed by the document and the normalized
+  quote, written by `quotecheck.DocumentCache` and read back by it on replay,
+  so a replay reproduces the harness's verification instead of skipping it.
+  `GAUNTLET_QUOTE_CHECKS=off` now means "do not fetch", not "know nothing": a
+  recorded outcome is read back with the flag off, and a check the recording
+  does not carry still reports unverifiable. Nothing is recorded while the flag
+  is off, because a look nobody took is not an outcome and a later replay would
+  read it back as one.
+
+  The four committed recordings are untouched. They are named in
+  `RECORDINGS_PREDATING_QUOTE_CHECK_OUTCOMES`, and
+  `test_a_recording_carries_its_quote_check_outcomes` fails a recording outside
+  that list carrying none, and also fails one inside it that has acquired some,
+  because back-filling is the thing being refused and the only honest way off
+  the list is a fresh run. The round trip is proved in both directions in
+  `tests/test_quote_verification_contract.py`: a recording made now replays to
+  the live grounding verdict offline, and with its outcome lines stripped the
+  same replay fails the case it passed. That strip is asserted to have landed
+  before anything is concluded from it.
+
+  **What this does not close, measured rather than assumed.** The hermetic
+  replay in `test_real_target_packs.py` attempts 52 quote checks for
+  permit-bearings and 0 for each narration pack, now pinned as
+  `ATTEMPTED_CHECKS`. permit-bearings carries the cited URL on the citation;
+  mrf-honest and fhir-scorecard resolve it through the target's own corpus
+  manifest, and the fake checkout the test builds has an empty one, so their
+  four pinned cases each diverge because no check was attempted rather than
+  because one came back unverifiable. Recording the outcomes therefore closes
+  the replay gap for permit-bearings outright, and for the other two only for a
+  reviewer replaying against a real target checkout. Recording the resolved
+  source-URL map alongside the outcomes is the next step and is deliberately
+  not part of this change: it means changing what the two adapters do when the
+  manifest is missing, which is its own decision.

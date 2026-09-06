@@ -672,6 +672,7 @@ REVIEWED_NUMBERS: dict[str, str] = {
     "2": "the exit code gauntlet run uses when the harness itself could not run",
     "4": "the exit code gauntlet run uses when the run cannot be scored",
     "4986": "the SAM 4986 series, named while explaining the correction made by reading",
+    "0002": "the ADR number the action page cites for how the action is meant to be pinned",
 }
 
 
