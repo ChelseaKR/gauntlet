@@ -57,6 +57,9 @@ uv run gauntlet run --cases path/to/judge-cases --http-url https://your-service.
 
 # The gate inventory, counted from the suites that are loaded.
 uv run gauntlet inventory
+
+# Check a case directory without contacting anything.
+uv run gauntlet lint path/to/cases
 ```
 
 `gauntlet run` exits 1 when any gate misses its threshold, so it blocks a merge
@@ -285,6 +288,7 @@ the action can do for you.
 | `results-path` | `gauntlet-results.json` | Where the results JSON is written. |
 | `report-path` | `gauntlet-evidence.md` | Where the human-readable document is written. |
 | `json-path` | `gauntlet-evidence.json` | Where the machine-readable pack is written. |
+| `lint-only` | `false` | Lint the case directory and stop. No target is contacted and no pack is built. |
 | `fail-on-gate-failure` | `true` | Set to `false` to report without blocking. |
 | `job-summary` | `true` | Write the document to the job summary. |
 | `python-version` | `3.12` | Python used to run the harness. |
@@ -342,6 +346,48 @@ Two rules that are not negotiable when adding cases: English and Spanish cases
 are peers, added and changed together rather than translated on afterward, and a
 new or changed gate needs a paired self-test proving it can fail. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Linting a case directory
+
+```sh
+uv run gauntlet lint path/to/cases
+uv run gauntlet lint path/to/cases --format json
+```
+
+The loader is strict, but it only speaks when `gauntlet run` starts, and the
+UNSCOREABLE refusal only speaks after the target has answered, which is after
+the requests have been paid for. `gauntlet lint` moves both to the editor. It
+reuses the loader, so a schema, enum, duplicate-id, threshold, or `.yml` problem
+produces the same located error a run produces, and it adds the analysis a run
+can only do afterwards: whether any loaded suite could fail a target that says
+nothing. An adversarial-only directory exits 1 and names the three additions
+that would fix it. Linting contacts no target, needs no model and no network,
+and gives the same answer every time.
+
+Errors exit 1. Warnings are reported and do not change the exit code: a suite
+with more English than Spanish cases, and a suite that asks the same prompt in
+two cases, are worth seeing and are not reasons to block a commit. A suite with
+no cases in one of the two languages is an error, not a warning, because English
+and Spanish cases are peers.
+
+One thing lint will not do is report a scoreability verdict it could not reach.
+When a case file fails to load, the suite it would have contributed is unknown,
+so the analysis is reported as not run rather than as a clean result over
+whatever happened to parse. Lint also never rewrites a file: a linter that fixes
+suites is a linter that can quietly change what a gate measures.
+
+The hook definition in [`.pre-commit-hooks.yaml`](.pre-commit-hooks.yaml) runs
+it from another repository, and the action's `lint-only` input runs it in CI
+without contacting a target.
+
+```yaml
+repos:
+  - repo: https://github.com/ChelseaKR/gauntlet
+    rev: <a full commit sha>
+    hooks:
+      - id: gauntlet-lint
+        args: ["path/to/cases"]
+```
 
 ### The target contract
 

@@ -1,0 +1,25 @@
+# Hooks this repository publishes for other repositories to consume. Not this
+# repository's own hooks: those are in .pre-commit-config.yaml.
+#
+# Linting a case directory contacts no target, needs no model and no network,
+# and gives the same answer every time, so it costs a commit nothing and can
+# say before CI what CI would only say after the requests were paid for.
+#
+#   repos:
+#     - repo: https://github.com/ChelseaKR/gauntlet
+#       rev: <a full commit sha>
+#       hooks:
+#         - id: gauntlet-lint
+#           args: ["path/to/cases"]
+#
+# The directory is an argument rather than a default, because there is no
+# directory this action could guess that would be yours.
+- id: gauntlet-lint
+  name: gauntlet lint
+  description: >-
+    Check a Gauntlet case directory statically and refuse a case set whose gates
+    could all be satisfied by a target that says nothing.
+  entry: gauntlet lint
+  language: python
+  files: \.ya?ml$
+  pass_filenames: false

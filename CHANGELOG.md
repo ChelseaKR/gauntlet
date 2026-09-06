@@ -25,6 +25,37 @@ All notable changes will be documented here.
 
 ### Added
 
+- **`gauntlet lint DIR` checks a case directory before a run spends a request.**
+  The loader is already strict, but it only speaks when `gauntlet run` starts,
+  and the UNSCOREABLE refusal only speaks after the target has answered. A team
+  whose first suite is adversarial-only learned in CI, having paid for the
+  requests, that nothing it wrote could have failed on silence. Lint reuses the
+  loader, so a schema, enum, duplicate-id, threshold, or `.yml` problem produces
+  the same located error a run produces, and it adds the analysis a run can only
+  do afterwards: whether any loaded suite could fail a target that says nothing.
+  An adversarial-only directory exits 1 and names the three additions that fix
+  it, and a test proves each named remedy actually makes the directory
+  scoreable. `--format json` emits findings with a code a script can branch on,
+  byte-identical across runs.
+
+  Two things it refuses to do. It never rewrites a file, because a linter that
+  fixes suites can quietly change what a gate measures. And it never reports a
+  scoreability verdict it could not reach: when a case file fails to load, the
+  suite it would have contributed is unknown, so the analysis is reported as not
+  run rather than as a clean result over whatever happened to parse.
+
+  A suite with no cases in one of the two languages is an error, because English
+  and Spanish cases are peers. Language imbalance and a prompt repeated inside
+  one suite are warnings and do not change the exit code. Duplicate prompts
+  across suites are deliberately not reported: the built-in suites ask the same
+  corpus question under `grounding`, `golden`, and `false_positive` on purpose,
+  because each gate asks something different of the same answer, and the same
+  issue that proposed the warning requires those suites to lint clean.
+
+  Also shipped: `.pre-commit-hooks.yaml` publishing a `gauntlet-lint` hook for
+  other repositories, and a `lint-only` input on the action that lints and stops
+  without contacting a target or building a pack.
+
 - **The release workflow refuses to publish from a tag the maintainer did not
   sign.** Nothing checked before this. A published Release, or a
   `workflow_dispatch` from any branch, built a wheel labelled `gauntlet-evals`
