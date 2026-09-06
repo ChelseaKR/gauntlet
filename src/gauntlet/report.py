@@ -17,7 +17,12 @@ import json
 from gauntlet.evidence import ALIGNMENT_NOTICE, CLEAN_RUN_CAVEAT
 from gauntlet.results import PROVENANCE_MEANING
 
-__all__ = ["ALIGNMENT_NOTICE", "render_json", "render_markdown"]
+__all__ = [
+    "ALIGNMENT_NOTICE",
+    "render_compare_markdown",
+    "render_json",
+    "render_markdown",
+]
 
 
 def render_json(pack: dict[str, object]) -> str:
@@ -429,6 +434,193 @@ def _drift(lines: list[str], pack: dict[str, object]) -> None:
         )
 
 
+def _history(lines: list[str], pack: dict[str, object]) -> None:
+    """What the ledger says about the runs before this one.
+
+    Rendered only when a ledger was supplied. Without one there is no sequence
+    to report, and a section saying so would be a heading over an absence.
+    """
+    history = pack.get("history")
+    if not isinstance(history, dict):
+        return
+    entries = _int(history.get("entries"))
+    lines.append(f"## Since the last {entries} runs")
+    lines.append("")
+    lines.append(
+        "Counted from an append-only ledger whose entries are chained by SHA-256. "
+        "Nothing here is a trend or a projection: a streak is counted and a delta is "
+        "subtracted, and a step whose suite version moved is reported as not "
+        "comparable rather than subtracted across a changed case set."
+    )
+    lines.append("")
+    if entries < 2:
+        lines.append("Fewer than two runs are recorded, so nothing has been compared.")
+        lines.append("")
+        return
+    if _bool(history.get("unchanged")):
+        lines.append("Every run in this ledger observed the same thing. Nothing changed.")
+        lines.append("")
+    declines = _dicts(history.get("declines"))
+    if declines:
+        _table(
+            lines,
+            ["Gate", "Consecutive declines", "Entries", "Pass rates"],
+            [
+                [
+                    _cell(row.get("gate")),
+                    str(_int(row.get("declines"))),
+                    f"{_int(row.get('from_entry'))} to {_int(row.get('to_entry'))}",
+                    ", ".join(f"{_float(rate):.3f}" for rate in _list(row, "pass_rates")),
+                ]
+                for row in declines
+            ],
+        )
+    unrecovered = _dicts(history.get("unrecovered_regressions"))
+    if unrecovered:
+        lines.append("Cases that failed and have not passed since:")
+        lines.append("")
+        _table(
+            lines,
+            ["Gate", "Case", "Last passing entry", "First failing entry"],
+            [
+                [
+                    _cell(row.get("gate")),
+                    _cell(row.get("case_id")),
+                    str(_int(row.get("last_passing_entry"))),
+                    str(_int(row.get("first_failing_entry"))),
+                ]
+                for row in unrecovered
+            ],
+        )
+    not_comparable = _dicts(history.get("not_comparable"))
+    if not_comparable:
+        lines.append("Steps that were not comparable, and so were not subtracted:")
+        lines.append("")
+        _table(
+            lines,
+            ["Gate", "Entries", "Why"],
+            [
+                [
+                    _cell(row.get("gate")),
+                    f"{_int(row.get('from_entry'))} to {_int(row.get('to_entry'))}",
+                    _cell(row.get("reason")),
+                ]
+                for row in not_comparable
+            ],
+        )
+    if not declines and not unrecovered:
+        lines.append("No gate declined for the configured streak, and no case is unrecovered.")
+        lines.append("")
+
+
+def _list(row: dict[str, object], key: str) -> list[object]:
+    value = row.get(key)
+    return value if isinstance(value, list) else []
+
+
+def _compare_cell(cell: dict[str, object]) -> str:
+    """One run's column for one gate.
+
+    A gate the run never loaded reads "not run", never "0 / 0": a run that did
+    not load a suite has no pass rate, and printing one would put a number
+    where there was no measurement.
+    """
+    if not _bool(cell.get("present")):
+        return "not run"
+    return (
+        f"{_int(cell.get('passed_count'))} / {_int(cell.get('total'))} "
+        f"({_float(cell.get('pass_rate')):.3f})"
+    )
+
+
+def _compare_language_rows(row: dict[str, object], count: int) -> list[list[str]]:
+    languages: list[str] = []
+    for cell in _dicts(row.get("runs")):
+        for entry in _dicts(cell.get("languages")):
+            language = _str(entry.get("language"))
+            if language and language not in languages:
+                languages.append(language)
+    rows: list[list[str]] = []
+    for language in sorted(languages):
+        cells: list[str] = []
+        for cell in _dicts(row.get("runs")):
+            found = next(
+                (
+                    entry
+                    for entry in _dicts(cell.get("languages"))
+                    if _str(entry.get("language")) == language
+                ),
+                None,
+            )
+            if found is None:
+                cells.append("not run")
+            else:
+                cells.append(
+                    f"{_int(found.get('passed'))} / {_int(found.get('total'))} "
+                    f"({_float(found.get('pass_rate')):.3f})"
+                )
+        rows.append([_cell(language), *cells[:count]])
+    return rows
+
+
+def render_compare_markdown(matrix: dict[str, object]) -> str:
+    """Render an N-way comparison as the human-readable matrix."""
+    runs = _dicts(matrix.get("runs"))
+    labels = [f"run {index}" for index in range(len(runs))]
+    lines: list[str] = ["# Gauntlet run comparison", ""]
+    _table(
+        lines,
+        ["Run", "Target", "Started at", "Verdict", "Digest"],
+        [
+            [
+                label,
+                _cell(run.get("target")),
+                _cell(run.get("started_at")),
+                "WITHHELD"
+                if _str(run.get("verdict_withheld"))
+                else _verdict(_bool(run.get("passed"))),
+                _cell(run.get("results_digest"))[:12],
+            ]
+            for label, run in zip(labels, runs, strict=False)
+        ],
+    )
+    if _bool(matrix.get("identical_results")):
+        lines.append("Every run produced identical results. Nothing drifted.")
+        lines.append("")
+    for row in _dicts(matrix.get("gates")):
+        lines.append(f"### `{_cell(row.get('gate'))}`")
+        lines.append("")
+        if not _bool(row.get("comparable")):
+            lines.append(
+                f"Not comparable across these runs ({_cell(row.get('not_comparable_reason'))}). "
+                "The counts below were observed; no delta is given, because subtracting "
+                "rates computed over different case sets would report arithmetic as drift."
+            )
+            lines.append("")
+        else:
+            delta = row.get("first_to_last_delta")
+            if isinstance(delta, int | float) and not isinstance(delta, bool):
+                lines.append(f"First to last pass-rate delta: {_signed(float(delta))}")
+            else:
+                lines.append(
+                    "No delta: this gate appears in fewer than two of these runs, so "
+                    "there is no pair to compare."
+                )
+            lines.append("")
+        cells = [_compare_cell(cell) for cell in _dicts(row.get("runs"))]
+        _table(
+            lines, ["Scope", *labels], [["all", *cells], *_compare_language_rows(row, len(labels))]
+        )
+    lines.append("---")
+    lines.append("")
+    lines.append(
+        "Generated by Gauntlet from results files. Comparing the same files again "
+        "produces the same document."
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _references_block(lines: list[str], entry: dict[str, object]) -> None:
     references = _dicts(entry.get("framework_references"))
     if not references:
@@ -565,6 +757,7 @@ def render_markdown(pack: dict[str, object]) -> str:
     _counts_by_language(lines, pack)
     _what_failed(lines, pack)
     _drift(lines, pack)
+    _history(lines, pack)
     _cross_reference(lines, pack)
     _disclosure_basis(lines, pack)
     _not_established(lines, pack)

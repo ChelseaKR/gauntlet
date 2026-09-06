@@ -1,4 +1,5 @@
-"""Command-line interface: ``gauntlet run``, ``report``, ``inventory``, ``lint``, ``site``.
+"""Command-line interface: ``gauntlet run``, ``report``, ``inventory``, ``lint``,
+``history``, ``compare``, ``site``.
 
 ``run`` evaluates a target against a directory of case files (or the
 built-in bilingual suites) and writes a results JSON, exiting non-zero if
@@ -7,7 +8,9 @@ baseline results JSON for whole-run drift) into the evidence pack, in
 machine-readable JSON or as a human-readable document. ``inventory`` prints
 the gate inventory with counts taken from the loaded suites. ``lint`` checks a
 case directory statically, contacting nothing, and predicts a run the harness
-would refuse to score. ``site``
+would refuse to score. ``history append`` and ``history check`` keep and read an
+append-only, hash-chained ledger of runs, and ``compare`` puts N results files
+side by side. ``site``
 renders the documentation site from the harness: the counts are the
 inventory's, and the evidence excerpts are runs made while it builds.
 
@@ -35,6 +38,14 @@ from pathlib import Path
 from gauntlet.cases import Suite, builtin_suites, load_suites
 from gauntlet.evidence import build_evidence_pack, github_output_lines
 from gauntlet.gates import judge_withheld_reason, run_suite, unscoreable_reason
+from gauntlet.history import (
+    DEFAULT_DECLINE_STREAK,
+    append_run,
+    check_ledger,
+    compare_runs_many,
+    read_ledger,
+    render_check_text,
+)
 from gauntlet.inventory import (
     BEGIN_MARKER,
     build_inventory,
@@ -43,7 +54,7 @@ from gauntlet.inventory import (
 )
 from gauntlet.judge import DEFAULT_JUDGE_REGION, BedrockJudge, Judge, JudgeError, RecordingJudge
 from gauntlet.lint import lint_directory, render_lint_text
-from gauntlet.report import render_json, render_markdown
+from gauntlet.report import render_compare_markdown, render_json, render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
 from gauntlet.targets import (
@@ -225,7 +236,10 @@ def _print_run_summary(run: RunResult, verdict: str | None = None) -> None:
 def _cmd_report(args: argparse.Namespace) -> int:
     run = load_run_dict(Path(args.results))
     baseline = load_run_dict(Path(args.baseline)) if args.baseline else None
-    pack = build_evidence_pack(run, baseline)
+    history = None
+    if args.ledger:
+        history = check_ledger(read_ledger(Path(args.ledger)), args.decline_streak)
+    pack = build_evidence_pack(run, baseline, history)
     rendered = render_json(pack) if args.format == "json" else render_markdown(pack)
     if args.out:
         out_path = _write(args.out, rendered)
@@ -277,6 +291,41 @@ def _cmd_lint(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _cmd_history(args: argparse.Namespace) -> int:
+    """Append a run to the ledger, or read what the ledger shows.
+
+    ``check`` exits 1 on a finding, the same code a failed gate uses: in both
+    cases the answer is "this does not pass, and the fix is in the repository".
+    A ledger whose chain is broken raises instead, and leaves by way of exit 2,
+    because a tampered record is not a verdict about the target.
+    """
+    ledger = Path(args.ledger)
+    if args.history_command == "append":
+        entry = append_run(ledger, load_run_dict(Path(args.results)))
+        print(f"appended run {entry['results_digest']} to {ledger}")
+        return 0
+    report = check_ledger(read_ledger(ledger), args.decline_streak)
+    if args.format == "json":
+        print(json.dumps(report, indent=2, sort_keys=False))
+    else:
+        print(render_check_text(report), end="")
+    return 0 if report["ok"] else 1
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    matrix = compare_runs_many([load_run_dict(Path(path)) for path in args.results])
+    rendered = (
+        json.dumps(matrix, indent=2, sort_keys=False) + "\n"
+        if args.format == "json"
+        else render_compare_markdown(matrix)
+    )
+    if args.out:
+        print(f"wrote the comparison to {_write(args.out, rendered)}")
+    else:
+        print(rendered, end="")
+    return 0
+
+
 def _cmd_site(args: argparse.Namespace) -> int:
     written = build_site(
         Path(args.out),
@@ -295,6 +344,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_report_parser(sub)
     _add_inventory_parser(sub)
     _add_lint_parser(sub)
+    _add_history_parser(sub)
+    _add_compare_parser(sub)
     _add_site_parser(sub)
     return parser
 
@@ -346,6 +397,18 @@ def _add_report_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser])
     )
     report_parser.add_argument("--out", help="write the evidence pack to this path")
     report_parser.add_argument(
+        "--ledger",
+        help="a run ledger from 'gauntlet history append'; adds a 'Since the last N runs' "
+        "section. Without it the pack is byte-identical to one rendered without this flag",
+    )
+    report_parser.add_argument(
+        "--decline-streak",
+        type=int,
+        default=DEFAULT_DECLINE_STREAK,
+        help=f"how many consecutive declining runs the ledger section reports "
+        f"(default: {DEFAULT_DECLINE_STREAK})",
+    )
+    report_parser.add_argument(
         "--github-output",
         help="append GitHub Actions 'name=value' output lines to this file",
     )
@@ -374,6 +437,37 @@ def _add_lint_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     lint_parser.add_argument("cases", help="directory of *.yaml case files")
     lint_parser.add_argument("--format", choices=("text", "json"), default="text")
     lint_parser.set_defaults(func=_cmd_lint)
+
+
+def _add_history_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    history_parser = sub.add_parser(
+        "history", help="keep and read an append-only, hash-chained ledger of runs"
+    )
+    history_sub = history_parser.add_subparsers(dest="history_command", required=True)
+    append_parser = history_sub.add_parser("append", help="append one results JSON to a ledger")
+    append_parser.add_argument("--results", required=True, help="path to a results JSON")
+    append_parser.add_argument("--ledger", required=True, help="path to the ledger JSON Lines file")
+    check_parser = history_sub.add_parser("check", help="report what a ledger's runs show")
+    check_parser.add_argument("--ledger", required=True, help="path to the ledger JSON Lines file")
+    check_parser.add_argument(
+        "--decline-streak",
+        type=int,
+        default=DEFAULT_DECLINE_STREAK,
+        help=f"how many consecutive declining runs make a finding "
+        f"(default: {DEFAULT_DECLINE_STREAK})",
+    )
+    check_parser.add_argument("--format", choices=("text", "json"), default="text")
+    history_parser.set_defaults(func=_cmd_history)
+
+
+def _add_compare_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    compare_parser = sub.add_parser(
+        "compare", help="put N results files side by side, per gate and per language"
+    )
+    compare_parser.add_argument("results", nargs="+", help="two or more results JSON paths")
+    compare_parser.add_argument("--format", choices=("md", "json"), default="md")
+    compare_parser.add_argument("--out", help="write the comparison to this path")
+    compare_parser.set_defaults(func=_cmd_compare)
 
 
 def _add_site_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
