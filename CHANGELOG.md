@@ -125,6 +125,21 @@ All notable changes will be documented here.
   reached. `line.count("=") >= 1` was unreachable behind a `dict()` that raises
   first. The workflow-pinning test gained the anti-vacuity guard its sibling
   already had.
+- **Four high-severity `fast-uri` advisories were reachable from the node
+  toolchain, and no dependency bump would have moved them.**
+  `npm audit --audit-level=high` reported GHSA-5jgf-p345-68v8,
+  GHSA-f65p-4m7j-42xc, GHSA-fph4-wmhf-6fwf and GHSA-jqff-g426-hqxp against
+  `fast-uri` 3.1.5, reached as `html-validate` to `ajv` to `fast-uri`. The range
+  was never the problem: `ajv@8.20.0` asks for `^3.0.1`, and the patched 3.1.7
+  satisfies that already. 3.1.5 was pinned only because npm does not re-resolve
+  a transitive dependency unless it is asked to, and nothing here asked. Asking
+  moves one package: `package-lock.json` changes three lines, `package.json` is
+  untouched, and there is **no `overrides` pin and no allowlisted advisory**, so
+  `make node-audit` keeps the strength it had and can still report the next
+  advisory. An audit answered by suppressing the audit is a gate that cannot
+  fail. Verified after the change: `npm audit --audit-level=high` reports
+  `found 0 vulnerabilities`, and the `htmlvalidate` and `a11y` stages that sit
+  beside it in `make pages` were observed running again rather than skipped.
 
 ### Changed
 
