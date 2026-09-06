@@ -186,8 +186,10 @@ pass.
   temporary venv. Not a vulnerability. The runtime dependency surface is one
   package, `pyyaml==6.0.3`, and CI's `dependency-scan` job passed on the most
   recent run.
-- **Dependabot PR #18** (`astral-sh/setup-uv` 9.0.0 to 10.0.1) is open with CI
-  green and unmerged. The workflows still pin v9.0.0. A maintainer decision.
+- ~~**Dependabot PR #18** (`astral-sh/setup-uv` 9.0.0 to 10.0.1) is open with CI
+  green and unmerged. The workflows still pin v9.0.0.~~ Closed 2026-09-06, see
+  the Log below. The decision was made by merging, twice, and no workflow pins
+  v9.0.0 any more.
 
 ## Log
 
@@ -238,3 +240,17 @@ pass.
   source-URL map alongside the outcomes is the next step and is deliberately
   not part of this change: it means changing what the two adapters do when the
   manifest is missing, which is its own decision.
+- 2026-09-06 The deferred Dependabot item closed, as issue #36. It had recorded
+  PR #18 as "open with CI green and unmerged" and the workflows as still
+  pinning `astral-sh/setup-uv` v9.0.0. Both had stopped being true: #18 merged
+  on 2026-09-02 as `1074f4e`, moving `ci.yml`, `pages.yml` and `release.yml`,
+  and #37 merged on 2026-09-06 as `9230c4a`, moving `live-integrity.yml`, which
+  was the last holdout. Every reference in `.github/` is now the v10.0.1 SHA
+  `20cfd1bf945f4377ade1205e4dbc17946fc9a30d`.
+
+  The bump was verified where pull-request CI could not see it. `live-integrity`
+  runs only on a schedule and on demand, so no PR check ever exercises its
+  `setup-uv` step; it was dispatched against the branch before the merge, and
+  `Set up uv` and `uv sync --locked` both succeeded under v10.0.1. That run also
+  reported the live site lagging the pages deploy for the commit merged minutes
+  earlier, which is the sentinel doing its job and not a fault of the bump.
