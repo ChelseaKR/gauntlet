@@ -462,6 +462,71 @@ def test_the_gitleaks_allowlist_stays_scoped_to_the_evidence_packs() -> None:
         assert not allowed.search(path), f"{path} must still be scanned for secrets"
 
 
+def _semgrep_command() -> str:
+    """The one `semgrep scan` line in ci.yml, as written."""
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text("utf-8"))
+    commands = [
+        step["run"]
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if "semgrep scan" in str(step.get("run", ""))
+    ]
+    assert len(commands) == 1, f"expected exactly one semgrep invocation, found {len(commands)}"
+    return str(commands[0])
+
+
+def _python_roots() -> set[str]:
+    """Every top-level directory under which this repository keeps a .py file.
+
+    Derived from the tree rather than listed, so a new Python directory is a
+    failure here rather than a directory nothing scans. `_NOT_OURS` excludes
+    dependencies, caches and build output the same way the prose walk does.
+    """
+    roots = set()
+    for path in ROOT.rglob("*.py"):
+        relative = path.relative_to(ROOT)
+        first = relative.parts[0]
+        if first in _NOT_OURS or first.startswith("."):
+            continue
+        if len(relative.parts) == 1:
+            continue
+        roots.add(first)
+    return roots
+
+
+def test_the_sast_scope_covers_every_python_root() -> None:
+    """Semgrep reads every directory holding Python, not a hand-kept subset.
+
+    The README lists "zero Semgrep findings" among the merge-blocking floors, in
+    the same sentence that says the coverage gate measures the real-target
+    adapters as well as the package. The Semgrep scope did not: it named
+    `src tests examples`, so `real_targets/` (the adapters that fetch public
+    documents over the network, and `quotecheck.py`, where this repository's own
+    audit found its flagship defect) and `tools/verify_live_site.py` were the
+    Python nothing scanned. A gate whose green means "found nothing" in the code
+    it read, while the claim beside it is about the repository, is the shape this
+    suite exists to catch.
+
+    Deriving the required set from the tree is the point. A hardcoded list would
+    reproduce the defect the moment a new directory appeared.
+    """
+    command = _semgrep_command()
+    _, _, targets = command.partition("--config p/python")
+    scanned = set(targets.split())
+    roots = _python_roots()
+    assert roots, "no Python roots discovered; this check would be vacuous"
+    missing = sorted(roots - scanned)
+    assert not missing, (
+        f"ci.yml runs Semgrep over {sorted(scanned)}, which does not include {missing}. "
+        f"Every directory holding tracked Python is in scope, or the SAST floor does not "
+        f"mean what README's Quality & Metrics row says it means."
+    )
+    # And nothing is named that does not exist, which would read as coverage the
+    # scan never performed.
+    for target in sorted(scanned):
+        assert (ROOT / target).is_dir(), f"ci.yml scans {target!r}, which is not a directory"
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: str(p.name))
 def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
     workflow = yaml.safe_load(path.read_text("utf-8"))

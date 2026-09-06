@@ -222,7 +222,13 @@ jobs:
           version: "0.11.29"
           python-version: "3.12"
       - name: Semgrep
-        run: uvx --from semgrep==1.168.0 semgrep scan --error --metrics off --config p/python src tests examples
+        # Scope: every top-level directory holding tracked Python, not a hand-kept subset.
+        # `real_targets/` and `tools/` were outside this list while the README counted
+        # "zero Semgrep findings" among the merge-blocking floors, so the adapters that
+        # fetch public documents over the network, and the live-site checker, were the
+        # code SAST did not read. `test_the_sast_scope_covers_every_python_root` derives
+        # the required set from the tree and fails when a new root appears.
+        run: uvx --from semgrep==1.168.0 semgrep scan --error --metrics off --config p/python src tests examples real_targets tools
 
   zizmor:
     runs-on: ubuntu-latest
