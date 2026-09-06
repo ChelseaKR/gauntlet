@@ -151,9 +151,18 @@ def _gate_entry(gate: dict[str, object]) -> dict[str, object]:
 
 
 def build_evidence_pack(
-    run: dict[str, object], baseline: dict[str, object] | None = None
+    run: dict[str, object],
+    baseline: dict[str, object] | None = None,
+    history: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Assemble the versioned evidence pack from a result set."""
+    """Assemble the versioned evidence pack from a result set.
+
+    ``history`` is the report from ``gauntlet history check`` over a run
+    ledger. It is absent from the pack unless one was supplied: a key reading
+    ``"history": null`` in every pack ever rendered would change the bytes of
+    every committed pack to say that a thing nobody asked for was not done,
+    and the packs under ``real_targets/`` are byte-compared by a test.
+    """
     gates = _dicts(run.get("gates"))
     gate_entries = [_gate_entry(gate) for gate in gates]
     cases_total = sum(_int(gate.get("total")) for gate in gates)
@@ -171,7 +180,7 @@ def build_evidence_pack(
     withheld = _str(run.get("verdict_withheld")) or (NO_GATE_RAN if not gates else "")
     passed = bool(gates) and gates_passed == len(gates) and not withheld
     provenance = _provenance(run.get("provenance"))
-    return {
+    pack: dict[str, object] = {
         "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
         "results_schema_version": RESULTS_SCHEMA_VERSION,
         "alignment_notice": ALIGNMENT_NOTICE,
@@ -212,6 +221,9 @@ def build_evidence_pack(
         "disclosure_basis": [reference.to_dict() for reference in DISCLOSURE_BASIS],
         "drift": None if baseline is None else compare_runs(baseline, run),
     }
+    if history is not None:
+        pack["history"] = history
+    return pack
 
 
 def github_output_lines(pack: dict[str, object]) -> list[str]:

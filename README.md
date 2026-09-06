@@ -227,6 +227,53 @@ Each pack carries a `results_digest`: a sha256 over what the run observed, with
 the clock deliberately excluded. Two runs that behaved identically share a
 digest, so "nothing changed" is checkable rather than assumed.
 
+## A sequence of runs, not just a pair
+
+`--baseline` compares this run to one other run. A team running the gates on
+every pull request has a sequence, and a sequence answers different questions:
+has a gate declined three runs running while staying above its threshold, did a
+case flip to failing and never come back.
+
+```console
+uv run gauntlet history append --results results.json --ledger runs.jsonl
+uv run gauntlet history check --ledger runs.jsonl
+uv run gauntlet history check --ledger runs.jsonl --decline-streak 5 --format json
+uv run gauntlet compare run-a.json run-b.json run-c.json --out compare.md
+uv run gauntlet report results.json --ledger runs.jsonl --out evidence.md
+```
+
+`history check` exits 1 on a finding, the same code a failed gate uses.
+
+Three rules hold this apparatus to the same standard as the rest of the
+harness.
+
+**Nothing is inferred.** A streak is counted and a delta is subtracted. There
+is no trend, no fit, and no projection, because a projection is a claim about
+runs that have not happened.
+
+**A comparison that is not sound is refused rather than made.** When a gate's
+`suite_version` moves between two runs, the two pass rates were computed over
+different case sets. Subtracting them produces a number that looks like drift
+and is arithmetic on a moved denominator, so the step is reported as not
+comparable, is given no delta, and takes no part in any decline streak. For the
+same reason a gate a run never loaded reads `not run` in the comparison matrix,
+never `0 / 0`.
+
+**An edited ledger is detectable.** Each entry carries the SHA-256 of the entry
+before it, over a canonical serialisation. Editing any field of any past entry
+breaks the link at the next one, and the reader refuses the whole ledger naming
+where the chain broke and exits 2, the code that means the harness could not
+run rather than the one that means a gate failed. A ledger is evidence only if a
+changed number can be told from an original one.
+
+The ledger reads no clock. Each entry's `started_at` is copied from the results
+file it was built from, and takes no part in any comparison, streak, or digest,
+exactly as `results_digest` excludes it.
+
+Without `--ledger`, `gauntlet report` renders byte-identically to before: the
+pack carries no `history` key at all rather than one saying that a thing nobody
+asked for was not done.
+
 ## Using the GitHub Action
 
 The action is a composite action usable from any repository. It installs the
