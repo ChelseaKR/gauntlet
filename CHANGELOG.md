@@ -4,6 +4,25 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The SAST gate did not read the code most worth scanning.** `ci.yml` ran
+  Semgrep over `src tests examples`, a hand-kept list, while README's Quality and
+  Metrics row counted "zero Semgrep findings" among the merge-blocking floors,
+  in the same sentence that says the coverage gate measures the real-target
+  adapters as well as the package. It does; Semgrep did not. Eleven tracked
+  Python files sat outside the scan: all of `real_targets/`, including the three
+  adapters that fetch public documents over the network and `quotecheck.py`,
+  where this repository's own audit found its flagship defect, and
+  `tools/verify_live_site.py`, which makes live HTTP requests. The scope now
+  names every directory holding Python, and
+  `test_the_sast_scope_covers_every_python_root` derives the required set from
+  the tree rather than repeating a list, so a new Python directory fails the
+  suite instead of quietly going unscanned. It also refuses a scope naming a
+  directory that does not exist, which would read as coverage the scan never
+  performed. Semgrep finds nothing in the newly covered files: 151 rules over
+  11 files, 0 findings.
+
 ### Added
 
 - **The release workflow refuses to publish from a tag the maintainer did not
