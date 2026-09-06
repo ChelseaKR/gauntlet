@@ -1,11 +1,13 @@
-"""Command-line interface: ``gauntlet run``, ``report``, ``inventory``, ``site``.
+"""Command-line interface: ``gauntlet run``, ``report``, ``inventory``, ``lint``, ``site``.
 
 ``run`` evaluates a target against a directory of case files (or the
 built-in bilingual suites) and writes a results JSON, exiting non-zero if
 any gate fails. ``report`` turns one results JSON (optionally with a
 baseline results JSON for whole-run drift) into the evidence pack, in
 machine-readable JSON or as a human-readable document. ``inventory`` prints
-the gate inventory with counts taken from the loaded suites. ``site``
+the gate inventory with counts taken from the loaded suites. ``lint`` checks a
+case directory statically, contacting nothing, and predicts a run the harness
+would refuse to score. ``site``
 renders the documentation site from the harness: the counts are the
 inventory's, and the evidence excerpts are runs made while it builds.
 
@@ -40,6 +42,7 @@ from gauntlet.inventory import (
     update_marked_block,
 )
 from gauntlet.judge import DEFAULT_JUDGE_REGION, BedrockJudge, Judge, JudgeError, RecordingJudge
+from gauntlet.lint import lint_directory, render_lint_text
 from gauntlet.report import render_json, render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
@@ -257,6 +260,23 @@ def _cmd_inventory(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_lint(args: argparse.Namespace) -> int:
+    """Check a case directory statically, without contacting anything.
+
+    Exit 1 when anything is wrong with the suites, which is the same code a
+    failed gate uses: in both cases the answer is "this does not pass, and the
+    fix is in the repository". Exit 2 stays for lint itself not completing,
+    such as a case file that cannot be read. Warnings do not decide the exit
+    code; they are reported and the command still passes.
+    """
+    report = lint_directory(Path(args.cases))
+    if args.format == "json":
+        print(json.dumps(report.to_dict(), indent=2, sort_keys=False), end="\n")
+    else:
+        print(render_lint_text(report), end="")
+    return 0 if report.ok else 1
+
+
 def _cmd_site(args: argparse.Namespace) -> int:
     written = build_site(
         Path(args.out),
@@ -274,6 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_run_parser(sub)
     _add_report_parser(sub)
     _add_inventory_parser(sub)
+    _add_lint_parser(sub)
     _add_site_parser(sub)
     return parser
 
@@ -343,6 +364,16 @@ def _add_inventory_parser(sub: argparse._SubParsersAction[argparse.ArgumentParse
         "--update", help="rewrite the generated inventory block in this Markdown file"
     )
     inventory_parser.set_defaults(func=_cmd_inventory)
+
+
+def _add_lint_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    lint_parser = sub.add_parser(
+        "lint",
+        help="check a case directory statically, without contacting a target",
+    )
+    lint_parser.add_argument("cases", help="directory of *.yaml case files")
+    lint_parser.add_argument("--format", choices=("text", "json"), default="text")
+    lint_parser.set_defaults(func=_cmd_lint)
 
 
 def _add_site_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

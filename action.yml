@@ -54,6 +54,13 @@ inputs:
     description: Path the machine-readable evidence pack is written to.
     required: false
     default: gauntlet-evidence.json
+  lint-only:
+    description: >-
+      Lint the case directory and stop. No target is contacted, no results file is written,
+      and no evidence pack is built. Linting needs no model and no network, so a repository
+      can run it on every pull request at no cost and keep the full gates on a schedule.
+    required: false
+    default: "false"
   fail-on-gate-failure:
     description: Fail the step when any gate fails. Set to "false" to report without blocking.
     required: false
@@ -127,8 +134,29 @@ runs:
         version: ${{ inputs.uv-version }}
         python-version: ${{ inputs.python-version }}
 
+    - name: Lint the case files
+      id: lint
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GAUNTLET_ACTION_PATH: ${{ github.action_path }}
+        GAUNTLET_CASES: ${{ inputs.cases }}
+        GAUNTLET_LINT_ONLY: ${{ inputs.lint-only }}
+      run: |
+        set -euo pipefail
+        if [ "$GAUNTLET_LINT_ONLY" != "true" ]; then exit 0; fi
+        if [ -z "$GAUNTLET_CASES" ]; then
+          echo "::error::lint-only needs a cases directory; the built-in suites are this action's own, not yours."
+          exit 2
+        fi
+        # No set +e here. Unlike a failing gate, a lint failure has no pack to
+        # build afterwards, so the non-zero exit is the whole result and must
+        # end the job.
+        uv tool run --from "$GAUNTLET_ACTION_PATH" gauntlet lint "$GAUNTLET_CASES"
+
     - name: Run the gates
       id: gates
+      if: inputs.lint-only != 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -173,6 +201,7 @@ runs:
 
     - name: Build the evidence pack
       id: pack
+      if: inputs.lint-only != 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -197,6 +226,7 @@ runs:
           --format json --out "$GAUNTLET_JSON"
 
     - name: Write the evidence document to the job summary
+      if: inputs.lint-only != 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -211,6 +241,7 @@ runs:
         echo "" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Block the merge when a gate failed
+      if: inputs.lint-only != 'true'
       shell: bash
       env:
         GAUNTLET_EXIT: ${{ steps.gates.outputs.gates-exit }}
