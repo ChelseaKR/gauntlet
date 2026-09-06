@@ -6,6 +6,36 @@ All notable changes will be documented here.
 
 ### Added
 
+- **The release workflow refuses to publish from a tag the maintainer did not
+  sign.** Nothing checked before this. A published Release, or a
+  `workflow_dispatch` from any branch, built a wheel labelled `gauntlet-evals`
+  and uploaded it to PyPI, and the only thing between an arbitrary ref and the
+  public index was that nobody had dispatched one. A `verify-tag` job now runs
+  first and gates both later jobs: it resolves the tag from the event, requires
+  an annotated tag object whose SSH signature verifies against the committed
+  `.github/allowed_signers`, and requires that tag to name the commit the run
+  is building. `build` then checks out that commit rather than the event ref,
+  because a signature check that does not bind to what gets built proves only
+  that some tag was signed. `publish` attests SLSA build provenance for the
+  exact files it is about to upload.
+
+  Nothing is grandfathered. `v0.1.0`, this project's only release, was cut as a
+  signed annotated tag and verifies against the committed key today, so
+  `GRANDFATHERED_TAGS` is empty and every tag this repository carries is
+  checked. The exemption mechanism is still exercised against a throwaway tag,
+  because an empty list that nothing tests is indistinguishable from a feature
+  that stopped working, and the list may hold only literal `vX.Y.Z` names: `v*`
+  fails the gate rather than exempting every future release.
+
+  `tests/test_release_tag_gate.py` runs the committed script in a throwaway
+  repository, with throwaway keys, against tags that are unsigned, lightweight,
+  signed by a key nobody trusts, absent, and correct but naming a different
+  commit than the one being built. Replacing the script with `exit 0` fails
+  twelve of its cases. The fixture asserts each malformed tag really is
+  malformed first: written on a machine carrying `tag.gpgSign = true`, git
+  silently signed the tag that exists to be unsigned, and the rejection case
+  passed while testing nothing.
+
 - **A recording carries what the harness verified, not only what the target
   said.** A raw log held the target's responses and nothing about the quote
   checks the harness ran against the cited public documents, so a replay of one

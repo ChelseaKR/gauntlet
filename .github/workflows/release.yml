@@ -2,10 +2,30 @@
 # API token is ever created, stored, or rotated. PyPI verifies the claim that
 # this workflow, in this repository, on this environment, produced the upload.
 #
+# Nothing runs until `verify-tag` says the tag naming this release is one the
+# maintainer signed. That check did not exist here until 2026-09-06: a
+# published Release, or a `workflow_dispatch` from any branch, built a wheel
+# labelled `gauntlet-evals` and uploaded it, and the only thing standing
+# between an arbitrary ref and PyPI was that nobody had dispatched one. The
+# signature is checked against `.github/allowed_signers`, a public key
+# committed in this repository and read at the ref being verified, so trusting
+# it is the same trust decision as running this workflow's own code.
+#
+# Nothing is grandfathered. `v0.1.0`, this project's only release, was cut as
+# a signed annotated tag and verifies against the committed key today, so
+# `GRANDFATHERED_TAGS` is empty and every tag this repository has ever carried
+# is checked. `.github/verify-release-tag.sh` still supports the list, and
+# `tests/test_release_tag_gate.py` proves the emptiness is real rather than a
+# rule that happens never to run: it exercises the exemption path against a
+# throwaway tag and holds the workflow's list equal to its own.
+#
 # The build job re-runs the same gates as `make verify` before anything is
 # uploaded: a release that cannot pass CI must not reach PyPI. Artifacts are
 # built once and handed to the publish job, so the files that were verified are
-# byte-for-byte the files that get uploaded.
+# byte-for-byte the files that get uploaded, and the publish job attests build
+# provenance for exactly those bytes before it uploads them. A consumer can
+# then ask GitHub which run produced a wheel rather than asking PyPI:
+# `gh attestation verify gauntlet_evals-*.whl --owner ChelseaKR`.
 #
 # One-time setup on PyPI (nothing to do here, and no secret to add):
 #   https://pypi.org/manage/account/publishing/  ->  add a pending publisher
@@ -29,12 +49,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.verify.outputs.tag }}
+      commit: ${{ steps.verify.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history and tags: the tag object being verified has to be
+          # present locally for `git verify-tag` to read its signature.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The release tag is signed by a key this repository trusts
+        id: verify
+        env:
+          # Routed through `env:` rather than interpolated into the script. A
+          # tag name is `github` context data and carries no guarantee about
+          # shell metacharacters.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          EXPECT_COMMIT: ${{ github.sha }}
+          ALLOWED_SIGNERS: .github/allowed_signers
+          # Empty on purpose: see this file's header.
+          GRANDFATHERED_TAGS: ""
+        run: bash .github/verify-release-tag.sh
+
   build:
+    needs: [verify-tag]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The commit the verified tag names, not the ref the event carried.
+          # Otherwise the signature check proves that some tag was signed
+          # while this job builds something else.
+          ref: ${{ needs.verify-tag.outputs.commit }}
           persist-credentials: false
       # No cache. The artifacts this job uploads are the ones that get published,
       # and a restored cache is an input to them that a pull request could have
@@ -64,7 +119,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [verify-tag, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -72,11 +127,19 @@ jobs:
       url: https://pypi.org/p/gauntlet-evals
     permissions:
       id-token: write # the OIDC claim Trusted Publishing verifies; no token needed
+      attestations: write # SLSA build provenance for the files uploaded below
     steps:
       - name: Download built distributions
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dist
           path: dist/
+      # Attested here rather than in `build` so the subject is the file this
+      # job is about to upload, after the artifact round trip, rather than a
+      # file that was equal to it before one.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: "dist/*"
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
