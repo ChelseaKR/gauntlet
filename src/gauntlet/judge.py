@@ -473,8 +473,23 @@ class Calibration:
         }
 
 
-def _why_not(calibration_set: CalibrationSet, min_agreement: float) -> str:
-    """The structural reasons a set cannot calibrate a judge, before any grading."""
+def structural_problems(calibration_set: CalibrationSet) -> list[str]:
+    """Every reason this set cannot calibrate a judge, before any grading.
+
+    Public because it is the definition of an acceptable calibration set, and
+    a second reading of that definition is a second thing to keep in step. It
+    was not kept in step: ``gauntlet calibrate --check`` had its own opinion,
+    which stopped at the seal, so a sealed set of four pairs and a sealed set
+    of eight pairs all labeled ``meets`` both printed "sealed" and exited 0
+    while every judged run against them was still WITHHELD. A reviewer who did
+    the whole labeling session and asked the harness whether it had worked was
+    told yes. Both of those states appear below, and ``describe`` now reads
+    this list rather than a paraphrase of part of it.
+
+    ``min_agreement`` is deliberately not an argument: it is a property of the
+    suite that loads the set, not of the set, so a checker holding only the
+    file can answer everything here and nothing about that.
+    """
     problems: list[str] = []
     if not calibration_set.reviewed:
         problems.append(
@@ -507,6 +522,16 @@ def _why_not(calibration_set: CalibrationSet, min_agreement: float) -> str:
             "the labeled pairs do not include both verdicts; a judge that was never shown a "
             "violation has not been tested on one"
         )
+    return problems
+
+
+def _why_not(calibration_set: CalibrationSet, min_agreement: float) -> str:
+    """The structural reasons a run's judge gate refuses, as one sentence.
+
+    :func:`structural_problems` plus the one condition that is not about the
+    set at all.
+    """
+    problems = structural_problems(calibration_set)
     if not 0.0 < min_agreement <= 1.0:
         problems.append("min_agreement must be above 0 and at most 1")
     return "; ".join(problems)

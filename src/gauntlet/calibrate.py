@@ -42,6 +42,7 @@ from gauntlet.judge import (
     JudgeError,
     compute_seal,
     load_calibration,
+    structural_problems,
 )
 
 CONFIRMATION = "I am a human reviewer"
@@ -294,25 +295,33 @@ def changed_labels(before: CalibrationSet, after: CalibrationSet) -> tuple[str, 
 
 
 def describe(calibration_set: CalibrationSet) -> tuple[bool, str]:
-    """Whether the set is signed and sealed as it stands, and a sentence saying so."""
-    count = f"{len(calibration_set.pairs)} pairs"
-    if not calibration_set.reviewed:
-        return False, f"{calibration_set.name} v{calibration_set.version}: {count}, unreviewed"
+    """Whether the judge gate would accept this set as it stands, and why not.
+
+    The verdict is :func:`gauntlet.judge.structural_problems` -- the list the
+    gate itself refuses on -- and not a second reading of it. Until 2026-09-07
+    this function had its own, which stopped at the seal, so ``--check``
+    reported a pass on two sets the gate refuses: a sealed set below
+    ``MIN_CALIBRATION_PAIRS``, and a sealed set whose labels are all one
+    verdict. Doing the labeling session and then asking the harness whether it
+    had worked is exactly when a reviewer needs to hear about either.
+
+    Agreement is not checked here and cannot be: it needs the judge, a model,
+    and the suite's ``min_agreement``. This answers everything a person holding
+    only the file can be told, and the sentence says which half it answered.
+    """
+    problems = structural_problems(calibration_set)
+    header = (
+        f"{calibration_set.name} v{calibration_set.version}: {len(calibration_set.pairs)} pairs"
+    )
+    if problems:
+        return False, "\n".join(
+            [f"{header}. The judge gate will not accept this set:", *(f"  - {p}" for p in problems)]
+        )
     signer = f"labeled by {calibration_set.labeled_by}" + (
         f" on {calibration_set.labeled_on}" if calibration_set.labeled_on else ""
     )
-    if not calibration_set.seal:
-        return False, (
-            f"{calibration_set.name} v{calibration_set.version}: {count}, {signer}, NO SEAL. "
-            "A name without a seal was typed in by hand; the judge gate will not accept it."
-        )
-    if not calibration_set.sealed:
-        return False, (
-            f"{calibration_set.name} v{calibration_set.version}: {count}, {signer}, "
-            "SEAL DOES NOT MATCH. The labels changed after they were sealed; the judge gate "
-            "will not accept them until a person seals them again."
-        )
     return True, (
-        f"{calibration_set.name} v{calibration_set.version}: {count}, {signer}, sealed "
-        f"({calibration_set.seal}). The seal is tamper evidence, not authentication."
+        f"{header}, {signer}, sealed ({calibration_set.seal}). The seal is tamper "
+        "evidence, not authentication. Whether the judge agrees with these labels is "
+        "measured by a run, not here."
     )
