@@ -1,0 +1,15 @@
+# Fingerprints gitleaks must not report. One line per finding, and each line
+# pins a single commit, file, rule and line number -- it suppresses that exact
+# finding and nothing else. A rule is never disabled and no path is widened;
+# a real credential in the same file, or the same string in another commit,
+# still fails the scan.
+#
+# db62fe3 introduced tests/test_integrity.py with a 32-hex fixture key for the
+# HMAC signing tests. gitleaks read it as generic-api-key at entropy 3.91,
+# which is the correct call on the bytes it saw: a random-looking hex string of
+# key length is indistinguishable from a leaked credential. The fixture was
+# replaced in the next commit with self-describing ASCII of the same length, so
+# the value is absent from the branch tip and from anything that merges. This
+# entry covers only the superseded commit, and squash-merging this branch
+# retires it: the SHA will not exist on main, and the line can be deleted.
+db62fe3df6086c596d55761231ad18b43319cb9a:tests/test_integrity.py:generic-api-key:47
