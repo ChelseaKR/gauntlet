@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gauntlet-evals"
-version = "0.1.0"
+version = "0.2.0"
 description = "CI-runnable evaluation gates for generative AI features, with evidence mapped to California's published GenAI risk and procurement framework."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -11,8 +11,9 @@
 # committed in this repository and read at the ref being verified, so trusting
 # it is the same trust decision as running this workflow's own code.
 #
-# Nothing is grandfathered. `v0.1.0`, this project's only release, was cut as
-# a signed annotated tag and verifies against the committed key today, so
+# Nothing is grandfathered. `v0.1.0`, the only release that existed when this
+# gate was written, was cut as a signed annotated tag and verifies against the
+# committed key today, so
 # `GRANDFATHERED_TAGS` is empty and every tag this repository has ever carried
 # is checked. `.github/verify-release-tag.sh` still supports the list, and
 # `tests/test_release_tag_gate.py` proves the emptiness is real rather than a

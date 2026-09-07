@@ -41,8 +41,8 @@ ALLOWED_SIGNERS = ROOT / ".github" / "allowed_signers"
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 # Tags cut before the gate existed, which it therefore does not verify. Empty
-# here: v0.1.0, this project's only release, was signed and verifies against
-# the committed key today, so nothing needs exempting. Held equal to the
+# here: v0.1.0, the only release that predates this gate, was signed and
+# verifies against the committed key today, so nothing needs exempting. Held equal to the
 # workflow's own list below, because a test that exempts a different set than
 # CI exempts is a test of a gate nobody runs.
 GRANDFATHERED: tuple[str, ...] = ()

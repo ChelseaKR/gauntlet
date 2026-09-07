@@ -4,6 +4,26 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] - 2026-09-07
+
+The second release, and the first one cut with the release-tag gate in front of
+it: `.github/verify-release-tag.sh` refuses any tag that is not an annotated,
+signed tag naming the commit being built, and nothing is grandfathered.
+
+What is new since 0.1.0, in one sentence each. `gauntlet run --record` /
+`--replay` makes a merge gate that opens no socket. `gauntlet verify` and
+`gauntlet sign` make an edited evidence pack detectable and give it an author.
+`gauntlet calibrate` is the one thing that writes `labeled_by`, and it seals
+what a reviewer signed. `gauntlet history` and `gauntlet compare` read a
+sequence of runs rather than a pair. `gauntlet lint` speaks before the requests
+are paid for. Suites declare their own languages, so a case in Arabic is a case
+rather than a loader error. And `real_targets/` gained a fourth target, the
+first whose pack anybody can regenerate: `ChelseaKR/sprout`, recorded in
+[ADR 0003](docs/adr/0003-sprout-is-the-reference-target.md) as this harness's
+reference target.
+
 ### Fixed
 
 - **The SAST gate did not read the code most worth scanning.** `ci.yml` ran
@@ -114,11 +134,11 @@ All notable changes will be documented here.
   that some tag was signed. `publish` attests SLSA build provenance for the
   exact files it is about to upload.
 
-  Nothing is grandfathered. `v0.1.0`, this project's only release, was cut as a
-  signed annotated tag and verifies against the committed key today, so
-  `GRANDFATHERED_TAGS` is empty and every tag this repository carries is
-  checked. The exemption mechanism is still exercised against a throwaway tag,
-  because an empty list that nothing tests is indistinguishable from a feature
+  Nothing is grandfathered. `v0.1.0`, the only release that predates the gate,
+  was cut as a signed annotated tag and verifies against the committed key
+  today, so `GRANDFATHERED_TAGS` is empty and every tag this repository
+  carries is checked. The exemption mechanism is still exercised against a
+  throwaway tag, because an empty list that nothing tests is indistinguishable from a feature
   that stopped working, and the list may hold only literal `vX.Y.Z` names: `v*`
   fails the gate rather than exempting every future release.
 
