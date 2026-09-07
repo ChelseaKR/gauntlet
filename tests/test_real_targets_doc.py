@@ -36,6 +36,7 @@ TARGET_SLUGS = {
     "permit-bearings": "permit_bearings",
     "mrf-honest": "mrf_honest",
     "fhir-scorecard": "fhir_scorecard",
+    "sprout": "sprout",
 }
 
 # A backticked bare result-set filename. Paths and globs are deliberately not
@@ -145,7 +146,7 @@ def test_the_documents_case_count_and_verdict_match_the_pack(pack: Path) -> None
 # than zero": a table that stops parsing, or a row whose shape drifts out of
 # _GATE_ROW, would otherwise leave this file green over a fraction of the
 # document.
-EXPECTED_GATE_ROWS = 15
+EXPECTED_GATE_ROWS = 20
 
 
 def _gate_rows() -> list[tuple[Path, str, int, int, str]]:

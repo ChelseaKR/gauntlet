@@ -1,5 +1,16 @@
 # Contributing
 
+## If you are not here to write code
+
+Two things in this project cannot be settled by running it, and neither needs a
+development setup. Nobody has read the published pages with a screen reader
+(issue #35), and nobody on the procurement side has read the California mapping
+table (issue #34, open question 3 in SCOPE.md).
+
+[docs/HELP-WANTED.md](docs/HELP-WANTED.md) says what each costs in real minutes,
+what one page or one row buys, and what you get. One page, or one row, is a
+whole contribution.
+
 Read [SCOPE.md](SCOPE.md), [SECURITY.md](SECURITY.md), and
 [docs/california-mapping.md](docs/california-mapping.md) before proposing
 changes.

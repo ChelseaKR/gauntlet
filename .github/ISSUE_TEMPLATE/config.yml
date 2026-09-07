@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security concern
+    url: https://github.com/ChelseaKR/gauntlet/blob/main/SECURITY.md
+    about: Report privately to the repository owner rather than opening a public issue.
+  - name: What one hour of your time would unblock
+    url: https://github.com/ChelseaKR/gauntlet/blob/main/docs/HELP-WANTED.md
+    about: The two things here that a person has to do, what each costs, and what you get.

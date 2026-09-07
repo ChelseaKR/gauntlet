@@ -24,10 +24,13 @@ evidence packs applies to it as well: treat it like production logs.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from gauntlet.targets import TargetError
 
 
 def _now() -> str:
@@ -88,3 +91,28 @@ class RawLog:
         if self.write_path is not None:
             out["raw_log"] = str(self.write_path)
         return out
+
+
+def replayed_or_produced(
+    log: RawLog, key: str, produce: Callable[[], dict[str, Any]]
+) -> dict[str, Any]:
+    """The payload for ``key`` from the recording when replaying, else fresh and recorded.
+
+    Every adapter that can be replayed needs exactly this, and the rule that
+    matters is the middle branch: replaying with no entry for a key raises
+    rather than falling through to the target. A replay that quietly contacted
+    the system it is replaying would be a live run wearing a recording's
+    provenance, and the pack would say ``replayed_from`` about a measurement
+    that was made fresh.
+    """
+    entry = log.lookup(key)
+    if entry is not None:
+        payload = entry["payload"]
+        if not isinstance(payload, dict):
+            raise TargetError(f"replay entry for {key!r} is not an object")
+        return payload
+    if log.replaying:
+        raise TargetError(f"replaying, and the recording has no entry for {key!r}")
+    payload = produce()
+    log.record(key, {"payload": payload})
+    return payload
