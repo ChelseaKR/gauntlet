@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 
+from gauntlet.bidi import isolate
 from gauntlet.evidence import ALIGNMENT_NOTICE, CLEAN_RUN_CAVEAT
 from gauntlet.results import PROVENANCE_MEANING
 
@@ -76,8 +77,16 @@ def _bool(value: object) -> bool:
 
 
 def _cell(text: object) -> str:
-    """Make a value safe to place in a Markdown table cell."""
-    return _str(text).replace("|", "\\|").replace("\n", " ").strip()
+    """Make a value safe to place in a Markdown table cell.
+
+    Right-to-left content is wrapped in a directional isolate. Without one, an
+    Arabic case id sitting next to a Latin gate name and a ``|`` delimiter is
+    laid out as a single bidirectional paragraph, and the reader sees the row's
+    columns in an order the file does not have. Text with no strong RTL
+    character is returned unchanged, so every existing pack renders byte for
+    byte as it did.
+    """
+    return isolate(_str(text).replace("|", "\\|").replace("\n", " ").strip())
 
 
 def _verdict(passed: bool) -> str:
