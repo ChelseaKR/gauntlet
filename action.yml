@@ -35,6 +35,15 @@ inputs:
       working-directory. Mutually exclusive with target-url.
     required: false
     default: ""
+  replay:
+    description: >-
+      Path to a recording written by `gauntlet run --record`. When set, the gates are graded
+      from that recording and no target is contacted, so the job is deterministic and free.
+      Mutually exclusive with target-url and target-callable. A case the recording does not
+      hold fails the run rather than being skipped, and the pack's provenance names the
+      recording and its sha256 so it cannot be read as a live measurement.
+    required: false
+    default: ""
   baseline:
     description: >-
       Path to an earlier results JSON. When present, the evidence pack reports whole-run
@@ -170,17 +179,23 @@ runs:
         GAUNTLET_CASES: ${{ inputs.cases }}
         GAUNTLET_URL: ${{ inputs.target-url }}
         GAUNTLET_CALLABLE: ${{ inputs.target-callable }}
+        GAUNTLET_REPLAY: ${{ inputs.replay }}
         GAUNTLET_RESULTS: ${{ inputs.results-path }}
       run: |
         set -euo pipefail
-        if [ -n "$GAUNTLET_URL" ] && [ -n "$GAUNTLET_CALLABLE" ]; then
-          echo "::error::set at most one of target-url or target-callable"
+        chosen=0
+        for value in "$GAUNTLET_URL" "$GAUNTLET_CALLABLE" "$GAUNTLET_REPLAY"; do
+          if [ -n "$value" ]; then chosen=$((chosen + 1)); fi
+        done
+        if [ "$chosen" -gt 1 ]; then
+          echo "::error::set at most one of target-url, target-callable or replay"
           exit 2
         fi
         args=(run)
         if [ -n "$GAUNTLET_CASES" ]; then args+=(--cases "$GAUNTLET_CASES"); fi
         if [ -n "$GAUNTLET_URL" ]; then args+=(--http-url "$GAUNTLET_URL"); fi
         if [ -n "$GAUNTLET_CALLABLE" ]; then args+=(--callable "$GAUNTLET_CALLABLE"); fi
+        if [ -n "$GAUNTLET_REPLAY" ]; then args+=(--replay "$GAUNTLET_REPLAY"); fi
         args+=(--out "$GAUNTLET_RESULTS")
         # A failing gate is the expected outcome of a working gate, so the
         # non-zero exit must not abort this step: the evidence pack that

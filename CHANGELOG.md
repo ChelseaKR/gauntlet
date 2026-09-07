@@ -25,6 +25,25 @@ All notable changes will be documented here.
 
 ### Added
 
+- **`gauntlet run --record` / `--replay`: a merge gate that contacts nothing.**
+  The judge has had `--judge-record` / `--judge-replay` since M4, and
+  `real_targets/rawlog.py` does the same by hand for the three committed
+  real-target packs, but `gauntlet run` could not record an arbitrary target.
+  `--record` writes every exchange as JSON Lines; `--replay` grades that file and
+  opens no socket, asserted by blocking `socket.socket`. Record and replay share
+  a `results_digest`. A replay may not pass as a live run: the recorded
+  provenance travels inside the recording and is what the replayed run reports,
+  *including its date*, because stamping today on last month's answers would name
+  a measurement nobody took. `replayed_from` and `recording_sha256` are added on
+  top. A case the recording does not hold is exit 2 with no results file, never a
+  skip; `--replay` refuses to combine with `--http-url`, `--callable`, or
+  `--record`. The header carries a sha256 over the exact bytes of the exchanges
+  and a count of them, and both are recomputed on load, so an edited or truncated
+  recording is refused rather than graded. A recording that answered one prompt
+  two ways is refused rather than resolved by picking one. A run that never
+  reaches the target leaves no recording, for the reason it leaves no results
+  file. The action gains a `replay` input.
+
 - **`gauntlet verify` and `gauntlet sign`: an edited pack is now detectable.**
   Every pack has carried a `results_digest` since M3, and nothing ever checked
   it. An `evidence.json` whose `pass_rate` was changed from `0.333` to `1.0`

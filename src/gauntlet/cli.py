@@ -23,6 +23,9 @@ applies to the zero-configuration demo: supplying ``--cases`` without a target
 is a misconfiguration, not a request to evaluate a fictional city's toy
 assistant, and it is refused rather than answered with a green verdict.
 
+``run --record FILE`` writes every exchange; ``run --replay FILE`` grades that
+recording and contacts nothing, so a merge gate can be deterministic and free.
+
 Exit codes: 0 a clean run, 1 a gate below its threshold, 2 the harness itself
 could not run, 3 evidence that does not reconcile, 4 the run could not be
 scored.
@@ -73,6 +76,7 @@ from gauntlet.inventory import (
 )
 from gauntlet.judge import DEFAULT_JUDGE_REGION, BedrockJudge, Judge, JudgeError, RecordingJudge
 from gauntlet.lint import lint_directory, render_lint_text
+from gauntlet.recording import RecordingTarget, ReplayTarget, load_recording
 from gauntlet.report import render_compare_markdown, render_json, render_markdown
 from gauntlet.results import RunResult, load_run_dict, now_iso, run_summary_lines
 from gauntlet.site import build_site
@@ -153,9 +157,21 @@ def _assemble_provenance(
 
 
 def _select_target(args: argparse.Namespace) -> Target:
-    chosen = [bool(args.http_url), bool(args.callable)]
+    replay = getattr(args, "replay", None)
+    record = getattr(args, "record", None)
+    chosen = [bool(args.http_url), bool(args.callable), bool(replay)]
     if sum(chosen) > 1:
-        raise ValueError("choose at most one of --http-url or --callable")
+        # A replay contacts nothing, so naming a live target beside it asks for
+        # two different runs at once. Silently preferring either one would put a
+        # verdict about one system under the other one's name.
+        raise ValueError("choose at most one of --http-url, --callable or --replay")
+    if replay:
+        if record:
+            raise ValueError(
+                "--record and --replay together would copy a recording under a new digest "
+                "without contacting anything; record from a target, replay from a file"
+            )
+        return ReplayTarget(load_recording(Path(replay)))
     if args.http_url:
         return HttpTarget(url=args.http_url)
     if args.callable:
@@ -231,7 +247,15 @@ def _cmd_run(args: argparse.Namespace) -> int:
     suites = _select_suites(args.cases)
     judge = _select_judge(args)
     out_path = _claim_out_path(args.out) if args.out else None
+    recorder = RecordingTarget(target, Path(args.record)) if args.record else None
+    if recorder is not None:
+        target = recorder
     gates = tuple(run_suite(suite, target, judge) for suite in suites)
+    # Written only once every suite has answered. A run that stops partway
+    # leaves no recording, for the reason it leaves no results file: half a
+    # measurement replayed later reads exactly like a whole one.
+    if recorder is not None:
+        print(f"recorded {recorder.exchanges} exchanges to {recorder.close()}")
     scored = RunResult(target=target.name, gates=gates, started_at=now_iso())
     withheld = unscoreable_reason(scored, suites) or judge_withheld_reason(scored)
     # The reason travels with the results file, so a pack rendered from it
@@ -492,6 +516,16 @@ def _add_run_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     run_parser.add_argument(
         "--judge-replay",
         help="take judge verdicts from this recording instead of a model; no model is called",
+    )
+    run_parser.add_argument(
+        "--record",
+        help="write every request and response to this JSON Lines file, so a later run can "
+        "be graded from the recording instead of the target",
+    )
+    run_parser.add_argument(
+        "--replay",
+        help="grade this recording instead of contacting a target; no socket is opened, and "
+        "the pack's provenance names the recording and its sha256",
     )
     run_parser.add_argument(
         "--provenance",
