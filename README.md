@@ -718,8 +718,8 @@ included.
 
 ## Status
 
-Milestones 1 through 4 are implemented, and `v0.1.0` is tagged and published as
-the distribution `gauntlet-evals`:
+Milestones 1 through 4 are implemented, and Gauntlet is published as the
+distribution `gauntlet-evals`:
 
 ```console
 pip install gauntlet-evals
