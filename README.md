@@ -227,6 +227,40 @@ Each pack carries a `results_digest`: a sha256 over what the run observed, with
 the clock deliberately excluded. Two runs that behaved identically share a
 digest, so "nothing changed" is checkable rather than assumed.
 
+## Recording a run, and grading the recording
+
+A merge gate that reaches a live service is not deterministic, spends budget on
+every push, and cannot be reproduced by a reviewer reading the pull request.
+Record once; grade the recording thereafter.
+
+```console
+$ gauntlet run --http-url https://example.invalid/eval --record raw.jsonl --out results.json
+recorded 66 exchanges to raw.jsonl
+
+$ gauntlet run --replay raw.jsonl --out results.json     # contacts nothing
+```
+
+Record and replay produce the same `results_digest`, which excludes the clock,
+so "the recording still grades the same way" is checkable rather than assumed.
+
+A replay is not allowed to pretend to be a live run:
+
+- **Provenance travels inside the recording**, including its `date`. A replay
+  reports the date the target answered, not today's, because today's date on
+  last month's answers names a measurement nobody took. `replayed_from` and
+  `recording_sha256` are added on top, so a pack built from a recording says so.
+- **A case the recording does not hold is exit 2 with no results file**, never a
+  skip. `--replay` refuses to be combined with `--http-url` or `--callable`.
+- **An edited recording is refused.** The header carries a sha256 over the exact
+  bytes of the exchanges beneath it and a count of them; a replay recomputes
+  both. A recording is evidence only if a changed answer can be told from an
+  original one.
+- **A recording that answered one prompt two ways is refused**, rather than
+  resolved by picking one: the target was not deterministic over that run, and
+  no single replay of it is faithful.
+
+The action takes `replay:` for the same purpose.
+
 ## Checking a pack you were handed
 
 A pack is evidence only if an edited number can be told from an original one.
