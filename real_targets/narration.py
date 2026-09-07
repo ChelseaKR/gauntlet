@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from gauntlet.targets import TargetError, TargetResponse
+from gauntlet.targets import TargetResponse
 from real_targets.quotecheck import (
     DocumentCache,
     QuoteCheck,
@@ -27,7 +27,7 @@ from real_targets.quotecheck import (
     not_found_note,
     tally,
 )
-from real_targets.rawlog import RawLog
+from real_targets.rawlog import RawLog, replayed_or_produced
 
 
 @dataclass
@@ -88,18 +88,13 @@ def ledger_from_env(prefix: str) -> NarrationLedger:
 def recorded_or_fresh(
     ledger: NarrationLedger, key: str, produce: Callable[[], dict[str, Any]]
 ) -> dict[str, Any]:
-    """The narration for ``key`` from the recording when replaying, else fresh and recorded."""
-    entry = ledger.raw_log.lookup(key)
-    if entry is not None:
-        payload = entry["payload"]
-        if not isinstance(payload, dict):
-            raise TargetError(f"replay entry for {key!r} is not an object")
-        return payload
-    if ledger.raw_log.replaying:
-        raise TargetError(f"replaying, and the recording has no entry for {key!r}")
-    narration = produce()
-    ledger.raw_log.record(key, {"payload": narration})
-    return narration
+    """The narration for ``key`` from the recording when replaying, else fresh and recorded.
+
+    The rule is not narration-specific, so it lives on the log
+    (``rawlog.replayed_or_produced``) and every adapter shares one
+    implementation. This wrapper is what the two narration adapters call.
+    """
+    return replayed_or_produced(ledger.raw_log, key, produce)
 
 
 # A claim labeled with an unassessed dimension is not a rendered value when

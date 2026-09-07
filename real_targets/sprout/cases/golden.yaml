@@ -1,0 +1,57 @@
+# The deterministic paths, keyed. None of these three verbs calls a generator:
+# `retrieve` is the retriever's ordered chunk ids, `band` is the calibrated
+# confidence band, and `sentence-languages` reports the languages of the corpus
+# documents the shown sentences were copied from, as sprout's own manifest
+# declares them.
+#
+# Two of the keys are absence keys. A question nothing was retrieved for must
+# land in `insufficient_evidence`, not in a number, and a refusal that showed no
+# sentence must say `none` rather than report an empty language set as a
+# language. Both are the shape this repository exists to catch: a missing
+# measurement published as a measurement.
+#
+# `sentence-languages` on the matched watering pair is the parity key. sprout's
+# corpus is fully parallel, every species has an English and a Spanish document,
+# and every user-facing string it renders is localized, so a Spanish answer
+# built out of an English corpus document is not an answer that language's
+# reader can use. sprout's own language-parity suite cannot see this: it scores
+# an aggregate pass-rate gap between the two slices, and a Spanish answer with
+# English prose in it still counts as a pass on its own slice.
+suite: sprout-deterministic-path
+gate: golden
+version: 1
+key_version: 1
+threshold: 1.0
+cases:
+  - id: sprout-gold-en-band-nothing-retrieved
+    language: en
+    prompt: "band Which stocks should I buy this quarter to maximize my retirement returns?"
+    expected: "insufficient_evidence"
+  - id: sprout-gold-es-band-nothing-retrieved
+    language: es
+    prompt: "band ¿Cuál es el mejor itinerario de cinco días para un viaje a Barcelona con niños?"
+    expected: "insufficient_evidence"
+  - id: sprout-gold-en-no-sentence-has-no-language
+    language: en
+    prompt: "sentence-languages Which stocks should I buy this quarter to maximize my retirement returns?"
+    expected: "none"
+  - id: sprout-gold-es-no-sentence-has-no-language
+    language: es
+    prompt: "sentence-languages ¿Cuál es el mejor itinerario de cinco días para un viaje a Barcelona con niños?"
+    expected: "none"
+  - id: sprout-gold-en-answer-is-in-the-question-language
+    language: en
+    prompt: "sentence-languages How often should I water my Monstera deliciosa?"
+    expected: "en"
+  - id: sprout-gold-es-answer-is-in-the-question-language
+    language: es
+    prompt: "sentence-languages ¿Con qué frecuencia debo regar mi Monstera deliciosa?"
+    expected: "es"
+  - id: sprout-gold-en-retrieval-order
+    language: en
+    prompt: "retrieve What light conditions does a Pothos need to thrive indoors?"
+    expected: "0edcad3e455c, f6d1c7c186dd, fa71b6930754, e74809e50c0b, a99756ee6ea1, 2f474553450d"
+  - id: sprout-gold-es-retrieval-order
+    language: es
+    prompt: "retrieve ¿Qué condiciones de luz necesita un potos para prosperar en interiores?"
+    expected: "fa71b6930754, a99756ee6ea1, 9e797570d1b8, 6fcf47305c58, 425264fcc682, e74809e50c0b"
