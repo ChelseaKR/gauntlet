@@ -27,7 +27,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gauntlet.cases import (
-    LANGUAGES,
     CaseFileError,
     Suite,
     load_suite_text,
@@ -182,22 +181,45 @@ def _judge_calibration_findings(suites: Iterable[Suite]) -> list[Finding]:
 
 
 def _language_findings(suites: Iterable[Suite]) -> list[Finding]:
-    """English and Spanish cases are peers. A suite scoring one is half a gate."""
+    """Every language a suite declares is a peer of every other. One scored is half a gate.
+
+    The peer rule CONTRIBUTING.md states for English and Spanish is checked here
+    against whatever the suite declares, so a suite covering ``[en, es, ar]``
+    is held to three-way peering and a suite that declares nothing is held to
+    the same two languages it always was.
+
+    An excepted language is neither an error nor part of the balance
+    comparison, but it is still reported: an exception that produces no output
+    is a check that has been turned off invisibly, and the point of requiring a
+    reason was that somebody reads it.
+    """
     findings: list[Finding] = []
     for suite in suites:
+        excepted = suite.excepted_languages()
+        for exception in sorted(suite.coverage_exceptions, key=lambda item: item.language):
+            findings.append(
+                _warning(
+                    "language_excepted",
+                    suite.source,
+                    f"suite {suite.name!r} declares {exception.language!r} and covers "
+                    f"none of it, by recorded exception: {exception.reason}",
+                )
+            )
         counts = {
             language: sum(1 for case in suite.cases if case.language == language)
-            for language in LANGUAGES
+            for language in suite.languages
+            if language not in excepted
         }
         absent = sorted(language for language, count in counts.items() if count == 0)
         if absent:
+            present = sorted(set(counts) - set(absent))
             findings.append(
                 _error(
                     "missing_language",
                     suite.source,
                     f"suite {suite.name!r} has no {', '.join(absent)} cases. "
-                    f"English and Spanish cases are peers, so this gate would score "
-                    f"only {', '.join(sorted(set(LANGUAGES) - set(absent)))}.",
+                    f"A suite's declared languages are peers, so this gate would score "
+                    f"only {', '.join(present) or 'nothing'}.",
                 )
             )
             continue

@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from gauntlet.cases import GATES, LANGUAGES, Suite
+from gauntlet.bidi import isolate
+from gauntlet.cases import GATES, CoverageException, Suite, all_languages
 from gauntlet.mapping import mapping_for
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED: gauntlet inventory -->"
@@ -39,6 +40,8 @@ class GateInventory:
     enforces: str
     counts_by_language: dict[str, int]
     total: int
+    declared_languages: tuple[str, ...] = ()
+    coverage_exceptions: tuple[CoverageException, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -49,6 +52,8 @@ class GateInventory:
             "threshold": self.threshold,
             "enforces": self.enforces,
             "counts_by_language": dict(self.counts_by_language),
+            "declared_languages": list(self.declared_languages),
+            "coverage_exceptions": [exception.to_dict() for exception in self.coverage_exceptions],
             "total": self.total,
         }
 
@@ -91,6 +96,22 @@ class Inventory:
         """Defined gates with no verified framework mapping. Never invented."""
         return tuple(sorted(gate for gate in self.defined_gates if mapping_for(gate) is None))
 
+    @property
+    def declared_but_not_covered(self) -> tuple[tuple[str, str, str], ...]:
+        """(gate, language, reason) for every honoured coverage exception.
+
+        A zero in a language column has two readings: nobody wrote those cases,
+        or the suite declared the language and recorded why it does not cover
+        it. Only the second is a decision, and it is the one the table cannot
+        show. Stating it beside the table is what keeps a claimed language from
+        reading as a measured one.
+        """
+        return tuple(
+            (gate.gate, exception.language, exception.reason)
+            for gate in self.gates
+            for exception in gate.coverage_exceptions
+        )
+
     def to_dict(self) -> dict[str, object]:
         return {
             "languages": list(self.languages),
@@ -101,14 +122,16 @@ class Inventory:
             "defined_gates": list(self.defined_gates),
             "gates_not_counted": list(self.gates_not_counted),
             "gates_without_verified_reference": list(self.gates_without_verified_reference),
+            "declared_but_not_covered": [
+                {"gate": gate, "language": language, "reason": reason}
+                for gate, language, reason in self.declared_but_not_covered
+            ],
         }
 
 
 def build_inventory(suites: tuple[Suite, ...]) -> Inventory:
     """Count the loaded suites. Ordering is by gate name, so output is stable."""
-    languages = tuple(
-        sorted({case.language for suite in suites for case in suite.cases} | set(LANGUAGES))
-    )
+    languages = all_languages(suites)
     gates = tuple(
         GateInventory(
             gate=suite.gate,
@@ -121,6 +144,8 @@ def build_inventory(suites: tuple[Suite, ...]) -> Inventory:
                 language: sum(1 for case in suite.cases if case.language == language)
                 for language in languages
             },
+            declared_languages=suite.languages,
+            coverage_exceptions=suite.coverage_exceptions,
             total=len(suite.cases),
         )
         for suite in sorted(suites, key=lambda item: item.gate)
@@ -132,7 +157,13 @@ def render_inventory_markdown(inventory: Inventory) -> str:
     """Render the inventory as the Markdown block embedded in the README."""
     languages = inventory.languages
     totals = inventory.totals_by_language
-    header = ["Gate", "Suite", "Threshold", *(language_label(code) for code in languages), "Total"]
+    header = [
+        "Gate",
+        "Suite",
+        "Threshold",
+        *(isolate(language_label(code)) for code in languages),
+        "Total",
+    ]
     lines = ["| " + " | ".join(header) + " |", "|" + "|".join(["---"] * len(header)) + "|"]
     for gate in inventory.gates:
         row = [
@@ -187,6 +218,11 @@ def coverage_sentence(inventory: Inventory) -> str:
             f" Carrying no verified framework reference: "
             f"{_gate_list(inventory.gates_without_verified_reference)}. An evidence pack "
             "reports such a gate as unmapped rather than inventing a link for it."
+        )
+    for gate, language, reason in inventory.declared_but_not_covered:
+        sentence += (
+            f" Gate `{gate}` declares `{language}` and covers none of it, by "
+            f"recorded exception: {reason}"
         )
     return sentence
 

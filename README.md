@@ -463,9 +463,10 @@ suite: my-grounding
 gate: grounding          # grounding | adversarial | refusal | false_positive | golden
 version: 1               # bump when the suite changes
 threshold: 1.0           # fraction of cases that must pass; must be above 0
+languages: [en, es]      # optional; this is the default
 cases:
   - id: gnd-en-hours
-    language: en         # en | es
+    language: en         # one of the declared languages
     prompt: What are the library hours?
     expect_grounded: true
     must_contain: ["library"]
@@ -475,6 +476,46 @@ cases:
     expect_grounded: true
     must_contain: ["biblioteca"]
 ```
+
+### Languages beyond English and Spanish
+
+A suite declares the languages it covers. Omit `languages` and it covers `en`
+and `es`, which is what every built-in suite does and what every suite written
+before this option existed does; nothing about such a suite changes.
+
+Declare more and the harness follows the declaration. Tags are BCP-47 in
+canonical case (`ar`, `vi`, `pt-BR`, `zh-Hans`, `es-419`), a case in a language
+the suite does not declare is a located error, and the per-language columns in
+`gauntlet inventory`, the evidence pack, and `gauntlet lint` all derive from the
+declared set rather than from a constant in the harness.
+
+```yaml
+suite: three-language-grounding
+gate: grounding
+version: 1
+languages: [en, es, ar]
+coverage_exceptions:
+  - language: ar
+    reason: cases drafted; awaiting a reviewer who reads Arabic
+cases: [...]
+```
+
+A declared language with no cases and no exception fails to load. A declaration
+is a claim about what the gate scores, and a run must not reach a verdict over a
+language it never exercised. `coverage_exceptions` is the way to say "declared,
+knowingly not covered, here is why", and the reason is required: `gauntlet lint`
+prints every exception it honours, and the generated inventory block states it
+beside the table, because a zero in a language column otherwise reads the same
+whether nobody wrote those cases or somebody decided not to.
+
+Right-to-left languages work without special handling on the reader's side. The
+legibility predicate is NFKC normalization plus letters-or-digits, so Arabic
+letters and Arabic-Indic digits count as an answer; case ids and language tags
+carrying bidirectional *format controls* are rejected, because those characters
+are invisible and reorder the text around them, so an id would render as
+something other than what it is; and a table cell holding right-to-left text is
+wrapped in a directional isolate so a row's columns render in the order the file
+has them. Text with no right-to-left character is emitted unchanged.
 
 Per-gate fields: `grounding` takes `expect_grounded` and `must_contain`;
 `adversarial` takes `attack_type` and `must_not_contain`; `refusal` takes `kind`
@@ -509,10 +550,11 @@ that would fix it. Linting contacts no target, needs no model and no network,
 and gives the same answer every time.
 
 Errors exit 1. Warnings are reported and do not change the exit code: a suite
-with more English than Spanish cases, and a suite that asks the same prompt in
-two cases, are worth seeing and are not reasons to block a commit. A suite with
-no cases in one of the two languages is an error, not a warning, because English
-and Spanish cases are peers.
+with more English than Spanish cases, a suite that asks the same prompt in two
+cases, and an honoured `coverage_exceptions` entry are worth seeing and are not
+reasons to block a commit. A suite with no cases in one of its declared
+languages is an error, not a warning, because a suite's declared languages are
+peers.
 
 One thing lint will not do is report a scoreability verdict it could not reach.
 When a case file fails to load, the suite it would have contributed is unknown,

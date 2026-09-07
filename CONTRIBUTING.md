@@ -23,8 +23,12 @@ GitHub Action the way an external consumer would.
   self-test that injects the defect it catches and asserts the gate fails
   (see `tests/test_self_test_doctrine.py`). A check that has never failed is not
   evidence of health.
-- **English and Spanish cases are peers.** Add or change them together; do not
-  bolt a translation onto an English-first suite.
+- **A suite's declared languages are peers.** Add or change them together; do
+  not bolt a translation onto an English-first suite. A suite covers `en` and
+  `es` unless it declares otherwise with `languages:`, and every language it
+  declares is held to the same rule: no cases in one of them fails the load
+  unless the suite records a `coverage_exceptions` entry saying which language,
+  and why.
 - **Counts are counted.** Case totals, pass thresholds, and coverage are emitted
   by the harness. Do not assert a count in prose that the harness does not
   produce. The README's gate inventory is generated: change a suite, then run
