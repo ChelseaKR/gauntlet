@@ -38,11 +38,13 @@ from gauntlet.cli import main
 from gauntlet.evidence import build_evidence_pack
 from gauntlet.judge import (
     MIN_CALIBRATION_PAIRS,
+    CalibrationSet,
     JudgeError,
     JudgeRequest,
     RecordingJudge,
     ScriptedJudge,
     Verdict,
+    _why_not,
     calibrate,
     compute_seal,
     load_calibration,
@@ -339,19 +341,91 @@ def test_the_written_file_reloads_sealed_and_keeps_the_notes(unreviewed: Path) -
     assert render_calibration(reloaded) == text
 
 
-def test_describe_tells_the_four_states(unreviewed: Path) -> None:
+def test_describe_tells_the_four_signing_states(unreviewed: Path) -> None:
     base = load_calibration(unreviewed)
-    assert describe(base) == (False, "synthetic-suppression v1: 8 pairs, unreviewed")
+    ok, sentence = describe(base)
+    assert not ok and "The judge gate will not accept this set:" in sentence
+    assert "nobody has signed these" in sentence
     named = parse_calibration({**_unreviewed_doc(), "labeled_by": "R"}, "c")
     ok, sentence = describe(named)
-    assert not ok and "NO SEAL" in sentence and "typed in by hand" in sentence
+    assert not ok and "but carry no seal" in sentence and "typed into the file by hand" in sentence
     sealed = apply_labeling(base, Labeling(_draft_verdicts(), "R"), "2026-08-22")
     ok, sentence = describe(sealed)
-    assert ok and sentence.endswith("The seal is tamper evidence, not authentication.")
+    assert ok and "sealed" in sentence
     assert "labeled by R on 2026-08-22" in sentence and sealed.seal in sentence
+    assert "measured by a run, not here" in sentence
     document = {**sealed.labeled_payload(), "seal": sealed.seal, "labeled_on": "2026-08-23"}
     ok, sentence = describe(parse_calibration(document, "c"))
-    assert not ok and "SEAL DOES NOT MATCH" in sentence
+    assert not ok and "the calibration seal does not match the labels" in sentence
+
+
+def _sealed_set(pairs: list[dict[str, Any]]) -> CalibrationSet:
+    """A set with ``pairs``, labeled and sealed exactly as `gauntlet calibrate` writes it."""
+    unsigned = parse_calibration({**_unreviewed_doc(), "pairs": pairs}, "c")
+    verdicts = {pair["id"]: pair["verdict"] for pair in pairs}
+    return apply_labeling(unsigned, Labeling(verdicts, "R"), "2026-08-22")
+
+
+def test_describe_reports_the_two_states_that_seal_correctly_and_still_cannot_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The defect this replaces: `--check` said "sealed" on sets the gate refuses.
+
+    Both sets below are signed, sealed, and verify against their own seal, so
+    every check `describe` used to make passes. `calibrate()` still refuses
+    them, and a reviewer who has just finished labeling is exactly who needs to
+    be told. The two are kept apart so a fix to one cannot mask the other.
+    """
+    judge = ScriptedJudge([Verdict("meets", "")] * MIN_CALIBRATION_PAIRS)
+
+    one_verdict = _sealed_set([{**pair, "verdict": "meets"} for pair in _pairs()])
+    assert one_verdict.sealed and one_verdict.reviewed
+    assert not calibrate(judge, one_verdict, 0.9).calibrated
+    ok, sentence = describe(one_verdict)
+    assert not ok
+    assert "do not include both verdicts" in sentence
+    assert "8 pairs" in sentence
+
+    too_few = _sealed_set(_pairs(MIN_CALIBRATION_PAIRS - 1))
+    assert too_few.sealed and too_few.reviewed
+    ok, sentence = describe(too_few)
+    assert not ok
+    assert f"only {MIN_CALIBRATION_PAIRS - 1} labeled pairs" in sentence
+    assert f"at least {MIN_CALIBRATION_PAIRS} are required" in sentence
+
+    # And through the CLI, which is where a reviewer meets it: exit 1, not 0.
+    path = tmp_path / "one-verdict.yaml"
+    write_calibration(one_verdict, path)
+    assert main(["calibrate", str(path), "--check"]) == 1
+    assert "do not include both verdicts" in capsys.readouterr().out
+
+
+def test_describe_never_reports_a_pass_the_judge_gate_would_refuse(unreviewed: Path) -> None:
+    """The property, over every shape these fixtures can make.
+
+    `describe` reporting ok while `_why_not` has something to say is the defect
+    class, not one instance of it; the pairing is asserted rather than the six
+    cases above being trusted to be all of them.
+    """
+    base = load_calibration(unreviewed)
+    sealed = apply_labeling(base, Labeling(_draft_verdicts(), "R"), "2026-08-22")
+    candidates = [
+        base,
+        parse_calibration({**_unreviewed_doc(), "labeled_by": "R"}, "c"),
+        sealed,
+        parse_calibration(
+            {**sealed.labeled_payload(), "seal": sealed.seal, "labeled_on": "2026-08-23"}, "c"
+        ),
+        _sealed_set([{**pair, "verdict": "meets"} for pair in _pairs()]),
+        _sealed_set([{**pair, "verdict": "violates"} for pair in _pairs()]),
+        _sealed_set(_pairs(MIN_CALIBRATION_PAIRS - 1)),
+        _sealed_set(_pairs(MIN_CALIBRATION_PAIRS + 2)),
+    ]
+    for candidate in candidates:
+        ok, _ = describe(candidate)
+        # 1.0 is a valid min_agreement, so anything _why_not says here is
+        # structural and describe has no excuse for not saying it too.
+        assert ok == (_why_not(candidate, 1.0) == ""), candidate.name
 
 
 def test_labeled_on_must_be_a_date() -> None:
@@ -507,7 +581,7 @@ def test_a_tampered_file_is_refused_by_the_run_and_the_pack_names_the_seal(
     tampered = load_calibration(path)
     assert tampered.seal == sealed.seal and not tampered.sealed
     assert main(["calibrate", str(path), "--check"]) == 1
-    assert "SEAL DOES NOT MATCH" in capsys.readouterr().out
+    assert "the calibration seal does not match the labels" in capsys.readouterr().out
 
     cases = tmp_path / "cases"
     cases.mkdir()

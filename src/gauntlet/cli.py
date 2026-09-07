@@ -807,7 +807,10 @@ def _add_calibrate_parser(sub: argparse._SubParsersAction[argparse.ArgumentParse
     calibrate_parser.add_argument(
         "--check",
         action="store_true",
-        help="report whether the set is signed and its seal matches; exit 1 if not",
+        help=(
+            "report every reason the judge gate would refuse this set -- unsigned, "
+            "unsealed, resealed, too few pairs, one verdict only; exit 1 if any"
+        ),
     )
     calibrate_parser.set_defaults(func=_cmd_calibrate)
 
