@@ -322,8 +322,8 @@ def _install_stub_sprout(
         generation=SimpleNamespace(provider="deterministic"),
         retrieval=SimpleNamespace(embedding_provider="deterministic"),
     )
-    config.store.model_copy = lambda update: config.store  # type: ignore[method-assign]
-    config.model_copy = lambda update: config  # type: ignore[attr-defined]
+    config.store.model_copy = lambda update: config.store
+    config.model_copy = lambda update: config
 
     package = ModuleType("sprout")
     resources = ModuleType("sprout.resources")

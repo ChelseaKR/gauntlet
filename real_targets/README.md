@@ -14,11 +14,18 @@ package data, the adapter reads them from a checkout outside this tree whose
 path an environment variable names. See [CONTRIBUTING.md](../CONTRIBUTING.md)
 for why this rule is not negotiable.
 
+Three of these four targets cost something to re-run: a share of a metered
+endpoint's daily cap, or model calls on an account with the right entitlement.
+sprout costs nothing and reaches nothing. It is deterministic and offline by
+design, so its pack is the one a reviewer can regenerate, and it is the only
+one whose replay reproduces every verdict rather than pinning a divergence.
+
 | Target | How it is reached | What it promises, and what the suites test |
 |---|---|---|
 | [`permit_bearings/`](permit_bearings/) | Live HTTP, the Lambda Function URL published in `ChelseaKR/permit-bearings` | Quote-bound extraction (an unanswered field is `unknown`), citation-verified explanation (a claim whose quote the service cannot verify is withheld), and no eligibility determination. Suites: determination and role-manipulation probes on `/ask`, abstention on an unanswerable question, grounding of every `/explain` claim with the harness's own quote check, the matcher's rule set as a golden key, and `/intake/extract` absence probes. |
 | [`mrf_honest/`](mrf_honest/) | `mrf-honest[ai]` installed from its public git URL into a venv; `MRF_HONEST_ROOT` names a checkout for the corpus and cohort file | The model never enters the grading path; every narration claim quotes retained corpus text verbatim or is withheld. Suites: grounding with the harness's own quote check against the public source, a zero-findings record that must produce no shown claim, unassessed-dimension probes, and the deterministic grader and retriever as golden keys alongside the grade the narration reported. |
 | [`fhir_scorecard/`](fhir_scorecard/) | `fhir-scorecard[ai]` installed from its public git URL into a venv; `FHIR_SCORECARD_ROOT` names a checkout for the corpus; the published dataset is fetched from the live site | Every claim quotes a retained HL7 page verbatim or is withheld; the narration describes documents and never characterizes the organization; a "not observed" check did not run. Suites: grounding with the harness's own quote check against hl7.org, an empty record that must produce no shown claim, characterization and not-observed probes, and the `cited_passages` tool and grade consistency as golden keys. |
+| [`sprout/`](sprout/) | `sprout` installed from its public git URL into a venv; nothing else, because its corpus and configuration are package data | Every rendered sentence is copied verbatim from a retrieved passage, no answer certifies a plant safe, an ingestion question routes to a vet or poison control, and English and Spanish are peers. Suites: grounding with the harness's own quote check against the corpus document the installed package carries, abstention on two out-of-scope questions, the never-certify-safe deny-list as adversarial markers, two matched pairs of ordinary care questions as the allow-list, and the retriever, the confidence band and the answer's own language as golden keys. The reference target of [ADR 0003](../docs/adr/0003-sprout-is-the-reference-target.md). |
 
 ## What the adapters add, and what they do not
 
@@ -34,7 +41,16 @@ it offered. Three things are the harness's own:
   outcome removes it, so the grounding gate rejects the claim as citing
   something not in evidence, and the count of verified, not-found, and
   unverifiable quotes is carried in the pack's provenance. The single
-  predicate both adapters use is `quotecheck.counts_as_grounded`.
+  predicate every adapter uses is `quotecheck.counts_as_grounded`.
+
+  sprout is the exception to the fetch, and not to the rule. Its corpus is
+  synthetic and its manifest points at `https://example.invalid/...` on
+  purpose, so there is no public document to fetch: the adapter hands the
+  checker the corpus file the installed package carries, under the identifier
+  `sprout-corpus:<file>`, which is what the pack prints and what the recording
+  is keyed by. Fetching the manifest URLs instead would make every check
+  unverifiable, and an unverifiable check counts as grounded nowhere, so the
+  grounding gate would report a pass rate that had verified nothing.
 
   The three outcomes are not three verdicts. `verified` and `not_found` are
   verdicts about the target, and a `not_found` quote is named in the answer
@@ -62,6 +78,10 @@ it offered. Three things are the harness's own:
   spending no budget and calling no model. A replayed pack says so in its
   provenance. The recording holds the target's verbatim output and is
   committed alongside the pack; treat it like production logs.
+
+  A deterministic target does not need a recording to avoid a cost, and
+  sprout's is committed for a different reason: it is what lets the pack be
+  checked in this repository's own test run, where sprout is not installed.
 
   It also holds the harness's own quote-check outcomes, one line per checked
   citation, keyed `quotecheck <url> :: <normalized quote>`. Without them a
@@ -112,6 +132,17 @@ MRF_HONEST_RAW_LOG=real_targets/mrf_honest/results/<date>-raw.jsonl \
   --callable real_targets.mrf_honest.target:make_target \
   --out real_targets/mrf_honest/results/<date>-results.json \
   --provenance target_version=mrf-honest@<sha> --provenance commit=$(git rev-parse HEAD)
+
+# sprout: offline, deterministic, and free. Nothing but the install is needed:
+# the corpus and the default configuration ship inside the distribution.
+uv pip install --python /path/outside/venv/bin/python \
+  "sprout @ git+https://github.com/ChelseaKR/sprout@<sha>"
+
+SPROUT_RAW_LOG=real_targets/sprout/results/<date>-raw.jsonl \
+/path/outside/venv/bin/gauntlet run --cases real_targets/sprout/cases \
+  --callable real_targets.sprout.target:make_target \
+  --out real_targets/sprout/results/<date>-results.json \
+  --provenance target_version=sprout@<sha> --provenance commit=$(git rev-parse HEAD)
 
 # Re-score a recording without the target:
 MRF_HONEST_REPLAY=real_targets/mrf_honest/results/<date>-raw.jsonl ... gauntlet run ...

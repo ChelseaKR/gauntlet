@@ -71,6 +71,7 @@ from real_targets.narration import NarrationLedger
 from real_targets.permit_bearings.target import PermitBearingsTarget
 from real_targets.quotecheck import STATUSES, DocumentCache, is_check_key
 from real_targets.rawlog import RawLog
+from real_targets.sprout.target import SproutLedger, SproutTarget
 
 ROOT = Path(__file__).resolve().parents[1]
 REAL_TARGETS = ROOT / "real_targets"
@@ -119,6 +120,11 @@ QUOTE_DEPENDENT_CASES: dict[str, frozenset[str]] = {
             "pb-gnd-es-woodland-conversion",
         }
     ),
+    # Empty, and it is the point of ADR 0003. sprout's recording was made after
+    # the raw log carried the harness's own quote-check outcomes, so the replay
+    # reads back what was verified instead of skipping verification, and no
+    # grounding verdict moves. This is the first pack here with nothing to pin.
+    "sprout/2026-09-07-results.json": frozenset(),
 }
 
 # How many cases each replay compares. Asserted exactly, not as "more than
@@ -130,6 +136,10 @@ COMPARED_CASES: dict[str, int] = {
     "fhir_scorecard/2026-08-22-results.json": 16,
     "mrf_honest/2026-08-22-results.json": 16,
     "permit_bearings/2026-08-22-grounding-results.json": 4,
+    # Every case, including the golden gate. sprout's deterministic verbs read
+    # the same recorded answer the shaping does, so unlike the two narration
+    # targets nothing here needs the target package to be installed.
+    "sprout/2026-09-07-results.json": 26,
 }
 
 JUDGED_COMPARED_CASES: dict[str, int] = {
@@ -182,6 +192,9 @@ ATTEMPTED_CHECKS: dict[str, int] = {
     "fhir_scorecard/2026-08-22-results.json": 0,
     "mrf_honest/2026-08-22-results.json": 0,
     "permit_bearings/2026-08-22-grounding-results.json": 52,
+    # Attempted and answered: every one of these is read back out of the
+    # recording, which is why sprout has no QUOTE_DEPENDENT_CASES entry.
+    "sprout/2026-09-07-results.json": 31,
 }
 
 
@@ -221,6 +234,8 @@ def _target_for_replay(
     target_dir: Path, recording: Path, run: dict[str, object], tmp_path: Path
 ) -> object:
     """An adapter answering from a recording, with a minimal fake checkout."""
+    if target_dir.name == "sprout":
+        return SproutTarget(ledger=SproutLedger(raw_log=RawLog(replay_path=recording)))
     if target_dir.name == "permit_bearings":
         return PermitBearingsTarget(
             base_url="http://127.0.0.1:9",
@@ -382,16 +397,24 @@ def test_the_recording_reproduces_the_committed_pack(
     run = json.loads(pack.read_text(encoding="utf-8"))
     cases_dir = target_dir / "cases"
     replayable_gates = {"grounding", "adversarial", "refusal", "false_positive", "golden"}
-    if target_dir.name == "permit_bearings":
+    if target_dir.name == "sprout":
+        # No fake checkout, and the golden gate stays in. sprout's four verbs
+        # all read the one recorded answer, so a replay needs neither the
+        # package nor a corpus on disk: what the harness verified is in the
+        # recording beside what the target said.
+        sprout_ledger = SproutLedger(raw_log=RawLog(replay_path=_recording(pack)))
+        target: object = SproutTarget(ledger=sprout_ledger)
+        documents: DocumentCache = sprout_ledger.documents
+    elif target_dir.name == "permit_bearings":
         permit_bearings = PermitBearingsTarget(
             base_url="http://127.0.0.1:9",
             min_interval=0.0,
             raw_log=RawLog(replay_path=_recording(pack)),
         )
-        target: object = permit_bearings
+        target = permit_bearings
         # The checker the replay reads its quote-check outcomes through, held so
         # the counts below can be asserted rather than inferred from the verdicts.
-        documents: DocumentCache = permit_bearings._documents
+        documents = permit_bearings._documents
         if "grounding" in pack.name:
             cases_dir = target_dir / "cases-grounding-only"
     else:
