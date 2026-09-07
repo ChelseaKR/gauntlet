@@ -44,8 +44,13 @@ from gauntlet.results import load_run_dict
 ROOT = Path(__file__).resolve().parents[1]
 REAL_TARGETS = ROOT / "real_targets"
 
-KEY = "3d0d0f2e7a1c4b5d6e7f8091a2b3c4d5"
-OTHER_KEY = "ffffffffffffffffffffffffffffffff"
+# Deliberately low-entropy and self-describing. A random-looking hex string of
+# key length is indistinguishable from a real leaked credential to a scanner,
+# and the honest fix for that is a fixture that does not look like a secret --
+# not an allowlist entry teaching the secret scanner to ignore this file.
+# Both are 32 bytes, comfortably over MIN_KEY_BYTES.
+KEY = "gauntlet-test-key-not-a-secret!!"
+OTHER_KEY = "gauntlet-other-test-key-not-real"
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +80,7 @@ def _write_pack(pack_dir: Path, pack: dict[str, object]) -> None:
 
 
 def _key_file(pack_dir: Path, value: str = KEY) -> Path:
-    path = pack_dir / f"key-{value[:8]}"
+    path = pack_dir / f"key-{value[-8:]}"
     path.write_text(value, encoding="utf-8")
     return path
 
