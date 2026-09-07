@@ -12,7 +12,7 @@ committed real-target sets stay unsigned.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +64,14 @@ def _pairs(count: int = MIN_CALIBRATION_PAIRS) -> list[dict[str, Any]]:
                 "id": f"syn-{index}",
                 "language": "en" if index % 2 == 0 else "es",
                 "rubric": RUBRIC,
-                "prompt": "How many completers found work?",
+                # The index is in the prompt so every pair is a *distinct* judge
+                # request. Without it these eight pairs collapse into two request
+                # hashes (four "meets" and four "violates" sharing one each), and a
+                # replay recording cannot give one pair a different verdict from its
+                # three twins. A test that tampers with a single label then cannot
+                # express "the judge still agrees with every label", because one of the
+                # four must disagree by construction.
+                "prompt": f"How many completers found work? (pair {index})",
                 "response": "The count is 0." if violates else "That cell is suppressed.",
                 "verdict": "violates" if violates else "meets",
                 "note": "authored" if violates else "",
@@ -94,7 +101,7 @@ def _scripted(*answers: str) -> Iterator[str]:
     yield from answers
 
 
-def _asker(answers: Iterator[str]) -> Any:
+def _asker(answers: Iterator[str]) -> Callable[[str], str]:
     def ask(prompt: str) -> str:
         try:
             return next(answers)
@@ -153,8 +160,9 @@ def test_a_label_edited_after_sealing_does_not_calibrate_the_judge() -> None:
     )
     assert labeled.sealed
     assert calibrate(_agreeing(), labeled, 0.9).calibrated
-    document = {**labeled.labeled_payload(), "seal": labeled.seal}
-    document["pairs"][0]["verdict"] = "violates"  # the edit
+    document: dict[str, Any] = {**labeled.labeled_payload(), "seal": labeled.seal}
+    pairs: list[dict[str, Any]] = document["pairs"]
+    pairs[0]["verdict"] = "violates"  # the edit
     tampered = parse_calibration(document, "c")
     assert tampered.reviewed and not tampered.sealed
     result = calibrate(ScriptedJudge([Verdict(p["verdict"], "") for p in _pairs()]), tampered, 0.9)
@@ -559,9 +567,28 @@ def test_a_tampered_file_is_refused_by_the_run_and_the_pack_names_the_seal(
     assert f"- Seal: `{sealed.seal}`" in rendered
     assert "tamper evidence over the labels, not authentication" in rendered
     assert "NOT calibrated" in rendered
-    # Sealing it again, by a person, restores the gate.
+    # Sealing it again, by a person, restores the gate. A second recording, because
+    # the first agrees with the *tampered* labels: syn-1's request is the same either
+    # way and its label is not, so no single replay can agree with both sets. Reusing
+    # the first recording here measured 7 of 8 and the gate stayed shut for the wrong
+    # reason: a fixture that cannot express the property it is asserting.
     monkeypatch.setattr("builtins.input", _asker(_scripted(*_all_drafts(), "R", CONFIRMATION)))
     assert main(["calibrate", str(path), "--labeled-on", "2026-08-22"]) == 0
-    assert load_calibration(path).seal == sealed.seal  # same labels, same seal
-    result = calibrate(RecordingJudge(replay_path=recording), load_calibration(path), 0.9)
+    restored = load_calibration(path)
+    assert restored.seal == sealed.seal  # same labels, same seal
+    restored_recording = tmp_path / "verdicts-restored.jsonl"
+    restored_recording.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "request_hash": JudgeRequest(p.rubric, p.prompt, p.response, p.language).key(),
+                    "model": "m",
+                    "verdict": p.verdict,
+                }
+            )
+            + "\n"
+            for p in restored.pairs
+        )
+    )
+    result = calibrate(RecordingJudge(replay_path=restored_recording), restored, 0.9)
     assert result.calibrated
