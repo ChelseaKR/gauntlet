@@ -238,6 +238,11 @@ def _judge_calibration(lines: list[str], pack: dict[str, object]) -> None:
                 f"labeled by {_cell(judge.get('labeled_by')) or 'nobody yet'}"
                 + (f" on {_cell(judge.get('labeled_on'))}" if _str(judge.get("labeled_on")) else "")
             )
+            if _str(judge.get("seal")):
+                lines.append(
+                    f"- Seal: `{_cell(judge.get('seal'))}` (tamper evidence over the labels, "
+                    "not authentication of the signer)"
+                )
             lines.append(
                 f"- Agreement: {_int(judge.get('agreed'))} of {_int(judge.get('pairs'))} "
                 f"labeled pairs ({_float(judge.get('agreement')):.3f}), required "

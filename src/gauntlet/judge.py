@@ -296,10 +296,54 @@ class CalibrationSet:
     labeled_on: str
     pairs: tuple[CalibrationPair, ...]
     source: str = ""
+    seal: str = ""
 
     @property
     def reviewed(self) -> bool:
         return bool(self.labeled_by.strip())
+
+    @property
+    def sealed(self) -> bool:
+        """The seal is present and matches the labels as they are now."""
+        return bool(self.seal) and self.seal == compute_seal(self)
+
+    def labeled_payload(self) -> dict[str, object]:
+        """What a signer attests to: the header and every pair, in canonical order."""
+        return {
+            "calibration": self.name,
+            "version": self.version,
+            "labeled_by": self.labeled_by,
+            "labeled_on": self.labeled_on,
+            "pairs": [
+                {
+                    "id": pair.id,
+                    "language": pair.language,
+                    "rubric": pair.rubric,
+                    "prompt": pair.prompt,
+                    "response": pair.response,
+                    "verdict": pair.verdict,
+                    "note": pair.note,
+                }
+                for pair in self.pairs
+            ],
+        }
+
+
+SEAL_PREFIX = "sha256:"
+
+
+def compute_seal(calibration_set: CalibrationSet) -> str:
+    """A sha256 over the labeled content, written by ``gauntlet calibrate``.
+
+    The seal is tamper evidence, not authentication: it has no secret in it,
+    so anyone can recompute it, and a matching seal says only that the labels
+    are the ones that were sealed, not who sealed them. Vouching for the
+    signer would need a signature Gauntlet does not issue. What the seal does
+    do is make a label edited after signing visible: the set stops
+    calibrating the judge until a person seals it again.
+    """
+    canonical = json.dumps(calibration_set.labeled_payload(), sort_keys=True, ensure_ascii=False)
+    return SEAL_PREFIX + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _fail(source: str, message: str) -> JudgeError:
@@ -340,7 +384,14 @@ def _parse_pair(raw: object, source: str, index: int) -> CalibrationPair:
 def parse_calibration(document: object, source: str) -> CalibrationSet:
     if not isinstance(document, dict):
         raise _fail(source, "top level must be a mapping")
-    unknown = set(document) - {"calibration", "version", "labeled_by", "labeled_on", "pairs"}
+    unknown = set(document) - {
+        "calibration",
+        "version",
+        "labeled_by",
+        "labeled_on",
+        "seal",
+        "pairs",
+    }
     if unknown:
         raise _fail(source, f"unknown keys {sorted(unknown)}")
     name = _str_field(document, "calibration", source, "header")
@@ -351,6 +402,9 @@ def parse_calibration(document: object, source: str) -> CalibrationSet:
     labeled_on = document.get("labeled_on", "")
     if not isinstance(labeled_by, str) or not isinstance(labeled_on, str):
         raise _fail(source, "'labeled_by' and 'labeled_on' must be strings (empty until reviewed)")
+    seal = document.get("seal", "")
+    if not isinstance(seal, str):
+        raise _fail(source, "'seal' must be a string (absent until sealed by gauntlet calibrate)")
     raw_pairs = document.get("pairs")
     if not isinstance(raw_pairs, list) or not raw_pairs:
         raise _fail(source, "'pairs' must be a non-empty list")
@@ -367,6 +421,7 @@ def parse_calibration(document: object, source: str) -> CalibrationSet:
         labeled_on=labeled_on,
         pairs=pairs,
         source=source,
+        seal=seal,
     )
 
 
@@ -391,6 +446,7 @@ class Calibration:
     calibration_version: int
     labeled_by: str
     labeled_on: str
+    seal: str
     pairs: int
     agreed: int
     agreement: float
@@ -406,6 +462,7 @@ class Calibration:
             "calibration_version": self.calibration_version,
             "labeled_by": self.labeled_by,
             "labeled_on": self.labeled_on,
+            "seal": self.seal,
             "pairs": self.pairs,
             "agreed": self.agreed,
             "agreement": round(self.agreement, 6),
@@ -422,7 +479,22 @@ def _why_not(calibration_set: CalibrationSet, min_agreement: float) -> str:
     if not calibration_set.reviewed:
         problems.append(
             "the calibration labels carry no 'labeled_by'; a judge is calibrated against a "
-            "person's labels, and nobody has signed these"
+            "person's labels, and nobody has signed these (a reviewer signs them with "
+            "'gauntlet calibrate')"
+        )
+    elif not calibration_set.seal:
+        problems.append(
+            f"the calibration labels name {calibration_set.labeled_by!r} but carry no seal; "
+            "a signer's labels are sealed by 'gauntlet calibrate', and a name typed into the "
+            "file by hand is not a review"
+        )
+    elif not calibration_set.sealed:
+        problems.append(
+            "the calibration seal does not match the labels: something in the set changed "
+            f"after {calibration_set.labeled_by!r} sealed it"
+            + (f" on {calibration_set.labeled_on}" if calibration_set.labeled_on else "")
+            + ", so these are no longer the labels that were signed; bump the version and "
+            "have a reviewer seal them again"
         )
     if len(calibration_set.pairs) < MIN_CALIBRATION_PAIRS:
         problems.append(
@@ -481,6 +553,7 @@ def calibrate(judge: Judge, calibration_set: CalibrationSet, min_agreement: floa
         calibration_version=calibration_set.version,
         labeled_by=calibration_set.labeled_by,
         labeled_on=calibration_set.labeled_on,
+        seal=calibration_set.seal,
         pairs=total,
         agreed=agreed,
         agreement=agreement,

@@ -33,6 +33,7 @@ from gauntlet.judge import (
     ScriptedJudge,
     Verdict,
     calibrate,
+    compute_seal,
     load_calibration,
     parse_calibration,
     parse_verdict,
@@ -67,15 +68,23 @@ def _pairs(count: int, *, both: bool = True) -> list[dict[str, Any]]:
 
 
 def _calibration_doc(
-    count: int = MIN_CALIBRATION_PAIRS, labeled_by: str = "A Person", **extra: Any
+    count: int = MIN_CALIBRATION_PAIRS,
+    labeled_by: str = "A Person",
+    sealed: bool = True,
+    **extra: Any,
 ) -> dict[str, Any]:
-    return {
+    document = {
         "calibration": "leak-rubric",
         "version": 1,
         "labeled_by": labeled_by,
-        "labeled_on": "2026-08-22",
+        "labeled_on": "2026-08-22" if labeled_by else "",
         "pairs": _pairs(count, **extra),
     }
+    if labeled_by and sealed:
+        # A signed fixture carries the seal `gauntlet calibrate` would have
+        # written over exactly these labels; the gate checks it.
+        document["seal"] = compute_seal(parse_calibration(document, "fixture"))
+    return document
 
 
 def _suite_dir(

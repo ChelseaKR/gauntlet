@@ -1,5 +1,5 @@
 """Command-line interface: ``gauntlet run``, ``report``, ``verify``, ``sign``,
-``inventory``, ``lint``, ``history``, ``compare``, ``site``.
+``inventory``, ``lint``, ``history``, ``compare``, ``site``, ``calibrate``.
 
 ``run`` evaluates a target against a directory of case files (or the
 built-in bilingual suites) and writes a results JSON, exiting non-zero if
@@ -15,6 +15,8 @@ them against its results file, its rendered document, and a detached
 signature; ``sign`` produces that signature. ``site``
 renders the documentation site from the harness: the counts are the
 inventory's, and the evidence excerpts are runs made while it builds.
+``calibrate`` is where a person labels a judge suite's calibration pairs and
+seals them; it is the only thing that writes ``labeled_by``.
 
 The default target is the in-repo toy, so the CLI is demonstrable with no
 network and no configuration. Real targets are selected with ``--http-url``
@@ -41,6 +43,19 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from gauntlet.calibrate import (
+    CONFIRMATION,
+    Labeling,
+    apply_labeling,
+    changed_labels,
+    describe,
+    export_labels,
+    interactive_session,
+    parse_labeled_on,
+    read_labels,
+    today,
+    write_calibration,
+)
 from gauntlet.cases import Suite, builtin_suites, load_suites
 from gauntlet.evidence import build_evidence_pack, github_output_lines
 from gauntlet.gates import judge_withheld_reason, run_suite, unscoreable_reason
@@ -74,7 +89,14 @@ from gauntlet.inventory import (
     render_inventory_markdown,
     update_marked_block,
 )
-from gauntlet.judge import DEFAULT_JUDGE_REGION, BedrockJudge, Judge, JudgeError, RecordingJudge
+from gauntlet.judge import (
+    DEFAULT_JUDGE_REGION,
+    BedrockJudge,
+    Judge,
+    JudgeError,
+    RecordingJudge,
+    load_calibration,
+)
 from gauntlet.lint import lint_directory, render_lint_text
 from gauntlet.recording import RecordingTarget, ReplayTarget, load_recording
 from gauntlet.report import render_compare_markdown, render_json, render_markdown
@@ -480,6 +502,60 @@ def _cmd_site(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_calibrate(args: argparse.Namespace) -> int:
+    """A person labels the calibration pairs and seals them; see ``gauntlet.calibrate``.
+
+    ``labeled_by`` is written here and nowhere else, and only from what the
+    reviewer typed or passed: never from the environment, git, or a default.
+    """
+    path = Path(args.calibration)
+    calibration_set = load_calibration(path)
+    if args.check:
+        ok, sentence = describe(calibration_set)
+        print(sentence)
+        return 0 if ok else 1
+    if args.export:
+        count = export_labels(calibration_set, Path(args.export))
+        print(f"wrote {count} pairs to {args.export}; fill in 'verdict' on each line, then")
+        print(
+            f'  gauntlet calibrate {path} --labels {args.export} --labeled-by "Your Name" '
+            "--i-am-a-human-reviewer"
+        )
+        return 0
+    labeled_on = parse_labeled_on(args.labeled_on) if args.labeled_on else today()
+    if args.labels:
+        if not args.labeled_by or not args.labeled_by.strip():
+            raise ValueError("--labels needs --labeled-by: the reviewer's name is never filled in")
+        if not args.i_am_a_human_reviewer:
+            raise ValueError(
+                "--labels needs --i-am-a-human-reviewer: the labels are recorded as a "
+                f"person's, and the flag is that person saying so ({CONFIRMATION!r})"
+            )
+        labeling: Labeling | None = Labeling(
+            verdicts=read_labels(Path(args.labels), calibration_set),
+            labeled_by=args.labeled_by,
+        )
+    else:
+        if args.labeled_by or args.i_am_a_human_reviewer:
+            raise ValueError(
+                "--labeled-by and --i-am-a-human-reviewer go with --labels; without a labels "
+                "file the reviewer is asked for both during the session"
+            )
+        labeling = interactive_session(calibration_set, ask=input, say=print)
+    if labeling is None:
+        return 1
+    sealed = apply_labeling(calibration_set, labeling, labeled_on)
+    write_calibration(sealed, path)
+    changed = changed_labels(calibration_set, sealed)
+    print(
+        f"wrote {path}: {len(sealed.pairs)} pairs labeled by {sealed.labeled_by} on "
+        f"{sealed.labeled_on}, {len(changed)} changed from the draft"
+        + (f" ({', '.join(changed)})" if changed else "")
+    )
+    print(f"seal {sealed.seal}: tamper evidence, not authentication")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gauntlet", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -492,6 +568,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_history_parser(sub)
     _add_compare_parser(sub)
     _add_site_parser(sub)
+    _add_calibrate_parser(sub)
     return parser
 
 
@@ -695,6 +772,44 @@ def _add_site_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
         help="date to print in the footer; omit to keep the build free of a clock",
     )
     site_parser.set_defaults(func=_cmd_site)
+
+
+def _add_calibrate_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    calibrate_parser = sub.add_parser(
+        "calibrate",
+        help="a person labels a judge suite's calibration pairs and seals them",
+        description=(
+            "Walks a reviewer through every pair in a calibration set, records their "
+            "verdicts, their name, and the date, and writes a seal over the labels. "
+            "With --labels, imports verdicts a reviewer filled in elsewhere instead. "
+            "labeled_by is never filled in from the environment or a default."
+        ),
+    )
+    calibrate_parser.add_argument("calibration", help="path to the calibration YAML to label")
+    calibrate_parser.add_argument(
+        "--labels",
+        help="JSON Lines file of {id, verdict} rows to import instead of an interactive session",
+    )
+    calibrate_parser.add_argument(
+        "--labeled-by", help="the reviewer's name, recorded as labeled_by (with --labels)"
+    )
+    calibrate_parser.add_argument(
+        "--i-am-a-human-reviewer",
+        action="store_true",
+        help="the reviewer's confirmation that the imported labels are a person's (with --labels)",
+    )
+    calibrate_parser.add_argument(
+        "--labeled-on", help="the date the labels were made (default: today, UTC)"
+    )
+    calibrate_parser.add_argument(
+        "--export", help="write the pairs as JSON Lines for labeling elsewhere, and stop"
+    )
+    calibrate_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report whether the set is signed and its seal matches; exit 1 if not",
+    )
+    calibrate_parser.set_defaults(func=_cmd_calibrate)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
