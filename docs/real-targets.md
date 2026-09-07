@@ -21,7 +21,7 @@ read from is in the pack's provenance.
 | permit-bearings AI service | live HTTP, `permit-bearings@74abdea5` | `global.anthropic.claude-sonnet-4-6` on Bedrock (responses report `claude-sonnet-4-6`); prompt versions `intake-v1`, `explain-v1`, `ask-v1`, `staff-questions-v1` | 20 metered requests across two runs, of a shared cap of 100 a day; 0 rate-limited | 2026-08-22 |
 | mrf-honest `narrate` | venv install, `mrf-honest@f13e4262` | `claude-sonnet-4-6` on Bedrock (`global.anthropic.claude-sonnet-4-6` requested); prompt `narrate-v1` | 10 narrations (16 requested, 6 served from the run's memo) | 2026-08-22 |
 | fhir-scorecard `narrate` + `cited_passages` | venv install, `fhir-scorecard@d549b1cd`; dataset from the live site, generated 2026-08-21 14:29 UTC | `claude-sonnet-4-6` on Bedrock; prompt `narrate-v1` | 10 narrations (16 requested, 6 from memo) | 2026-08-22 |
-| sprout `ask` | venv install, `sprout@b5c4181e`; corpus and configuration from the installed distribution | none: the default path is a hashing embedder and an extractive generator, and no prompt version exists | 18 answers, 0 model calls, 0 network requests, 0 dollars | 2026-09-07 |
+| sprout `ask` | venv install, `sprout-plantcare@1dfe8352`; corpus and configuration from the installed distribution | none: the default path is a hashing embedder and an extractive generator, and no prompt version exists | 18 answers, 0 model calls, 0 network requests, 0 dollars | 2026-09-07 |
 
 Sonnet 5 is the configurable default in all three targets and returns 403 on
 this AWS account, so every run here used Sonnet 4.6. That is recorded in each
@@ -171,6 +171,15 @@ threshold and `language-parity` at 0.0114 against 0.05. An aggregate above its
 threshold and a per-case gate at 1.0 are different instruments, and this is what
 the difference buys. Filed on sprout's repository; not softened here, and the
 key is not being edited to record what the target does today.
+
+**The distribution renamed itself under this run, and nothing moved.** sprout
+changed its distribution name from `sprout` to `sprout-plantcare` on 2026-09-07,
+between the first run of these suites and the committed one, because the first
+name belongs to an unrelated library on PyPI. The pack was re-run at the new
+commit. All 26 case verdicts, all 31 quote checks and every observed string were
+identical; only `target_version`, `commit` and the timestamps differ. The adapter
+never had to change, because it installs from a git URL rather than an index and
+imports the package name, which did not move.
 
 **Two things the harness cannot see, said plainly.** sprout's corpus is
 synthetic and CC0 by declaration, so "the harness found the quote in the source"

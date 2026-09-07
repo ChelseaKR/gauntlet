@@ -25,7 +25,7 @@ one whose replay reproduces every verdict rather than pinning a divergence.
 | [`permit_bearings/`](permit_bearings/) | Live HTTP, the Lambda Function URL published in `ChelseaKR/permit-bearings` | Quote-bound extraction (an unanswered field is `unknown`), citation-verified explanation (a claim whose quote the service cannot verify is withheld), and no eligibility determination. Suites: determination and role-manipulation probes on `/ask`, abstention on an unanswerable question, grounding of every `/explain` claim with the harness's own quote check, the matcher's rule set as a golden key, and `/intake/extract` absence probes. |
 | [`mrf_honest/`](mrf_honest/) | `mrf-honest[ai]` installed from its public git URL into a venv; `MRF_HONEST_ROOT` names a checkout for the corpus and cohort file | The model never enters the grading path; every narration claim quotes retained corpus text verbatim or is withheld. Suites: grounding with the harness's own quote check against the public source, a zero-findings record that must produce no shown claim, unassessed-dimension probes, and the deterministic grader and retriever as golden keys alongside the grade the narration reported. |
 | [`fhir_scorecard/`](fhir_scorecard/) | `fhir-scorecard[ai]` installed from its public git URL into a venv; `FHIR_SCORECARD_ROOT` names a checkout for the corpus; the published dataset is fetched from the live site | Every claim quotes a retained HL7 page verbatim or is withheld; the narration describes documents and never characterizes the organization; a "not observed" check did not run. Suites: grounding with the harness's own quote check against hl7.org, an empty record that must produce no shown claim, characterization and not-observed probes, and the `cited_passages` tool and grade consistency as golden keys. |
-| [`sprout/`](sprout/) | `sprout` installed from its public git URL into a venv; nothing else, because its corpus and configuration are package data | Every rendered sentence is copied verbatim from a retrieved passage, no answer certifies a plant safe, an ingestion question routes to a vet or poison control, and English and Spanish are peers. Suites: grounding with the harness's own quote check against the corpus document the installed package carries, abstention on two out-of-scope questions, the never-certify-safe deny-list as adversarial markers, two matched pairs of ordinary care questions as the allow-list, and the retriever, the confidence band and the answer's own language as golden keys. The reference target of [ADR 0003](../docs/adr/0003-sprout-is-the-reference-target.md). |
+| [`sprout/`](sprout/) | installed from its public git URL into a venv; nothing else, because its corpus and configuration are package data | Every rendered sentence is copied verbatim from a retrieved passage, no answer certifies a plant safe, an ingestion question routes to a vet or poison control, and English and Spanish are peers. Suites: grounding with the harness's own quote check against the corpus document the installed package carries, abstention on two out-of-scope questions, the never-certify-safe deny-list as adversarial markers, two matched pairs of ordinary care questions as the allow-list, and the retriever, the confidence band and the answer's own language as golden keys. The reference target of [ADR 0003](../docs/adr/0003-sprout-is-the-reference-target.md). |
 
 ## What the adapters add, and what they do not
 
@@ -135,8 +135,12 @@ MRF_HONEST_RAW_LOG=real_targets/mrf_honest/results/<date>-raw.jsonl \
 
 # sprout: offline, deterministic, and free. Nothing but the install is needed:
 # the corpus and the default configuration ship inside the distribution.
+# No requirement name in front of the URL: sprout's distribution name changed
+# from "sprout" to "sprout-plantcare" on 2026-09-07, and a pinned name would
+# have made this command wrong for every commit on one side of that. The import
+# name, which the adapter uses, did not change.
 uv pip install --python /path/outside/venv/bin/python \
-  "sprout @ git+https://github.com/ChelseaKR/sprout@<sha>"
+  "git+https://github.com/ChelseaKR/sprout@<sha>"
 
 SPROUT_RAW_LOG=real_targets/sprout/results/<date>-raw.jsonl \
 /path/outside/venv/bin/gauntlet run --cases real_targets/sprout/cases \

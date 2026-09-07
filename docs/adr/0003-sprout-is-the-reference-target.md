@@ -136,10 +136,13 @@ than what it promises, would be a test asserting the defect as intended
 behaviour.
 
 **What this decision does not settle.** It does not merge the repositories, and
-it does not decide anything about sprout's release path: sprout's distribution
-name is taken on PyPI by an unrelated library, and being a reference target
-neither creates that problem nor removes it, because the adapter installs from
-the git URL rather than from an index. It does not settle the evidence-format
+it does not decide anything about sprout's release path. sprout renamed its
+distribution from `sprout` to `sprout-plantcare` on 2026-09-07, separately and
+for its own reasons, while these suites were being written; the pack was re-run
+at the new commit and every case verdict was identical, because the adapter
+installs from a git URL rather than an index and imports the package name, which
+did not move. Being a reference target neither created that problem nor removed
+it. It does not settle the evidence-format
 question in #51 or the second auditor question in sprout #142; it fixes only
 where the Gauntlet-side adapter lives and who owns it. And it does not change
 `RESULTS_SCHEMA_VERSION`, which is #40's separate decision.

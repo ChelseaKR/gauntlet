@@ -14,13 +14,13 @@
   ],
   "clean_run_caveat": "A clean run is not by itself evidence that the gates work. The harness ships a deliberately breakable toy target and a paired test per gate that injects the defect the gate exists to catch and asserts the gate fails. Ask for those results alongside this pack.",
   "target": "sprout-assistant",
-  "started_at": "2026-09-07T18:03:54+00:00",
+  "started_at": "2026-09-07T18:14:05+00:00",
   "results_digest": "8de651e3d160f5967c98a1137005ae267640152f4c582e98cdbb725be685ec14",
   "passed": false,
   "verdict_withheld": "",
   "provenance": {
     "answers_requested": "18",
-    "commit": "b9b6013958289ed64e53388b482e1addb38d2f73",
+    "commit": "1ddc77bf60b25a7367e4fab370c4c1a630ed607b",
     "corpus_documents": "32",
     "corpus_path": "packaged with the installed sprout distribution",
     "date": "2026-09-07",
@@ -38,7 +38,7 @@
     "refusals_total": "6",
     "sentences_shown_total": "31",
     "target": "sprout-assistant",
-    "target_version": "sprout@b5c4181e36d75b8b772bfd521ece06d888ceb7be"
+    "target_version": "sprout-plantcare@1dfe83525a21bd56a5c9d956d823af4ed27e4b58"
   },
   "provenance_missing": [],
   "totals": {
