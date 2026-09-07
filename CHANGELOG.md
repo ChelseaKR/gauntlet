@@ -25,6 +25,32 @@ All notable changes will be documented here.
 
 ### Added
 
+- **`gauntlet verify` and `gauntlet sign`: an edited pack is now detectable.**
+  Every pack has carried a `results_digest` since M3, and nothing ever checked
+  it. An `evidence.json` whose `pass_rate` was changed from `0.333` to `1.0`
+  parsed, rendered, and read exactly like a clean run, and a pack attached to a
+  SAM 4986.9 disclosure carried no way to tell who produced it. `verify`
+  recomputes every derived number in a pack from its case rows -- the only data
+  in a pack that is not itself derived -- and names each one that stops
+  following: `gates[3].pass_rate says 1.0; the rows in this pack say 0.333`.
+  The totals are derived from the case rows too, not by summing the gate
+  counters above them, so one edit is reported at every level it reaches
+  instead of a totals row agreeing with a number just reported wrong. With
+  `--results` the pack is rebuilt from the result set and compared field by
+  field; with `--report` the Markdown is compared byte for byte to a re-render.
+  `sign --key-file` adds a detached HMAC-SHA256 signature over a
+  domain-separated message binding the pack's sha256 to the signer's name, so
+  neither can be swapped under a valid signature; HMAC authenticates between
+  parties holding the key and the docs say so rather than implying more. A new
+  exit code 3 keeps "this evidence does not reconcile" distinct from exit 1, "a
+  gate is below its threshold" -- no gate said anything here. A check with no
+  input reports `UNVERIFIABLE` and is tallied separately, never as ok: an
+  absent key means authorship was not examined, and absent `--baseline` or
+  `--ledger` means the drift or history block was not re-derived. The action
+  gains a `pack-sha256` output. Every committed real-target pack is verified
+  against its own results file and document by the suite, and `verify` opens no
+  socket, asserted by blocking `socket.socket`.
+
 - **`gauntlet lint DIR` checks a case directory before a run spends a request.**
   The loader is already strict, but it only speaks when `gauntlet run` starts,
   and the UNSCOREABLE refusal only speaks after the target has answered. A team

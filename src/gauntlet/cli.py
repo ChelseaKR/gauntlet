@@ -1,5 +1,5 @@
-"""Command-line interface: ``gauntlet run``, ``report``, ``inventory``, ``lint``,
-``history``, ``compare``, ``site``.
+"""Command-line interface: ``gauntlet run``, ``report``, ``verify``, ``sign``,
+``inventory``, ``lint``, ``history``, ``compare``, ``site``.
 
 ``run`` evaluates a target against a directory of case files (or the
 built-in bilingual suites) and writes a results JSON, exiting non-zero if
@@ -10,7 +10,9 @@ the gate inventory with counts taken from the loaded suites. ``lint`` checks a
 case directory statically, contacting nothing, and predicts a run the harness
 would refuse to score. ``history append`` and ``history check`` keep and read an
 append-only, hash-chained ledger of runs, and ``compare`` puts N results files
-side by side. ``site``
+side by side. ``verify`` recomputes an evidence pack's own numbers and checks
+them against its results file, its rendered document, and a detached
+signature; ``sign`` produces that signature. ``site``
 renders the documentation site from the harness: the counts are the
 inventory's, and the evidence excerpts are runs made while it builds.
 
@@ -22,7 +24,8 @@ is a misconfiguration, not a request to evaluate a fictional city's toy
 assistant, and it is refused rather than answered with a green verdict.
 
 Exit codes: 0 a clean run, 1 a gate below its threshold, 2 the harness itself
-could not run, 4 the run could not be scored.
+could not run, 3 evidence that does not reconcile, 4 the run could not be
+scored.
 """
 
 from __future__ import annotations
@@ -45,6 +48,22 @@ from gauntlet.history import (
     compare_runs_many,
     read_ledger,
     render_check_text,
+)
+from gauntlet.integrity import (
+    Finding,
+    check_against_report,
+    check_against_results,
+    check_pack,
+    check_signature,
+    default_signature_path,
+    failed,
+    load_pack,
+    load_signature,
+    pack_sha256,
+    read_key,
+    render_signature,
+    sign_pack,
+    summary_lines,
 )
 from gauntlet.inventory import (
     BEGIN_MARKER,
@@ -70,6 +89,12 @@ from gauntlet.toy import ToyRag
 # the gates working) and from 2 (the harness could not run at all).
 EXIT_UNSCOREABLE = 4
 UNSCOREABLE_VERDICT = "UNSCOREABLE"
+
+# Evidence that does not reconcile. No gate said anything here, so this cannot
+# be exit 1: "a gate is below its threshold" and "this document does not
+# follow from its own rows" are different messages to a reviewer, and one of
+# them is about the harness's own output rather than the target's.
+EXIT_INTEGRITY = 3
 
 
 def _load_callable_target(spec: str) -> Target:
@@ -252,9 +277,103 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 
 def _append_github_output(path: Path, pack: dict[str, object]) -> None:
+    """The pack's headline counts, plus the digest of the pack's own bytes.
+
+    ``pack-sha256`` is computed here rather than in ``github_output_lines``
+    because it is a digest of the rendered JSON, and ``render_json`` is the one
+    place that decides those bytes. A consumer records it beside the run and
+    can later hand it to ``gauntlet verify --key-file`` to show the pack it
+    holds is the one this job produced.
+    """
+    lines = [*github_output_lines(pack), f"pack-sha256={pack_sha256(render_json(pack))}"]
     with path.open("a", encoding="utf-8") as handle:
-        for line in github_output_lines(pack):
+        for line in lines:
             handle.write(line + "\n")
+
+
+def _cmd_verify(args: argparse.Namespace) -> int:
+    """Check an evidence pack against itself, its sources, and its signature.
+
+    Every check that can be run with the inputs given is run; the command does
+    not stop at the first failure, because a reviewer needs the whole list.
+    Exit 3 when anything failed to reconcile, 0 otherwise. An unverifiable
+    check is neither: it is printed, counted separately, and never added to
+    the ok tally.
+    """
+    pack_path = Path(args.evidence)
+    pack_text, pack = load_pack(pack_path)
+    findings = check_pack(pack)
+
+    if args.results:
+        baseline = load_run_dict(Path(args.baseline)) if args.baseline else None
+        history = None
+        if args.ledger:
+            history = check_ledger(read_ledger(Path(args.ledger)), args.decline_streak)
+        findings.extend(
+            check_against_results(pack, load_run_dict(Path(args.results)), baseline, history)
+        )
+    else:
+        findings.append(
+            Finding(
+                "rebuild",
+                None,
+                "no results file was given, so this pack was not compared against one: "
+                "pass --results",
+            )
+        )
+
+    if args.report:
+        report_path = Path(args.report)
+        try:
+            rendered = report_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"cannot read the report {report_path}: {exc}") from exc
+        findings.append(check_against_report(pack, rendered))
+    else:
+        findings.append(Finding("report", None, "no rendered document was given: pass --report"))
+
+    findings.extend(_signature_findings(args, pack_path, pack_text))
+
+    for line in summary_lines(findings):
+        print(line)
+    if failed(findings):
+        print(
+            f"error: {pack_path} does not reconcile; see the FAILED lines above",
+            file=sys.stderr,
+        )
+        return EXIT_INTEGRITY
+    return 0
+
+
+def _signature_findings(args: argparse.Namespace, pack_path: Path, pack_text: str) -> list[Finding]:
+    """The signature check, or the reason it was not performed.
+
+    Absence of a key is reported as unverifiable rather than skipped. A pack
+    whose signature nobody looked at has not been shown to be authentic, and a
+    silent skip is exactly how that becomes indistinguishable from a pass.
+    """
+    if not args.key_file:
+        return [
+            Finding(
+                "signature",
+                None,
+                "no key was given, so authorship was not checked: pass --key-file",
+            )
+        ]
+    signature_path = Path(args.signature) if args.signature else default_signature_path(pack_path)
+    return check_signature(pack_text, load_signature(signature_path), read_key(Path(args.key_file)))
+
+
+def _cmd_sign(args: argparse.Namespace) -> int:
+    """Write a detached HMAC-SHA256 signature for one evidence pack."""
+    pack_path = Path(args.evidence)
+    pack_text, _ = load_pack(pack_path)
+    document = sign_pack(pack_text, read_key(Path(args.key_file)), args.signed_by or "")
+    out_path = Path(args.out) if args.out else default_signature_path(pack_path)
+    _write(str(out_path), render_signature(document))
+    print(f"wrote {document['algorithm']} signature for {pack_path} to {out_path}")
+    print(f"pack-sha256={document['pack_sha256']}")
+    return 0
 
 
 def _cmd_inventory(args: argparse.Namespace) -> int:
@@ -342,6 +461,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     _add_run_parser(sub)
     _add_report_parser(sub)
+    _add_verify_parser(sub)
+    _add_sign_parser(sub)
     _add_inventory_parser(sub)
     _add_lint_parser(sub)
     _add_history_parser(sub)
@@ -413,6 +534,62 @@ def _add_report_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser])
         help="append GitHub Actions 'name=value' output lines to this file",
     )
     report_parser.set_defaults(func=_cmd_report)
+
+
+def _add_verify_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    verify_parser = sub.add_parser(
+        "verify", help="check an evidence pack against itself, its results, and its signature"
+    )
+    verify_parser.add_argument("evidence", help="path to an evidence pack JSON")
+    verify_parser.add_argument(
+        "--results", help="the results JSON the pack was built from, to rebuild and compare"
+    )
+    verify_parser.add_argument(
+        "--baseline", help="the baseline results JSON, so the drift block can be re-derived"
+    )
+    verify_parser.add_argument(
+        "--ledger", help="the run ledger, so the history block can be re-derived"
+    )
+    verify_parser.add_argument(
+        "--decline-streak",
+        type=int,
+        default=DEFAULT_DECLINE_STREAK,
+        help=f"the streak the ledger section was rendered with (default: {DEFAULT_DECLINE_STREAK})",
+    )
+    verify_parser.add_argument(
+        "--report", help="the rendered Markdown document, compared byte for byte to a re-render"
+    )
+    verify_parser.add_argument(
+        "--key-file", help="the shared secret the detached signature was made with"
+    )
+    verify_parser.add_argument(
+        "--signature",
+        help="path to the detached signature (default: the pack's name with a .sig.json suffix)",
+    )
+    verify_parser.set_defaults(func=_cmd_verify)
+
+
+def _add_sign_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    sign_parser = sub.add_parser(
+        "sign", help="write a detached HMAC-SHA256 signature for an evidence pack"
+    )
+    sign_parser.add_argument("evidence", help="path to an evidence pack JSON")
+    sign_parser.add_argument(
+        "--key-file",
+        required=True,
+        help="file holding the shared secret; generated with e.g. "
+        "'openssl rand -hex 32 > gauntlet.key'",
+    )
+    sign_parser.add_argument(
+        "--signed-by",
+        default="",
+        help="the name recorded in, and authenticated by, the signature",
+    )
+    sign_parser.add_argument(
+        "--out",
+        help="where to write the signature (default: the pack's name with a .sig.json suffix)",
+    )
+    sign_parser.set_defaults(func=_cmd_sign)
 
 
 def _add_inventory_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

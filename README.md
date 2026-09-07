@@ -227,6 +227,65 @@ Each pack carries a `results_digest`: a sha256 over what the run observed, with
 the clock deliberately excluded. Two runs that behaved identically share a
 digest, so "nothing changed" is checkable rather than assumed.
 
+## Checking a pack you were handed
+
+A pack is evidence only if an edited number can be told from an original one.
+Until you check it, an `evidence.json` whose `pass_rate` was changed from
+`0.333` to `1.0` parses, renders, and reads exactly like a clean run.
+
+```console
+$ gauntlet verify evidence.json --results results.json --report evidence.md
+[OK] gate/grounding: gates[3].pass_rate is 0.333
+...
+[OK] rebuild: 18 pack fields match a rebuild from the results
+[OK] report: the document is byte-identical to a re-render (17244 bytes)
+[UNVERIFIABLE] signature: no key was given, so authorship was not checked: pass --key-file
+checks: 43 ok, 0 failed, 1 unverifiable (an unverifiable check is not a pass)
+```
+
+`verify` answers two different questions and keeps them apart.
+
+**Does this pack follow from its own rows?** Every derived number is recomputed
+from the case rows, which are the only data in a pack that is not itself
+derived: per-gate totals and pass rates, each gate's verdict against its
+threshold, the failed case ids, the per-language counts, the pack totals, the
+overall verdict, and the `results_digest`. Each one that no longer reconciles
+is named with its path, so the output says `gates[3].pass_rate says 1.0; the
+rows in this pack say 0.333` rather than "invalid". With `--results` the pack is
+also rebuilt from the result set and compared field by field, and with
+`--report` the Markdown document is compared byte for byte against a re-render.
+
+**Who produced it?** Recomputation cannot catch an edit that recomputed the
+arithmetic too, because anyone can run the same arithmetic. That needs a
+secret:
+
+```console
+$ openssl rand -hex 32 > gauntlet.key
+$ gauntlet sign evidence.json --key-file gauntlet.key --signed-by "A. Reviewer"
+wrote hmac-sha256 signature for evidence.json to evidence.sig.json
+pack-sha256=bc1bfc2d9499b437ce00af82834d8afc21a7538a4eccd530c00e5f55851e999c
+
+$ gauntlet verify evidence.json --key-file gauntlet.key
+[OK] signature: valid hmac-sha256 signature over this pack, signed by A. Reviewer
+```
+
+The signature is HMAC-SHA256 over a domain-separated message binding the pack's
+sha256 to the signer's name, so neither the pack nor the name can be swapped
+under a valid signature. HMAC authenticates between parties who already share a
+key; it is not a public-key signature, there is no transparency log, and this
+harness does not pretend otherwise.
+
+**A check with no input is `UNVERIFIABLE`, which is not a pass.** No key means
+authorship was not examined; no `--baseline` means the drift block was not
+re-derived; no `--ledger` means the history block was not. Each is printed and
+counted on its own line, never folded into the ok tally, because "43 checks
+passed" over a pack whose signature nobody looked at says something false.
+
+Exit codes: `0` everything supplied reconciled, `3` something did not, `2` the
+command could not run at all. `3` is deliberately not `1`: no gate said anything
+here, and "a gate is below its threshold" and "this document does not follow
+from its own rows" are different messages to a reviewer.
+
 ## A sequence of runs, not just a pair
 
 `--baseline` compares this run to one other run. A team running the gates on
@@ -344,10 +403,14 @@ the action can do for you.
 
 ### Outputs
 
-`passed`, `results-digest`, `gates-total`, `gates-passed`, `gates-failed`,
-`cases-total`, `cases-passed`, `cases-failed`, `drift-computed`,
-`drift-newly-failing`, `drift-newly-passing`, and the three artifact paths
-`results-path`, `report-path`, `json-path`.
+`passed`, `results-digest`, `pack-sha256`, `gates-total`, `gates-passed`,
+`gates-failed`, `cases-total`, `cases-passed`, `cases-failed`,
+`drift-computed`, `drift-newly-failing`, `drift-newly-passing`, and the three
+artifact paths `results-path`, `report-path`, `json-path`.
+
+`pack-sha256` is the digest of the evidence pack's own bytes. Record it beside
+the run and `gauntlet verify` can later show that the pack you are reading is
+the one this job produced.
 
 Counts come from the harness. Nothing in the action asserts a number the run did
 not produce.

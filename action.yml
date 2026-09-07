@@ -125,6 +125,12 @@ outputs:
   drift-newly-passing:
     description: Cases that failed in the baseline and pass now.
     value: ${{ steps.pack.outputs.drift-newly-passing }}
+  pack-sha256:
+    description: >-
+      sha256 of the machine-readable evidence pack's bytes. Record it beside the
+      run; `gauntlet verify` recomputes it, and `gauntlet sign` binds it to a
+      named signer.
+    value: ${{ steps.pack.outputs.pack-sha256 }}
 
 runs:
   using: composite
