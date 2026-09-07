@@ -180,7 +180,12 @@ def test_sentence_languages_reports_the_documents_the_answer_came_from(
     target = _target(recording, corpus)
 
     assert target.ask("sentence-languages regar?", "es").text == "en+es"
-    assert target.ask("sentence-languages stocks?", "en").text == NO_SENTENCES
+    # The literal, not NO_SENTENCES. Asserting the constant against itself moves
+    # with any edit to it: measured on 2026-09-07, setting NO_SENTENCES to the
+    # empty string left this test green and was caught only by the committed
+    # golden key in the pack replay.
+    assert target.ask("sentence-languages stocks?", "en").text == "none"
+    assert NO_SENTENCES == "none"
 
 
 def test_a_refusal_carries_the_band_and_no_retrieval_order(tmp_path: Path, corpus: Path) -> None:
@@ -237,7 +242,11 @@ def test_the_quote_check_reads_the_installed_corpus_and_records_its_outcome(
     target.ask("ask water?", "en")
 
     keys = [json.loads(line)["key"] for line in written.read_text(encoding="utf-8").splitlines()]
-    assert any(key.startswith(f"quotecheck {CORPUS_SCHEME}monstera.md ::") for key in keys)
+    # The literal, for the reason given above: the committed recording is keyed
+    # by this exact string, and a test written against CORPUS_SCHEME would follow
+    # the constant anywhere it moved while every committed pack stopped replaying.
+    assert any(key.startswith("quotecheck sprout-corpus:monstera.md ::") for key in keys)
+    assert CORPUS_SCHEME == "sprout-corpus:"
     assert not any(str(tmp_path) in key for key in keys)
     assert target.provenance()["quotes_verified"] == "1"
     assert target.provenance()["model"] == "none"
