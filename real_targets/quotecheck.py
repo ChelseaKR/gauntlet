@@ -178,6 +178,18 @@ class DocumentCache:
     older than this format.
     """
 
+    #: Documents this checker reads from disk instead of fetching, keyed by the
+    #: identifier the citation carries. An adapter fills this in when the cited
+    #: document is not something a reviewer could fetch: a target whose corpus
+    #: ships inside its own installed package has no public URL to look up, and
+    #: putting the corpus's declared ``url`` in the pack would tell a reviewer
+    #: to follow a link that answers nothing. The key is then a scheme the pack
+    #: can print honestly (``sprout-corpus:monstera.md``), and it is stable
+    #: across machines, so a recording made here replays anywhere. The map is
+    #: consulted before the URL scheme is, and populated only on a live run: a
+    #: replay answers from the recorded outcome and never reaches the file.
+    local_documents: dict[str, Path]
+
     def __init__(
         self,
         timeout: float = 30.0,
@@ -187,6 +199,7 @@ class DocumentCache:
     ) -> None:
         self._timeout = timeout
         self._max_bytes = max_bytes
+        self.local_documents = {}
         self._documents: dict[str, str | None] = {}
         self._notes: dict[str, str] = {}
         self._recorded: set[str] = set()
@@ -206,6 +219,13 @@ class DocumentCache:
         return text, note
 
     def _load(self, url: str) -> tuple[str | None, str]:
+        local = self.local_documents.get(url)
+        if local is not None:
+            try:
+                raw = local.read_bytes()
+            except OSError as exc:
+                return None, f"local document unreadable: {exc}"
+            return self._extract(raw, "application/pdf" if raw[:5] == b"%PDF-" else "text/plain")
         if url.startswith("file://"):
             path = Path(url.removeprefix("file://"))
             try:

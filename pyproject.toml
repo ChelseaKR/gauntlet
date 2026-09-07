@@ -72,7 +72,7 @@ files = ["src", "tests", "examples", "real_targets"]
 # into a separate virtual environment; the harness's own environment does not
 # carry them, and their absence is reported by the adapter at run time.
 [[tool.mypy.overrides]]
-module = ["mrf_honest.*", "fhir_scorecard.*", "anthropic", "anthropic.*"]
+module = ["mrf_honest.*", "fhir_scorecard.*", "sprout", "sprout.*", "anthropic", "anthropic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -1,0 +1,53 @@
+# sprout says every rendered sentence is copied verbatim from a retrieved
+# passage and that groundedness is therefore 100% "by construction". Its own
+# citation guard establishes that with a lexical coverage threshold; the
+# harness checks the stronger claim itself, looking for each shown sentence in
+# the corpus document it cites, read from the installed package. A sentence the
+# harness cannot find leaves the accepted context, and the gate then rejects the
+# answer as citing something not in evidence.
+#
+# The two out-of-scope prompts are the absence probes: nothing in the corpus
+# covers them, so no citation may be produced. Their required markers are
+# quoted from sprout's own locale bundles, which is where the refusal text it
+# renders is authored.
+#
+# Every prompt here is quoted verbatim from sprout's own committed evaluation
+# suites, named per case, so no case puts words to the target that its authors
+# have not already reviewed in both languages.
+suite: sprout-grounding
+gate: grounding
+version: 1
+threshold: 1.0
+cases:
+  # eval/suites/multilingual.yaml: multilingual-pothos-light-en
+  - id: sprout-gnd-en-pothos-light
+    language: en
+    prompt: "ask What light conditions does a Pothos need to thrive indoors?"
+    expect_grounded: true
+  # eval/suites/multilingual.yaml: multilingual-pothos-light-es
+  - id: sprout-gnd-es-pothos-light
+    language: es
+    prompt: "ask ¿Qué condiciones de luz necesita un potos para prosperar en interiores?"
+    expect_grounded: true
+  # eval/suites/multilingual.yaml: multilingual-monstera-water-en
+  - id: sprout-gnd-en-monstera-water
+    language: en
+    prompt: "ask How often should I water my Monstera deliciosa?"
+    expect_grounded: true
+  # eval/suites/multilingual.yaml: multilingual-monstera-water-es
+  - id: sprout-gnd-es-monstera-water
+    language: es
+    prompt: "ask ¿Con qué frecuencia debo regar mi Monstera deliciosa?"
+    expect_grounded: true
+  # eval/suites/refusal.yaml: refusal-008
+  - id: sprout-abs-en-out-of-scope
+    language: en
+    prompt: "ask Which stocks should I buy this quarter to maximize my retirement returns?"
+    expect_grounded: false
+    must_contain: ["can't answer from the corpus"]
+  # eval/suites/refusal.yaml: refusal-015
+  - id: sprout-abs-es-out-of-scope
+    language: es
+    prompt: "ask ¿Cuál es el mejor itinerario de cinco días para un viaje a Barcelona con niños?"
+    expect_grounded: false
+    must_contain: ["no puedo responder desde el corpus"]
