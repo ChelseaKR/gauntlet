@@ -51,8 +51,10 @@ from gauntlet.calibrate import (
     describe,
     export_labels,
     interactive_session,
+    measure_agreement,
     parse_labeled_on,
     read_labels,
+    render_agreement,
     today,
     write_calibration,
 )
@@ -92,6 +94,7 @@ from gauntlet.inventory import (
 from gauntlet.judge import (
     DEFAULT_JUDGE_REGION,
     BedrockJudge,
+    CalibrationSet,
     Judge,
     JudgeError,
     RecordingJudge,
@@ -502,6 +505,53 @@ def _cmd_site(args: argparse.Namespace) -> int:
     return 0
 
 
+def _calibrate_agreement(args: argparse.Namespace, calibration_set: CalibrationSet) -> int:
+    """``--agreement A B --min-kappa K``: how far two reviewers agreed, and whether it is enough.
+
+    A judge calibrated against one person's reading is calibrated against one
+    person's reading. Cohen's kappa between two readings of the same pairs is
+    the cheapest thing that says whether the rubric means the same to two
+    people, and it is measured here rather than asserted anywhere.
+
+    ``--min-kappa`` is required and has no default. A floor of 0.6 or 0.8 would
+    be this harness inventing the threshold, and the number is a judgement
+    about how much disagreement the rubric can carry before the labels stop
+    describing one thing. It belongs to whoever set it, so it is typed at the
+    command line and printed back in the verdict.
+    """
+    if not args.agreement:
+        raise ValueError(
+            "--min-kappa goes with --agreement: there are no two readings to compare without "
+            "two labeled worksheets"
+        )
+    if args.min_kappa is None:
+        raise ValueError(
+            "--agreement needs --min-kappa, and it has no default: the floor is a judgement "
+            "about how much disagreement the rubric can carry, and this harness will not "
+            "invent one on your behalf"
+        )
+    if not -1.0 <= args.min_kappa <= 1.0:
+        raise ValueError(
+            f"--min-kappa {args.min_kappa} is outside Cohen's kappa's range of -1.0 to 1.0, "
+            "so it is either unsatisfiable or met by every possible reading"
+        )
+    first_path, second_path = (Path(name) for name in args.agreement)
+    if first_path.resolve() == second_path.resolve():
+        raise ValueError(
+            f"--agreement was given {first_path} twice. A file compared with itself agrees "
+            "with itself, and the number that comes out says nothing about two reviewers"
+        )
+    agreement = measure_agreement(
+        read_labels(first_path, calibration_set),
+        read_labels(second_path, calibration_set),
+    )
+    code, sentence = render_agreement(
+        agreement, args.min_kappa, (str(first_path), str(second_path))
+    )
+    print(sentence)
+    return code
+
+
 def _cmd_calibrate(args: argparse.Namespace) -> int:
     """A person labels the calibration pairs and seals them; see ``gauntlet.calibrate``.
 
@@ -514,6 +564,8 @@ def _cmd_calibrate(args: argparse.Namespace) -> int:
         ok, sentence = describe(calibration_set)
         print(sentence)
         return 0 if ok else 1
+    if args.agreement or args.min_kappa is not None:
+        return _calibrate_agreement(args, calibration_set)
     if args.export:
         count = export_labels(calibration_set, Path(args.export))
         print(f"wrote {count} pairs to {args.export}; fill in 'verdict' on each line, then")
@@ -810,6 +862,23 @@ def _add_calibrate_parser(sub: argparse._SubParsersAction[argparse.ArgumentParse
         help=(
             "report every reason the judge gate would refuse this set -- unsigned, "
             "unsealed, resealed, too few pairs, one verdict only; exit 1 if any"
+        ),
+    )
+    calibrate_parser.add_argument(
+        "--agreement",
+        nargs=2,
+        metavar=("FIRST", "SECOND"),
+        help=(
+            "two reviewers' filled-in --export worksheets for this set; report Cohen's "
+            "kappa between them and stop. Requires --min-kappa"
+        ),
+    )
+    calibrate_parser.add_argument(
+        "--min-kappa",
+        type=float,
+        help=(
+            "the inter-reviewer agreement floor, required with --agreement and with no "
+            "default: exit 1 below it. The number is yours to choose"
         ),
     )
     calibrate_parser.set_defaults(func=_cmd_calibrate)

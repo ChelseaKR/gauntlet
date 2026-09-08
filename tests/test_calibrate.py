@@ -29,6 +29,7 @@ from gauntlet.calibrate import (
     describe,
     export_labels,
     interactive_session,
+    measure_agreement,
     parse_labeled_on,
     read_labels,
     render_calibration,
@@ -666,3 +667,268 @@ def test_a_tampered_file_is_refused_by_the_run_and_the_pack_names_the_seal(
     )
     result = calibrate(RecordingJudge(replay_path=restored_recording), restored, 0.9)
     assert result.calibrated
+
+
+# --- agreement between two reviewers ------------------------------------------
+
+
+def _worksheet(tmp_path: Path, name: str, verdicts: dict[str, str]) -> Path:
+    path = tmp_path / name
+    path.write_text(
+        "\n".join(json.dumps({"id": key, "verdict": value}) for key, value in verdicts.items())
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _reading(**overrides: str) -> dict[str, str]:
+    """The draft verdicts with named pairs changed. Eight pairs, four of each."""
+    verdicts = _draft_verdicts()
+    verdicts.update(overrides)
+    return verdicts
+
+
+def test_cohens_kappa_is_the_hand_computed_number() -> None:
+    """The expected value is a literal, not something this function produced.
+
+    Eight pairs. The first reader gives four ``meets`` and four ``violates``;
+    the second reads two of the ``violates`` pairs as ``meets``. They agree on
+    six, so observed agreement is 0.75. Chance agreement is
+    (4*6 + 4*2) / 64 = 0.5, so kappa is (0.75 - 0.5) / (1 - 0.5) = **0.5**.
+
+    Deriving the expectation from `measure_agreement` would make this a test
+    that the function equals itself, which holds for any arithmetic it does.
+    """
+    agreement = measure_agreement(_reading(), _reading(**{"syn-1": "meets", "syn-3": "meets"}))
+    assert (agreement.pairs, agreement.agreed) == (8, 6)
+    assert agreement.observed == 0.75
+    assert agreement.expected == 0.5
+    assert agreement.kappa == 0.5
+    assert (agreement.numerator, agreement.denominator) == (16, 32)
+    assert agreement.counts == {
+        ("meets", "meets"): 4,
+        ("violates", "meets"): 2,
+        ("violates", "violates"): 2,
+    }
+
+
+def test_two_identical_readings_agree_completely_and_opposite_ones_do_not() -> None:
+    """The two ends of the scale, so a sign error or an inverted ratio shows."""
+    assert measure_agreement(_reading(), _reading()).kappa == 1.0
+    opposite = {
+        key: ("meets" if value == "violates" else "violates") for key, value in _reading().items()
+    }
+    assert measure_agreement(_reading(), opposite).kappa == -1.0
+
+
+def test_total_chance_agreement_has_no_kappa_at_all() -> None:
+    """Two reviewers who said ``meets`` to everything have distinguished nothing.
+
+    Observed agreement is 1.0 and so is chance agreement, so the ratio is 0/0.
+    The two numbers a naive implementation returns are both wrong in the
+    direction that matters: 1.0 reports perfect agreement between two people
+    who made no distinction, and 0.0 reports a disagreement that did not
+    happen. There is no number here, and `kappa` says so.
+    """
+    everything_meets = dict.fromkeys(_draft_verdicts(), "meets")
+    agreement = measure_agreement(everything_meets, dict(everything_meets))
+    assert agreement.agreed == agreement.pairs == 8
+    assert agreement.observed == 1.0
+    assert agreement.expected == 1.0
+    assert agreement.denominator == 0
+    assert agreement.kappa is None
+
+
+def test_one_reviewer_using_a_single_verdict_is_still_measurable() -> None:
+    """The case a too-eager undefined check would swallow.
+
+    Only *both* reviewers collapsing onto the same single verdict makes chance
+    agreement total. One reviewer saying ``meets`` throughout while the other
+    splits four and four is a real, measurable result -- kappa 0.0, agreement
+    exactly at chance -- and reporting it as undefined would hide a reviewer
+    who was not reading the pairs.
+    """
+    agreement = measure_agreement(dict.fromkeys(_draft_verdicts(), "meets"), _reading())
+    assert agreement.kappa == 0.0
+    assert agreement.denominator != 0
+
+
+def test_measure_agreement_refuses_an_empty_set_and_two_different_ones() -> None:
+    with pytest.raises(CalibrateError, match="agreement over an empty set"):
+        measure_agreement({}, {})
+    with pytest.raises(CalibrateError, match="different sets of pairs"):
+        measure_agreement(_reading(), {"syn-0": "meets"})
+
+
+@pytest.mark.parametrize(
+    ("floor", "expected_code", "expected_phrase"),
+    [
+        (0.4, 0, "at or above the floor"),
+        (0.5, 0, "at or above the floor"),
+        (0.6, 1, "below the floor"),
+    ],
+)
+def test_the_cli_reports_the_floor_you_set_and_exits_on_it(
+    unreviewed: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    floor: float,
+    expected_code: int,
+    expected_phrase: str,
+) -> None:
+    """Kappa is 0.5 here, so a floor of 0.5 passes and 0.6 does not."""
+    first = _worksheet(tmp_path, "first.jsonl", _reading())
+    second = _worksheet(tmp_path, "second.jsonl", _reading(**{"syn-1": "meets", "syn-3": "meets"}))
+    code = main(
+        [
+            "calibrate",
+            str(unreviewed),
+            "--agreement",
+            str(first),
+            str(second),
+            "--min-kappa",
+            str(floor),
+        ]
+    )
+    printed = capsys.readouterr().out
+    assert code == expected_code
+    assert expected_phrase in printed
+    assert "0.5000 (exactly 16/32)" in printed
+    assert str(floor) in printed
+
+
+def test_the_cli_refuses_to_call_an_undefined_kappa_a_verdict(
+    unreviewed: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Exit 2, not 1 and certainly not 0.
+
+    Nobody failed a threshold: the measurement could not be made. This
+    repository's exit codes already separate "the harness could not produce a
+    verdict" from "a gate is below its threshold", and collapsing the third
+    case into either of the other two is how an absence gets published as a
+    measurement. Every floor from -1.0 to 1.0 takes the same path, which is
+    what makes it a refusal rather than a comparison that happened to fail.
+    """
+    everything_meets = dict.fromkeys(_draft_verdicts(), "meets")
+    first = _worksheet(tmp_path, "a.jsonl", everything_meets)
+    second = _worksheet(tmp_path, "b.jsonl", dict(everything_meets))
+    for floor in ("-1.0", "0.0", "1.0"):
+        assert (
+            main(
+                [
+                    "calibrate",
+                    str(unreviewed),
+                    "--agreement",
+                    str(first),
+                    str(second),
+                    "--min-kappa",
+                    floor,
+                ]
+            )
+            == 2
+        )
+    printed = capsys.readouterr().out
+    assert "undefined" in printed
+    assert "not a kappa of 1.0 and not a kappa of 0.0" in printed
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (["--agreement", "a.jsonl", "b.jsonl"], "needs --min-kappa"),
+        (["--min-kappa", "0.5"], "goes with --agreement"),
+        (
+            ["--agreement", "a.jsonl", "b.jsonl", "--min-kappa", "1.5"],
+            "outside Cohen's kappa's range",
+        ),
+        (
+            ["--agreement", "a.jsonl", "b.jsonl", "--min-kappa", "-1.01"],
+            "outside Cohen's kappa's range",
+        ),
+        (["--agreement", "a.jsonl", "a.jsonl", "--min-kappa", "0.5"], "twice"),
+    ],
+)
+def test_the_agreement_flags_refuse_every_misuse(
+    unreviewed: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    extra: list[str],
+    message: str,
+) -> None:
+    """Each of these is the harness declining to invent something, so each is exit 2.
+
+    The floor especially: a default of 0.6 or 0.8 would be this harness
+    choosing how much disagreement a rubric may carry, which is the reviewer's
+    judgement and is printed back in the verdict precisely so it stays theirs.
+    """
+    for name in ("a.jsonl", "b.jsonl"):
+        _worksheet(tmp_path, name, _reading())
+    argv = [str(tmp_path / part) if part.endswith(".jsonl") else part for part in extra]
+    assert main(["calibrate", str(unreviewed), *argv]) == 2
+    assert message in capsys.readouterr().err
+
+
+def test_a_worksheet_missing_a_pair_is_refused_before_any_number_is_printed(
+    unreviewed: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Kappa over the pairs both reviewers happened to reach is a different measurement.
+
+    ``read_labels`` already refuses a partial worksheet, and routing agreement
+    through it is what keeps that true here: an unlabeled pair is a pair
+    nobody reviewed, not a pair to drop from the denominator.
+    """
+    complete = _worksheet(tmp_path, "complete.jsonl", _reading())
+    partial = _worksheet(tmp_path, "partial.jsonl", {"syn-0": "meets"})
+    assert (
+        main(
+            [
+                "calibrate",
+                str(unreviewed),
+                "--agreement",
+                str(complete),
+                str(partial),
+                "--min-kappa",
+                "0.0",
+            ]
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert "7 of 8 pairs have no label" in captured.err
+    assert "kappa" not in captured.out
+
+
+def test_agreement_writes_nothing_and_signs_nothing(
+    unreviewed: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Perfect agreement between two readings is not a review, and must not read as one.
+
+    ``labeled_by`` is written by one command and one flag combination, and
+    kappa 1.0 is not it. A verb that reported agreement and quietly marked the
+    set reviewed would turn "two people read this the same way" into "this set
+    may calibrate a judge", which is the withholding this repository refuses to
+    lift without a person's name on the labels.
+    """
+    before = unreviewed.read_bytes()
+    first = _worksheet(tmp_path, "first.jsonl", _reading())
+    second = _worksheet(tmp_path, "second.jsonl", _reading())
+    assert (
+        main(
+            [
+                "calibrate",
+                str(unreviewed),
+                "--agreement",
+                str(first),
+                str(second),
+                "--min-kappa",
+                "1.0",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert unreviewed.read_bytes() == before
+    still_refused = load_calibration(unreviewed)
+    assert not still_refused.reviewed
+    assert main(["calibrate", str(unreviewed), "--check"]) == 1

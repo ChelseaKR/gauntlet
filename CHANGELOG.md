@@ -33,7 +33,44 @@ All notable changes will be documented here.
   `fetch-tags`, so a tag-reading assertion would find nothing and skip in the
   run that gates a merge. Reading tags here needs `fetch-depth: 0` in CI first.
 
-Nothing yet.
+### Added
+
+- **`gauntlet calibrate --agreement A B --min-kappa K`: whether the rubric means
+  the same thing to two people.** A judge calibrated against one person's
+  reading is calibrated against one person's reading, and ADR 0001's whole
+  argument is that a judge's verdicts count only after they have agreed with a
+  person's. Cohen's kappa between two filled-in `--export` worksheets is the
+  cheapest thing that says whether two readings of the same pairs describe one
+  rubric, and it is measured rather than asserted. This was the last unbuilt
+  item of #48.
+
+  **`--min-kappa` is required and has no default.** A shipped 0.6 or 0.8 would
+  be this harness deciding how much disagreement a rubric may carry, which is a
+  judgement about the rubric. The number is typed at the command line and
+  printed back in the verdict, so it stays the reviewer's.
+
+  **Three outcomes, not two, and the third one is the point.** Kappa is
+  undefined when both reviewers gave every pair the same single verdict:
+  observed agreement is 1.0 and so is chance agreement, and the ratio is 0/0.
+  Both values a naive implementation returns are wrong in the direction that
+  matters -- 1.0 reports perfect agreement between two people who
+  distinguished nothing, 0.0 reports a disagreement that did not happen. It is
+  reported as undefined and exits 2, "the harness could not produce a verdict",
+  never 1, "a gate is below its threshold", and never 0. Only *both* readings
+  collapsing does this: one reviewer saying `meets` throughout while the other
+  splits is kappa 0.0, a real result that a hastier undefined check would have
+  hidden. The two integers kappa is computed from are carried and printed
+  alongside it (`0.5000 (exactly 16/32)`), because `denominator == 0` is an
+  integer question and asking it of a float invites an answer that depends on
+  rounding.
+
+  Both worksheets go through the existing strict reader, so a partial worksheet
+  is refused rather than silently narrowing the denominator: kappa over the
+  pairs both reviewers happened to reach is a different measurement. The same
+  file passed twice is refused, because a file agrees with itself. And the verb
+  **writes nothing and signs nothing** -- `labeled_by` still has exactly one
+  writer, and a test asserts that a kappa of 1.0 leaves the set byte-identical
+  and still refused by `--check`.
 
 ## [0.2.0] - 2026-09-07
 
