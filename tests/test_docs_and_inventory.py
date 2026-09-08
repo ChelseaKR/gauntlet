@@ -780,6 +780,137 @@ def test_the_dated_release_reader_finds_what_the_changelog_holds() -> None:
     )
 
 
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+
+#: The sentence in the Release & Versioning row that makes an existing tag
+#: inert. `v0.2.0` is on `origin` and nothing has published it, and the only
+#: reason a reader can be sure of that is this clause: a tag push does not
+#: start `release.yml`, so the tag sitting there has run nothing. It is the
+#: load-bearing half of "0.2.0 is tagged and not published", and until now
+#: nothing compared it to the workflow.
+README_SAYS_NO_TAG_PUSH = "never on a tag push"
+
+#: The triggers the row names, each as the reader meets it in the row.
+README_NAMES_TRIGGER = {"release": "`release: published`", "workflow_dispatch": "on dispatch"}
+
+
+def _workflow_triggers(text: str) -> dict[str, object]:
+    """The `on:` mapping of a workflow, whatever YAML decides to call the key.
+
+    PyYAML implements YAML 1.1, where a bare `on` is a **boolean**, so the key
+    of a workflow's trigger block loads as `True` rather than `"on"`. Reading
+    `loaded["on"]` raises, and reading `loaded.get("on")` returns `None` --
+    which is indistinguishable from a workflow that declares no triggers at
+    all, and would make every check below pass over nothing.
+    """
+    loaded = yaml.safe_load(text)
+    assert isinstance(loaded, dict), "the workflow did not parse as a mapping"
+    triggers = loaded["on"] if "on" in loaded else loaded.get(True)
+    assert isinstance(triggers, dict) and triggers, (
+        f"no trigger mapping parsed out of the workflow (got {triggers!r}); every check "
+        "reading it would pass over nothing"
+    )
+    return triggers
+
+
+def _publishes_on_a_tag_push(triggers: dict[str, object]) -> bool:
+    """Does a `git push` of a tag start this workflow?
+
+    Membership, never `is None`: `push:` with nothing under it is a declared
+    trigger whose body is `None`, and `push:` with only `branches:` is a
+    declared trigger that no tag reaches. The three states are different and
+    the middle one is the dangerous one -- a bare `push:` fires on every tag
+    there is.
+    """
+    if "push" not in triggers:
+        return False
+    body = triggers["push"]
+    if body is None:
+        return True
+    assert isinstance(body, dict), f"push: parsed as {body!r}, which this check cannot read"
+    return "tags" in body or "tags-ignore" in body
+
+
+def test_the_readme_says_a_tag_push_starts_nothing_exactly_while_that_is_true() -> None:
+    """The sentence that makes `v0.2.0` inert, held to the workflow that makes it inert.
+
+    The row states four facts about 0.2.0 and this is the one a reader can
+    check from the tree: `release.yml` never runs on a tag push. It is why the
+    tag can sit on `origin` having uploaded nothing, and why publishing the
+    GitHub Release -- not cutting the tag -- is the irreversible step.
+
+    Nothing gated it. Adding `push: {tags: ["v*"]}` to the workflow makes the
+    tag live, makes this sentence false, and reddens no test: the release-tag
+    gate proves the *signature* checks are reachable and the publishing jobs
+    wait for them, and says nothing about which events reach them at all.
+
+    Two-directional, like the changelog row above it: the clause is required
+    while no tag-push trigger is declared and refused once one is, so a repo
+    that deliberately publishes from a tag cannot leave the sentence behind.
+    """
+    triggers = _workflow_triggers(RELEASE_WORKFLOW.read_text(encoding="utf-8"))
+    row = _standards_row("Release & Versioning")
+
+    if _publishes_on_a_tag_push(triggers):
+        assert README_SAYS_NO_TAG_PUSH not in row, (
+            f".github/workflows/release.yml now declares a tag-push trigger "
+            f"({triggers.get('push')!r}), so pushing a tag publishes. The README's Release & "
+            f"Versioning row still says {README_SAYS_NO_TAG_PUSH!r}, which tells a reader an "
+            "existing tag has run nothing."
+        )
+        return
+
+    assert README_SAYS_NO_TAG_PUSH in row, (
+        f"release.yml declares triggers {sorted(map(str, triggers))} and none of them is a "
+        f"tag push, and the README's Release & Versioning row no longer says "
+        f"{README_SAYS_NO_TAG_PUSH!r}. That clause is what tells a reader the tags already on "
+        "origin have published nothing."
+    )
+    for trigger, named in README_NAMES_TRIGGER.items():
+        declares = "declares" if trigger in triggers else "does not declare"
+        names = "names" if named in row else "does not name"
+        assert (trigger in triggers) == (named in row), (
+            f"release.yml {declares} the {trigger!r} trigger and the README row {names} it "
+            f"as {named!r}. The row is what a reader consults to find out how a release starts."
+        )
+    assert set(map(str, triggers)) <= set(README_NAMES_TRIGGER), (
+        f"release.yml declares a trigger the README row does not describe: "
+        f"{sorted(set(map(str, triggers)) - set(README_NAMES_TRIGGER))}. Every way this "
+        "workflow can start is a way a publish can start."
+    )
+
+
+@pytest.mark.parametrize(
+    ("declared", "expected"),
+    [
+        ("on:\n  release:\n    types: [published]\n  workflow_dispatch:\n", False),
+        ("on:\n  push:\n    tags: ['v*']\n", True),
+        ("on:\n  push:\n", True),
+        ("on:\n  push:\n    branches: [main]\n", False),
+        ("'on':\n  push:\n    tags: ['v*']\n", True),
+    ],
+)
+def test_the_tag_push_reader_answers_both_ways(declared: str, expected: bool) -> None:
+    """The check above can only ever exercise one branch of itself here.
+
+    This workflow declares no tag-push trigger, so the live call returns
+    `False` every time -- and `False` is also what a reader that had stopped
+    understanding the file would return. Handing it workflows that declare one
+    is what separates the two, and it costs five strings.
+
+    The `push:` with an empty body is the case worth having: it is a declared
+    trigger whose value is `None`, so any reader written as `if push is None`
+    calls it absent and every tag in the repository starts a publish. The
+    quoted `'on'` key is the other: YAML 1.1 turns a bare `on` into `True`, and
+    a file that quotes it does not, so a reader that handles only one of the
+    two silently stops reading half the workflows it is pointed at.
+    """
+    assert (
+        _publishes_on_a_tag_push(_workflow_triggers(declared + "jobs:\n  a:\n    steps: []\n"))
+        is expected
+    )
+
+
 def _a11y_list(name: str) -> tuple[str, ...]:
     """Read one string list out of tools/a11y.mjs, so the docs cannot restate it."""
     block = re.search(
