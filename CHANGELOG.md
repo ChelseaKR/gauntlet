@@ -6,6 +6,29 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- **The sentence that makes an existing tag inert was the one thing in that row
+  nothing checked.** `v0.2.0` is on `origin` and has published nothing, and the
+  only reason a reader can be sure of that is the clause "never on a tag push".
+  Adding `push: {tags: ["v*"]}` to `release.yml` makes the tag live, makes that
+  sentence false, and -- measured -- reddened no test in this repository. The
+  release-tag gate proves the signature checks are reachable and that every
+  publishing job waits for them; it says nothing about which events reach them.
+
+  `test_the_readme_says_a_tag_push_starts_nothing_exactly_while_that_is_true`
+  parses the workflow's `on:` block and holds the row to it in both directions:
+  the clause is required while no tag-push trigger is declared and refused once
+  one is, and each trigger the workflow declares has to be named in the row.
+
+  Two readers that would otherwise have failed quietly are pinned. PyYAML
+  implements YAML 1.1, where a bare `on` is the **boolean** `True`, so
+  `loaded.get("on")` returns `None` on a workflow that plainly declares
+  triggers -- absence rendered as a value, one level inside the check. And
+  `push:` with an empty body is a declared trigger whose value is `None`, which
+  fires on every tag there is; a reader written as `if push is None` calls that
+  absent. `test_the_tag_push_reader_answers_both_ways` hands the reader five
+  workflows, including both of those, because this repository declares no
+  tag-push trigger and the live call can therefore only ever return one answer.
+
 - **The README's Release & Versioning row still named only the first tag.** It
   read "SemVer, `v0.1.0` tagged" and described `## [0.1.0]` as *the* release
   section, with `## [0.2.0] - 2026-09-07` sitting above it in the changelog and
