@@ -4,6 +4,35 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The README's Release & Versioning row still named only the first tag.** It
+  read "SemVer, `v0.1.0` tagged" and described `## [0.1.0]` as *the* release
+  section, with `## [0.2.0] - 2026-09-07` sitting above it in the changelog and
+  `v0.2.0` on `origin`. The row also said nothing about the state 0.2.0 is
+  actually in, which is the part a reader needs: the tag exists, `release.yml`
+  triggers on `release: published` and on dispatch rather than on a tag push,
+  so nothing has run and nothing has been uploaded, and the `pypi` environment
+  carries no protection rules, so publishing that Release pauses for nobody.
+  All four facts are now in the row.
+
+  `test_the_readme_claims_keep_a_changelog_exactly_when_the_changelog_is_one`
+  could not see it: it is a biconditional on whether *any* dated section
+  exists, which is the right question for the failure it was written for (a
+  changelog with none, and a row claiming the format anyway) and is satisfied
+  either way once one exists.
+  `test_the_release_row_names_the_newest_release_the_changelog_records` asks
+  the narrower question -- does the row name the newest dated release -- which
+  is one version rather than a name per release, and is the one that goes
+  stale. `test_the_dated_release_reader_finds_what_the_changelog_holds` is the
+  floor under it: a heading reader that stopped parsing returns an empty list,
+  and an empty list makes the check above return without asserting anything.
+
+  The newest release is read from the changelog rather than from `git tag
+  --list`, deliberately: `ci.yml` checks out at the default depth with no
+  `fetch-tags`, so a tag-reading assertion would find nothing and skip in the
+  run that gates a merge. Reading tags here needs `fetch-depth: 0` in CI first.
+
 Nothing yet.
 
 ## [0.2.0] - 2026-09-07
