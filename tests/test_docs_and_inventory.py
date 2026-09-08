@@ -700,6 +700,86 @@ def test_the_readme_claims_keep_a_changelog_exactly_when_the_changelog_is_one() 
     )
 
 
+#: A dated Keep-a-Changelog release heading: ``[X.Y.Z] - YYYY-MM-DD``.
+#: ``[Unreleased]`` carries no date and is not one.
+_DATED_RELEASE = re.compile(
+    r"^\[(\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?)\]\s+-\s+\d{4}-\d{2}-\d{2}$"
+)
+
+
+def _dated_changelog_releases() -> list[str]:
+    """Every released version the changelog records, newest first.
+
+    Sorted by the parsed number rather than trusted to file order, so a
+    section inserted in the wrong place cannot decide what "newest" means.
+    """
+    versions = [
+        matched.group(1)
+        for head in _changelog_headings()
+        if (matched := _DATED_RELEASE.match(head)) is not None
+    ]
+
+    def key(version: str) -> tuple[int, ...]:
+        return tuple(int(part) for part in version.split(".")[:3] if part.isdigit())
+
+    return sorted(versions, key=key, reverse=True)
+
+
+def test_the_release_row_names_the_newest_release_the_changelog_records() -> None:
+    """The row said `v0.1.0` after `v0.2.0` shipped, and the existing gate could not see it.
+
+    `test_the_readme_claims_keep_a_changelog_exactly_when_the_changelog_is_one`
+    is a biconditional on whether *any* dated section exists. It was written for
+    the failure where the changelog had none and the row claimed the format
+    anyway, and it is right about that. It goes on passing when a second
+    release lands: the set it tests is non-empty either way. So the row went on
+    saying "SemVer, `v0.1.0` tagged" and describing `## [0.1.0]` as the release
+    section, with `## [0.2.0] - 2026-09-07` sitting above it in the file.
+
+    This asks the narrower question the row is actually making a claim about:
+    does it name the newest release. One version, so the row does not have to
+    grow a name per release, and it is the one that goes stale.
+
+    **Deliberately not read from git.** `git tag --list` is the more direct
+    source, and `.github/workflows/ci.yml` checks out at the default depth with
+    no `fetch-tags`, so a tag-reading assertion would find no tags and skip in
+    the run that gates a merge -- a check that cannot fail, reported as a pass.
+    The changelog is in the tree and is what `release.yml` reads for notes, so
+    it is measurable everywhere this suite runs. Reading tags here needs
+    `fetch-depth: 0` in CI first.
+    """
+    releases = _dated_changelog_releases()
+    if not releases:
+        return
+
+    row = _standards_row("Release & Versioning")
+    newest = releases[0]
+    assert newest in row, (
+        f"CHANGELOG.md's newest dated release is {newest} (all: {', '.join(releases)}), and "
+        f"the README's Release & Versioning row does not name it. The row states what this "
+        f"project has released; naming only an older one tells a reader the newest one is "
+        f"not there."
+    )
+
+
+def test_the_dated_release_reader_finds_what_the_changelog_holds() -> None:
+    """The floor under the check above: a reader that stopped working reads as clean.
+
+    `_dated_changelog_releases` returning an empty list makes that check return
+    without asserting anything, and an empty list is exactly what a broken
+    heading regex produces. This pins the two against each other -- a heading
+    that is not `[Unreleased]` has to be parsed as a release -- so the reader
+    cannot silently stop finding sections while the check it feeds stays green.
+    """
+    headings = _changelog_headings()
+    assert headings, "CHANGELOG.md has no `##` headings at all; the reader is broken"
+    undated = [head for head in headings if "unreleased" in head.casefold()]
+    assert len(_dated_changelog_releases()) == len(headings) - len(undated), (
+        f"headings {headings} did not all parse: dated releases "
+        f"{_dated_changelog_releases()}, unreleased {undated}"
+    )
+
+
 def _a11y_list(name: str) -> tuple[str, ...]:
     """Read one string list out of tools/a11y.mjs, so the docs cannot restate it."""
     block = re.search(
