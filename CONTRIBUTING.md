@@ -101,3 +101,12 @@ judge gate reaches a model through the `anthropic` SDK as an optional extra
 under the fail-closed calibration rule of
 [ADR 0001](docs/adr/0001-llm-as-judge-fails-closed-without-calibration.md).
 The five mechanical gates still never touch a model or the network.
+
+## Commercial solicitation
+
+Issues here are not open to bids. They are design records, written so a decision is
+reconstructable later, rather than scope documents for outside quoting. Unsolicited offers to
+implement one for a fee will be declined.
+
+Contributions through the normal fork-and-PR process are welcome, and `good first issue` is the
+place to start.
