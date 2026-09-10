@@ -6,13 +6,12 @@ macOS temp root, naming a uid, an agent session UUID and a scratch checkout
 directory -- in a public repository. The value is not reproduced here: a file
 explaining why a path should not be published is a poor place to publish one,
 and quoting it would also put the string back into the tree the scan below
-reads. Nothing was leaked that
-could be used against anything -- no credential, no private source -- and the
+reads.
+
+Nothing exploitable was in it -- no credential, no private source -- and the
 run stayed reproducible without it, because ``provenance.target_version``
-already names the exact evaluated commit. What the field did disclose was a
-uid, an agent session UUID, and the fact that the evaluated tree was a
-temporary checkout on a machine that no longer exists. None of that is
-provenance; a path is where a file sat, not what was measured.
+already names the exact evaluated commit. A path is where a file sat, not what
+was measured, so it is redundant provenance that happens to disclose a machine.
 
 This repository's product is the credibility of its records, so a published
 record saying something true-but-nobody's-business is worth removing and worth
@@ -58,9 +57,7 @@ RESULTS = sorted(p for p in ROOT.glob("real_targets/*/results/*") if p.is_file()
 #: Linux one, and the two home roots cover a checkout under a user account.
 #: A trailing separator is part of each entry so ``/tmpfs`` and a sentence
 #: ending in ``/tmp`` do not match.
-LOCAL_PATH = re.compile(
-    r"(?:/private/tmp/|/var/folders/|/tmp/|/Users/[^/\s\"]+/|/home/[^/\s\"]+/)"
-)
+LOCAL_PATH = re.compile(r"(?:/private/tmp/|/var/folders/|/tmp/|/Users/[^/\s\"]+/|/home/[^/\s\"]+/)")
 
 #: Strings that match the pattern and are published on purpose. Each entry must
 #: be observed in the artifacts or this module fails: an exemption for a string
@@ -86,10 +83,9 @@ def test_the_scan_reads_every_published_artifact() -> None:
         for path in (target / "results").iterdir()
         if path.is_file()
     )
-    assert RESULTS == on_disk, "the glob and the directory walk disagree"
+    assert on_disk == RESULTS, "the glob and the directory walk disagree"
     assert len(RESULTS) >= 12, (
-        f"only {len(RESULTS)} artifacts found; the twelve this module was "
-        f"written for are the floor"
+        f"only {len(RESULTS)} artifacts found; the twelve this module was written for are the floor"
     )
 
 
@@ -106,17 +102,13 @@ def test_every_exemption_is_a_string_somebody_actually_publishes() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "artifact", RESULTS, ids=lambda p: f"{p.parent.parent.name}/{p.name}"
-)
+@pytest.mark.parametrize("artifact", RESULTS, ids=lambda p: f"{p.parent.parent.name}/{p.name}")
 def test_a_published_artifact_records_no_path_from_the_machine_that_made_it(
     artifact: Path,
 ) -> None:
     text = artifact.read_text(encoding="utf-8", errors="replace")
     exempt_spans = [
-        found.span()
-        for phrase, _reason in EXEMPT
-        for found in re.finditer(re.escape(phrase), text)
+        found.span() for phrase, _reason in EXEMPT for found in re.finditer(re.escape(phrase), text)
     ]
     hits = [
         match.group(0)
@@ -124,7 +116,7 @@ def test_a_published_artifact_records_no_path_from_the_machine_that_made_it(
         if not any(lo <= match.start() and match.end() <= hi for lo, hi in exempt_spans)
     ]
     assert not hits, (
-        f"{artifact.relative_to(ROOT)} records {sorted(set(hits))} — a path on the "
+        f"{artifact.relative_to(ROOT)} records {sorted(set(hits))} -- a path on the "
         f"machine that produced the run. `provenance.target_version` names the "
         f"evaluated commit, which is what a reader needs; a filesystem path is not "
         f"provenance. Remove the field from whatever writes it, then regenerate the "
