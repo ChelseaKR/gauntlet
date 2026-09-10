@@ -46,7 +46,6 @@ Where this run came from, as the target reported it and as the operator recorded
 | `responses_replayed` | 4 |  |
 | `scorecards_source` | https://fhir.chelseakr.com/scorecards.json |  |
 | `target` | fhir-scorecard-narrate | which system was evaluated, by name |
-| `target_root` | /private/tmp/claude-501/-Users-chelsea-portfolio/4582aeaa-a037-49d3-b158-ec56f0173163/scratchpad/checkouts/fhir-scorecard |  |
 | `target_version` | fhir-scorecard@d549b1cd95c55e49f8910bc345908f5f58f5535e | the version or commit of that system that answered |
 | `withheld_claims_total` | 0 |  |
 

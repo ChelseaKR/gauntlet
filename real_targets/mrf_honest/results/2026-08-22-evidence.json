@@ -38,7 +38,6 @@
     "replayed_from": "real_targets/mrf_honest/results/2026-08-22-raw.jsonl",
     "responses_replayed": "10",
     "target": "mrf-honest-narrate",
-    "target_root": "/private/tmp/claude-501/-Users-chelsea-portfolio/4582aeaa-a037-49d3-b158-ec56f0173163/scratchpad/checkouts/mrf-honest",
     "target_version": "mrf-honest@f13e42629379434496cbce53635001df7a3effea",
     "withheld_claims_total": "14"
   },
