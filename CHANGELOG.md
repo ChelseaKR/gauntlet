@@ -6,6 +6,43 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- **Twelve published artifacts recorded the scratchpad path of the machine that
+  made them.** `real_targets/{fhir_scorecard,mrf_honest}` wrote
+  `provenance.target_root` -- the absolute path of the checkout the run was
+  pointed at. On 2026-08-22 that was a temp directory belonging to an agent
+  session, so twelve committed artifacts in a public repository carried a uid,
+  a session UUID and a path on a machine that no longer exists.
+
+  Nothing exploitable was in it: no credential, no private source, and the runs
+  stay reproducible without it because `provenance.target_version` already
+  names the exact evaluated commit. A filesystem path is where a file sat, not
+  what was measured, so it is removed rather than shortened.
+
+  Both writers are gone, with a comment in each saying why. The four
+  `*-results.json` are scrubbed and the eight `*-evidence.{json,md}` are
+  **regenerated with `gauntlet report`, not edited** -- which is what
+  `test_the_committed_evidence_pack_is_what_the_renderer_produces_today`
+  requires, and every one of the twelve diffs is exactly one deleted line.
+
+  **These are dated records and their history is not rewritten.** The original
+  bytes stay in git; the commit and this entry are the account of what was
+  removed and why. Superseding them by re-running was not available -- the
+  evaluated checkout no longer exists, and re-recording a 2026-08-22 run today
+  would be inventing evidence rather than correcting it.
+
+  `results_digest` is computed over target, gates and cases and deliberately
+  excludes provenance, so no digest moves. That cuts both ways and is worth
+  stating: it is why this edit is safe, and it is why the digest was never
+  going to notice the field arriving.
+
+  `tests/test_published_artifacts_carry_no_local_path.py` keeps it out. It
+  reads **32 of 32** tracked files under `real_targets/*/results/`, with the
+  count asserted against a directory walk so a glob that stops matching fails
+  instead of reporting clean. Run against unmodified `main` it goes red on
+  exactly the twelve known artifacts and on none of the other twenty. It is a
+  denylist over POSIX path prefixes and says so: a Windows path, a bare `~` or
+  a hostname would pass it.
+
 - **The sentence that makes an existing tag inert was the one thing in that row
   nothing checked.** `v0.2.0` is on `origin` and has published nothing, and the
   only reason a reader can be sure of that is the clause "never on a tag push".

@@ -1,11 +1,12 @@
 """No artifact this repository publishes may record a path from the machine that made it.
 
 On 2026-08-22 twelve committed artifacts under ``real_targets/*/results/``
-carried
-
-    "target_root": "/private/tmp/claude-501/-Users-chelsea-portfolio/<uuid>/scratchpad/checkouts/fhir-scorecard"
-
-in their provenance block, in a public repository. Nothing was leaked that
+carried a ``provenance.target_root`` whose value was an absolute path under a
+macOS temp root, naming a uid, an agent session UUID and a scratch checkout
+directory -- in a public repository. The value is not reproduced here: a file
+explaining why a path should not be published is a poor place to publish one,
+and quoting it would also put the string back into the tree the scan below
+reads. Nothing was leaked that
 could be used against anything -- no credential, no private source -- and the
 run stayed reproducible without it, because ``provenance.target_version``
 already names the exact evaluated commit. What the field did disclose was a
