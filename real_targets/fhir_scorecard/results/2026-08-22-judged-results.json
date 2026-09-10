@@ -26,7 +26,6 @@
     "responses_replayed": "4",
     "scorecards_source": "https://fhir.chelseakr.com/scorecards.json",
     "target": "fhir-scorecard-narrate",
-    "target_root": "/private/tmp/claude-501/-Users-chelsea-portfolio/4582aeaa-a037-49d3-b158-ec56f0173163/scratchpad/checkouts/fhir-scorecard",
     "target_version": "fhir-scorecard@d549b1cd95c55e49f8910bc345908f5f58f5535e",
     "withheld_claims_total": "0"
   },

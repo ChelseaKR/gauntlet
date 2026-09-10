@@ -141,9 +141,15 @@ class MrfHonestTarget:
 
     def provenance(self) -> dict[str, str]:
         provenance = self.ledger.provenance()
+        # `target_root` used to be recorded here and is deliberately gone.
+        # It was the absolute path of the checkout this ran against, which on
+        # 2026-08-22 meant twelve published artifacts in a public repository
+        # carrying a uid, an agent session UUID and a temp directory on a
+        # machine that no longer exists. It said nothing `target_version`
+        # does not: that field names the exact evaluated commit, which is
+        # what a reader needs to reproduce the run. A path is not provenance.
         provenance.update(
             {
-                "target_root": str(self.root),
                 "cohort_file": self.cohort,
                 "provider_setting": self.environ.get("MRF_AI_PROVIDER", ""),
                 "model_setting": self.environ.get("MRF_AI_MODEL", ""),

@@ -45,7 +45,6 @@ Where this run came from, as the target reported it and as the operator recorded
 | `replayed_from` | real_targets/mrf_honest/results/2026-08-22-raw.jsonl |  |
 | `responses_replayed` | 4 |  |
 | `target` | mrf-honest-narrate | which system was evaluated, by name |
-| `target_root` | /private/tmp/claude-501/-Users-chelsea-portfolio/4582aeaa-a037-49d3-b158-ec56f0173163/scratchpad/checkouts/mrf-honest |  |
 | `target_version` | mrf-honest@f13e42629379434496cbce53635001df7a3effea | the version or commit of that system that answered |
 | `withheld_claims_total` | 0 |  |
 
