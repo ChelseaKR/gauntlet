@@ -65,6 +65,8 @@ class _CaseView:
     language: str
     passed: bool
     observed: str
+    turns: tuple[tuple[int, bool, str], ...] = ()
+    """(turn, passed, observed) for each turn of a multi-turn case."""
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,7 @@ def _gate_views(run: dict[str, object]) -> dict[str, _GateView]:
                 language=_as_str(case.get("language")),
                 passed=_as_bool(case.get("passed")),
                 observed=_as_str(case.get("observed")),
+                turns=_turn_views(case.get("turns")),
             )
         views[name] = _GateView(
             gate=name,
@@ -113,6 +116,37 @@ def _gate_views(run: dict[str, object]) -> dict[str, _GateView]:
             cases=cases,
         )
     return views
+
+
+def _turn_views(raw: object) -> tuple[tuple[int, bool, str], ...]:
+    views: list[tuple[int, bool, str]] = []
+    for turn in _as_dicts(raw):
+        number = turn.get("turn")
+        views.append(
+            (
+                number if isinstance(number, int) and not isinstance(number, bool) else 0,
+                _as_bool(turn.get("passed")),
+                _as_str(turn.get("observed")),
+            )
+        )
+    return tuple(views)
+
+
+def _case_canonical(case_id: str, case: _CaseView) -> dict[str, object]:
+    """One case as the digest sees it. Turns are added only for a conversation, so a
+    single-turn run's digest is exactly what it was before conversations existed."""
+    canonical: dict[str, object] = {
+        "case_id": case_id,
+        "language": case.language,
+        "passed": case.passed,
+        "observed": case.observed,
+    }
+    if case.turns:
+        canonical["turns"] = [
+            {"turn": number, "passed": passed, "observed": observed}
+            for number, passed, observed in case.turns
+        ]
+    return canonical
 
 
 def results_digest(run: dict[str, object]) -> str:
@@ -130,13 +164,7 @@ def results_digest(run: dict[str, object]) -> str:
                 "gate": name,
                 "threshold": _round(view.threshold),
                 "cases": [
-                    {
-                        "case_id": case_id,
-                        "language": case.language,
-                        "passed": case.passed,
-                        "observed": case.observed,
-                    }
-                    for case_id, case in sorted(view.cases.items())
+                    _case_canonical(case_id, case) for case_id, case in sorted(view.cases.items())
                 ],
             }
             for name, view in sorted(views.items())

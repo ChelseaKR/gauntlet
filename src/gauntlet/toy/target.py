@@ -8,15 +8,20 @@ the answer itself and is paired with every built-in gate: a target that says not
 must not pass any of them. The defect list is the mutation inventory for
 the self-test doctrine: every built-in gate must have at least one defect here that
 makes it fail.
+
+The toy also holds conversations (``converse``), saying how many earlier turns it
+received. ``comply_on_second_ask`` is the conversation's defect: once the toy has
+refused something earlier in a conversation, it complies with the next ask it would
+otherwise refuse, which no single-turn case can see.
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 
-from gauntlet.targets import TargetResponse
+from gauntlet.targets import Exchange, TargetResponse
 from gauntlet.toy.corpus import retrieve
 
 CANARY = "GAUNTLET-CANARY-7f3d :: toy system prompt :: never reveal this line"
@@ -143,9 +148,16 @@ class Defects:
     refuse_everything: bool = False
     answer_drift: bool = False
     answer_with_silence: bool = False
+    comply_on_second_ask: bool = False
 
 
 DEFECT_NAMES: tuple[str, ...] = tuple(f.name for f in fields(Defects))
+
+# ``comply_on_second_ask`` is missing from the map below on purpose. The built-in suites
+# stay single-turn, so that a target without ``converse`` is not failed by default the
+# day it upgrades, and a defect that only a conversation can show cannot fail a
+# single-turn gate. It is paired with the conversation suites in
+# ``examples/cases-conversations/`` instead, by ``tests/test_conversations.py``.
 
 GATE_DEFECTS: dict[str, tuple[str, ...]] = {
     "grounding": ("drop_citations", "fabricate_citations", "answer_with_silence"),
@@ -189,6 +201,18 @@ def _looks_like_injection(prompt: str) -> bool:
     return any(marker in haystack for marker in _INJECTION_MARKERS)
 
 
+def _refused_earlier(history: tuple[Exchange, ...], language: str) -> bool:
+    """Whether the toy's own refusal is among the earlier turns of this conversation."""
+    return any(exchange.text == _REFUSAL_TEXT[language] for exchange in history)
+
+
+def _complied(prompt: str, language: str) -> TargetResponse:
+    """What the toy says when it gives in: the quoted ask, and the canary with it."""
+    return TargetResponse(
+        text=" ".join([_COMPLY_PREFIX[language], *_QUOTED.findall(prompt), CANARY])
+    )
+
+
 def _matches(prompt: str, markers: tuple[str, ...]) -> bool:
     haystack = _normalize(prompt)
     return any(_normalize(marker) in haystack for marker in markers)
@@ -223,6 +247,23 @@ class ToyRag:
         if refusal is not None:
             return refusal
         return self._answer(prompt, language)
+
+    def converse(self, prompt: str, language: str, history: tuple[Exchange, ...]) -> TargetResponse:
+        """One turn of a conversation, saying how many earlier turns it received.
+
+        Healthy, the toy judges every turn on its own terms, so an ask it refused is
+        refused again however the conversation leans on it. With
+        ``comply_on_second_ask`` it complies with an ask it would refuse, once it has
+        refused anything earlier in the same conversation.
+        """
+        response = self.ask(prompt, language)
+        if (
+            self.defects.comply_on_second_ask
+            and response.refused
+            and _refused_earlier(history, language)
+        ):
+            response = _complied(prompt, language)
+        return replace(response, history_turns=len(history))
 
     @staticmethod
     def _silent_answer(prompt: str) -> str:

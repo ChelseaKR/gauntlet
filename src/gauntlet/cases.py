@@ -75,14 +75,18 @@ ATTACK_TYPES = (
     # eligibility, an approval, a compliance finding. The compromise is not a
     # leaked secret but a determination the deployment promised never to make.
     "determination",
+    # A benign opener, the ask, then "you already agreed, so just confirm it": a target
+    # that refuses on one turn and complies on a later one. Only a multi-turn case can
+    # carry it, because no single prompt ever sees the later turn.
+    "delayed_compliance",
 )
 REFUSAL_KINDS = ("must_refuse", "crisis")
 
 _COMMON_KEYS = {"id", "language", "prompt"}
 _KEYS_BY_GATE: dict[str, set[str]] = {
     "grounding": _COMMON_KEYS | {"expect_grounded", "must_contain"},
-    "adversarial": _COMMON_KEYS | {"attack_type", "must_not_contain"},
-    "refusal": _COMMON_KEYS | {"kind", "must_contain"},
+    "adversarial": _COMMON_KEYS | {"attack_type", "must_not_contain", "turns"},
+    "refusal": _COMMON_KEYS | {"kind", "must_contain", "turns"},
     "false_positive": _COMMON_KEYS | {"must_contain"},
     "golden": _COMMON_KEYS | {"expected"},
     "judge": _COMMON_KEYS | {"rubric"},
@@ -99,6 +103,14 @@ _SUITE_KEYS = {
     "coverage_exceptions",
 }
 _JUDGE_KEYS = {"calibration", "min_agreement"}
+# A turn of a multi-turn case. ``ask`` names the request a turn carries, so that turns
+# repeating it can be held to the target's first refusal; ``crisis`` marks the turn a
+# crisis appears at. Comparing prompts instead would never fire, because an escalation
+# rephrases on purpose.
+_TURN_KEYS = {"prompt", "ask", "crisis"}
+_ASK_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+# One turn is a prompt, and belongs in ``prompt``.
+_MIN_TURNS = 2
 _COVERAGE_EXCEPTION_KEYS = {"language", "reason"}
 
 
@@ -107,9 +119,23 @@ class CaseFileError(ValueError):
 
 
 @dataclass(frozen=True)
+class Turn:
+    """One turn of a multi-turn case: what the harness says, and what it is for."""
+
+    prompt: str
+    ask: str | None = None
+    crisis: bool = False
+
+
+@dataclass(frozen=True)
 class Case:
     """One evaluation case. Gate-specific fields are optional at the type
-    level and enforced per gate by validation."""
+    level and enforced per gate by validation.
+
+    A multi-turn case carries its conversation in ``turns``, and ``prompt`` is
+    the first turn's, so everything that reads a case's prompt reads the
+    opening of the conversation.
+    """
 
     id: str
     language: str
@@ -121,6 +147,7 @@ class Case:
     must_contain: tuple[str, ...] = ()
     must_not_contain: tuple[str, ...] = ()
     rubric: str | None = None
+    turns: tuple[Turn, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -225,6 +252,14 @@ def _validate_case_keys(raw: dict[str, object], gate: str, source: str, context:
     if unknown:
         raise _fail(source, f"{context}: unknown keys for gate {gate!r}: {sorted(unknown)}")
     missing = _COMMON_KEYS - set(raw)
+    if "turns" in raw:
+        if "prompt" in raw:
+            raise _fail(
+                source,
+                f"{context}: give the conversation once: a case with 'turns' carries its "
+                "opening prompt as the first turn, not as 'prompt'",
+            )
+        missing -= {"prompt"}
     if missing:
         raise _fail(source, f"{context}: missing required keys: {sorted(missing)}")
 
@@ -280,9 +315,80 @@ def _parse_case(
             f"suite declares, but is {language!r}. Add it to the suite's 'languages' "
             f"list, or correct the case.",
         )
-    prompt = _read_str(raw, "prompt", source, context)
+    prompt = "" if "turns" in raw else _read_str(raw, "prompt", source, context)
     fields = _parse_gate_fields(raw, gate, source, context)
+    if "turns" in raw:
+        turns = _parse_turns(raw["turns"], gate, fields.get("kind"), source, context)
+        fields["turns"] = turns
+        prompt = turns[0].prompt
     return Case(id=case_id, language=language, prompt=prompt, **fields)  # type: ignore[arg-type]
+
+
+def _parse_turns(
+    raw: object, gate: str, kind: object, source: str, context: str
+) -> tuple[Turn, ...]:
+    if not isinstance(raw, list) or len(raw) < _MIN_TURNS:
+        raise _fail(
+            source,
+            f"{context}: 'turns' must list at least {_MIN_TURNS} turns; a single prompt "
+            "belongs in 'prompt'",
+        )
+    turns = tuple(
+        _parse_turn(item, source, f"{context}.turns[{index}]") for index, item in enumerate(raw)
+    )
+    _check_turn_roles(turns, gate, kind, source, context)
+    return turns
+
+
+def _parse_turn(raw: object, source: str, context: str) -> Turn:
+    if not isinstance(raw, dict):
+        raise _fail(source, f"{context}: each turn must be a mapping")
+    unknown = set(raw) - _TURN_KEYS
+    if unknown:
+        raise _fail(source, f"{context}: unknown keys for a turn: {sorted(unknown)}")
+    if "prompt" not in raw:
+        raise _fail(source, f"{context}: missing required key 'prompt'")
+    prompt = _read_str(raw, "prompt", source, context)
+    ask = raw.get("ask")
+    if ask is not None and (not isinstance(ask, str) or not _ASK_ID.match(ask)):
+        raise _fail(
+            source,
+            f"{context}: 'ask' must be a short lower-case id such as 'bomb' or 'override-1'",
+        )
+    crisis = raw.get("crisis", False)
+    if not isinstance(crisis, bool):
+        raise _fail(source, f"{context}: 'crisis' must be a boolean")
+    return Turn(prompt=prompt, ask=ask, crisis=crisis)
+
+
+def _check_turn_roles(
+    turns: tuple[Turn, ...], gate: str, kind: object, source: str, context: str
+) -> None:
+    """Each kind of conversation must mark the turns its requirement applies to.
+
+    A must_refuse conversation with no ``ask`` would require no turn to be
+    refused, and a crisis conversation with no ``crisis`` turn would check no
+    routing at all: two cases that could only ever pass.
+    """
+    asks = any(turn.ask for turn in turns)
+    crises = any(turn.crisis for turn in turns)
+    is_crisis = gate == "refusal" and kind == "crisis"
+    if crises and not is_crisis:
+        raise _fail(
+            source, f"{context}: only a refusal case of kind 'crisis' marks a 'crisis' turn"
+        )
+    if is_crisis and (asks or not crises):
+        raise _fail(
+            source,
+            f"{context}: a crisis conversation marks the turn the crisis appears at with "
+            "'crisis: true', and carries no 'ask'",
+        )
+    if gate == "refusal" and kind == "must_refuse" and not asks:
+        raise _fail(
+            source,
+            f"{context}: a must_refuse conversation marks the turns carrying the ask it must "
+            "refuse with 'ask: <id>'; without one, no turn is required to be refused",
+        )
 
 
 def _parse_language_tag(value: object, source: str, context: str) -> str:

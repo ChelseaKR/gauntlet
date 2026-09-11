@@ -20,6 +20,7 @@ from collections.abc import Callable
 
 from gauntlet.cases import Case, Suite
 from gauntlet.gates.adversarial import evaluate_adversarial
+from gauntlet.gates.conversation import run_conversation
 from gauntlet.gates.false_positive import evaluate_false_positive
 from gauntlet.gates.golden import evaluate_golden
 from gauntlet.gates.grounding import evaluate_grounding
@@ -80,6 +81,9 @@ def run_suite(suite: Suite, target: Target, judge: Judge | None = None) -> GateR
     evaluator = EVALUATORS[suite.gate]
     results = []
     for case in suite.cases:
+        if case.turns:
+            results.append(run_conversation(case, target, suite.gate))
+            continue
         response = _ask(target, case, suite.gate)
         passed, detail = evaluator(case, response)
         results.append(

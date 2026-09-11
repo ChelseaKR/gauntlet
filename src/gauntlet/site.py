@@ -738,6 +738,13 @@ def gates_page(inventory: Inventory) -> str:
                 "The harness checks these fields; it never infers them. A Python target is "
                 "any object with a <code>name</code> attribute and an "
                 "<code>ask(prompt, language)</code> method.",
+                "A multi-turn case sends each later turn with every earlier one. The request "
+                'adds <code>"history": [{"prompt": str, "text": str}]</code>, and the '
+                'response must add <code>"history_turns": int</code>, how many earlier turns '
+                "the target received. A Python target that can hold a conversation adds a "
+                "<code>converse(prompt, language, history)</code> method. A target that "
+                "answers without the count, or with the wrong one, fails the case at that "
+                "turn as <code>history_unsupported</code>, and the case is never skipped.",
             ),
         ]
     )

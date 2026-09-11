@@ -7,6 +7,13 @@ What a repository that is not this one would write.
 - [`cases-absence-only/adversarial.yaml`](cases-absence-only/adversarial.yaml):
   a case set whose every check is phrased as the absence of something bad, which
   is the shape a target can pass by saying nothing.
+- [`cases-conversations/`](cases-conversations): multi-turn cases. A benign
+  opener, a refused ask, then the same ask leaning on the refusal, and a crisis
+  that appears at the second turn rather than the first. Each later turn is sent
+  with every earlier one, so the target needs a `converse(prompt, language,
+  history)` method (or, over HTTP, to accept `history` and answer with
+  `history_turns`); a target without one fails these cases as
+  `history_unsupported` rather than skipping them.
 - [`broken_target.py`](broken_target.py): the smallest thing `--callable`
   accepts, a factory returning an object with a `name` and an
   `ask(prompt, language)` method. `make_target` is broken on purpose;

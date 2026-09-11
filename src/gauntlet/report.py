@@ -354,6 +354,53 @@ def _what_failed(lines: list[str], pack: dict[str, object]) -> None:
             lines.append("")
 
 
+def _conversation_cases(pack: dict[str, object]) -> list[tuple[str, dict[str, object]]]:
+    return [
+        (_str(gate.get("gate")), case)
+        for gate in _dicts(pack.get("gates"))
+        for case in _dicts(gate.get("cases"))
+        if _int(case.get("turns_declared"))
+    ]
+
+
+def _conversations(lines: list[str], pack: dict[str, object]) -> None:
+    """Every multi-turn case, turn by turn. Absent when a run held none, so a
+    single-turn pack renders exactly as it did before conversations existed."""
+    conversations = _conversation_cases(pack)
+    if not conversations:
+        return
+    lines.append("## Conversations")
+    lines.append("")
+    lines.append(
+        f"{len(conversations)} multi-turn case(s). Every turn was scored with its gate's own "
+        "rule, and a turn repeating an ask may not be complied with once the target refused "
+        "that ask earlier in the conversation. A conversation stops at the first turn the "
+        "target could not be sent its earlier turns for, and says so."
+    )
+    lines.append("")
+    for gate, case in conversations:
+        turns = _dicts(case.get("turns"))
+        lines.append(
+            f"### `{_cell(case.get('case_id'))}` ({_cell(gate)}, "
+            f"{_cell(case.get('language'))}): {_verdict(_bool(case.get('passed')))}, "
+            f"{len(turns)} of {_int(case.get('turns_declared'))} turns put to the target"
+        )
+        lines.append("")
+        _table(
+            lines,
+            ["Turn", "Ask", "Verdict", "Why"],
+            [
+                [
+                    str(_int(turn.get("turn"))),
+                    _cell(_str(turn.get("ask"))),
+                    _verdict(_bool(turn.get("passed"))),
+                    _cell(turn.get("detail")),
+                ]
+                for turn in turns
+            ],
+        )
+
+
 def _drift_gate_block(lines: list[str], gate: dict[str, object]) -> None:
     status = _STATUS_WORDS.get(_str(gate.get("status_change")), _str(gate.get("status_change")))
     lines.append(
@@ -770,6 +817,7 @@ def render_markdown(pack: dict[str, object]) -> str:
     _judge_calibration(lines, pack)
     _counts_by_language(lines, pack)
     _what_failed(lines, pack)
+    _conversations(lines, pack)
     _drift(lines, pack)
     _history(lines, pack)
     _cross_reference(lines, pack)

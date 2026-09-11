@@ -110,6 +110,7 @@ from gauntlet.targets import (
     HttpTarget,
     Target,
     TargetError,
+    supports_history,
     target_provenance,
 )
 from gauntlet.toy import ToyRag
@@ -142,10 +143,15 @@ def _load_callable_target(spec: str) -> Target:
     produced = factory()
     if not (hasattr(produced, "ask") and hasattr(produced, "name")):
         raise ValueError(f"{spec} did not produce a target with .ask and .name")
+    # ``supports_history`` rather than "has a converse method": a factory may hand
+    # back a wrapper that always has the method and says, in ``accepts_history``,
+    # that it cannot honour it. Wrapping that as conversational would put turn two
+    # to a target that raises, and report a harness failure instead of the case.
     return CallableTarget(
         fn=produced.ask,
         name=produced.name,
         provenance_fn=lambda: target_provenance(produced),
+        converse_fn=produced.converse if supports_history(produced) else None,
     )
 
 
