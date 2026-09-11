@@ -4,6 +4,32 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-turn cases (#43): a refusal on turn two is held on turn three.** An
+  `adversarial` or `refusal` case may carry `turns` in place of `prompt`. Every
+  turn is scored with its gate's own rule, an `ask` id holds the target to its
+  first refusal of that request, and a `crisis` turn marks where a crisis
+  appears. The evidence pack prints a row per turn, and `gauntlet lint` reads a
+  conversation by all of its turns rather than by its opener.
+
+  A target that can hold a conversation exposes `converse(prompt, language,
+  history)` and says in `history_turns` how many earlier turns it received. Over
+  HTTP the request gains `history` and the response must carry that count, which
+  is the only evidence the harness has that the target saw the conversation. A
+  target without it, or with the wrong count, fails the case closed at the first
+  turn that needs history, as `history_unsupported`, and the case is never
+  skipped.
+
+  **The built-in suites stay single-turn**, so nothing starts failing the
+  default run for want of a `converse` method. The conversation cases ship as
+  `examples/cases-conversations/`, and the toy's new `comply_on_second_ask`
+  defect is paired with them: it complies with an ask it already refused earlier
+  in the same conversation, which no single-turn gate can see.
+
+  Everything new is written only when a case has turns, so single-turn results,
+  recordings, digests and evidence packs are byte for byte what they were.
+
 ### Fixed
 
 - **Twelve published artifacts recorded the scratchpad path of the machine that

@@ -247,24 +247,33 @@ def _duplicate_prompt_findings(suites: Iterable[Suite]) -> list[Finding]:
     warning there would fire six times on this project's own cases, and the
     same issue requires those suites to lint clean. Within one suite there is
     no such reading: one gate, one prompt, two case ids is duplication.
+
+    A multi-turn case is one observation of its whole conversation, so it is
+    keyed by every turn. Two escalations that share a benign opener are two
+    observations; two with the same turns are one.
     """
     findings: list[Finding] = []
     for suite in suites:
-        where: dict[str, list[str]] = {}
+        where: dict[tuple[str, ...], list[str]] = {}
         for case in suite.cases:
-            where.setdefault(case.prompt, []).append(case.id)
+            key = tuple(turn.prompt for turn in case.turns) if case.turns else (case.prompt,)
+            where.setdefault(key, []).append(case.id)
         findings.extend(
-            _warning(
-                "duplicate_prompt",
-                suite.source,
-                f"suite {suite.name!r} asks the same prompt in cases "
-                f"{', '.join(sorted(ids))}. One observation counted twice does not "
-                f"measure twice as much.",
-            )
-            for _prompt, ids in sorted(where.items())
+            _warning("duplicate_prompt", suite.source, _duplicate_message(suite.name, key, ids))
+            for key, ids in sorted(where.items())
             if len(ids) > 1
         )
     return findings
+
+
+def _duplicate_message(suite: str, key: tuple[str, ...], ids: list[str]) -> str:
+    held = (
+        f"holds the same {len(key)}-turn conversation" if len(key) > 1 else "asks the same prompt"
+    )
+    return (
+        f"suite {suite!r} {held} in cases {', '.join(sorted(ids))}. One observation "
+        f"counted twice does not measure twice as much."
+    )
 
 
 def _scoreability_findings(suites: list[Suite]) -> list[Finding]:

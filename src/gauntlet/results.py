@@ -46,21 +46,53 @@ def missing_provenance(provenance: object) -> list[str]:
 
 
 @dataclass(frozen=True)
+class TurnResult:
+    """One turn of a multi-turn case: its verdict, why, and what the target said."""
+
+    turn: int
+    passed: bool
+    detail: str
+    observed: str = ""
+    ask: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "turn": self.turn,
+            "ask": self.ask,
+            "passed": self.passed,
+            "detail": self.detail,
+            "observed": self.observed,
+        }
+
+
+@dataclass(frozen=True)
 class CaseResult:
     case_id: str
     language: str
     passed: bool
     detail: str
     observed: str = ""
+    turns: tuple[TurnResult, ...] = ()
+    """Every turn put to the target, for a multi-turn case; empty for one prompt."""
+    turns_declared: int = 0
+    """How many turns the case declares. ``turns`` can be shorter when the target
+    could not be sent its earlier turns, and a reader must be able to see that the
+    conversation stopped, rather than read a shorter one as the whole of it."""
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "case_id": self.case_id,
             "language": self.language,
             "passed": self.passed,
             "detail": self.detail,
             "observed": self.observed,
         }
+        # Written only for a conversation, so a single-turn results file is
+        # byte-for-byte what it was before conversations existed.
+        if self.turns_declared:
+            payload["turns_declared"] = self.turns_declared
+            payload["turns"] = [turn.to_dict() for turn in self.turns]
+        return payload
 
 
 @dataclass(frozen=True)

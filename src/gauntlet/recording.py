@@ -34,10 +34,20 @@ recomputes both and refuses on either mismatch. A recording is evidence only
 if a changed answer can be told from an original one -- the same argument
 ``gauntlet verify`` makes about the pack.
 
-**Answer two ways.** Exchanges are keyed by language and prompt. If one key
-carries two different responses, the target was not deterministic over the
-recorded run and no single replay of it is faithful; that is refused rather
-than resolved by picking one.
+**Answer two ways.** Exchanges are keyed by language and prompt, and a
+conversation turn by the earlier turns as well, since the same words after a
+different conversation are a different question. If one key carries two
+different responses, the target was not deterministic over the recorded run
+and no single replay of it is faithful; that is refused rather than resolved
+by picking one.
+
+**Guess whether the target could hold a conversation.** Whether a target
+accepted earlier turns decides how a multi-turn case is scored, and a replay
+contacts nothing that could say. So a recording made while a multi-turn case
+ran writes the answer into its header (``accepts_history``), and a replay of
+a recording made without one refuses to score a multi-turn case at all. The
+key is written only when a conversation was attempted, so a recording of a
+single-turn run is byte-for-byte what it was before conversations existed.
 """
 
 from __future__ import annotations
@@ -47,7 +57,15 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from gauntlet.targets import Target, TargetError, TargetResponse, target_provenance
+from gauntlet.targets import (
+    Exchange,
+    Target,
+    TargetError,
+    TargetResponse,
+    converse_with,
+    supports_history,
+    target_provenance,
+)
 
 RECORDING_SCHEMA_VERSION = 1
 
@@ -64,24 +82,28 @@ class RecordingError(TargetError):
     """
 
 
-def _key(language: str, prompt: str) -> str:
-    return json.dumps([language, prompt], ensure_ascii=False, sort_keys=True)
+def _key(language: str, prompt: str, history: tuple[Exchange, ...] = ()) -> str:
+    if not history:
+        return json.dumps([language, prompt], ensure_ascii=False, sort_keys=True)
+    earlier = [[exchange.prompt, exchange.text] for exchange in history]
+    return json.dumps([language, prompt, earlier], ensure_ascii=False, sort_keys=True)
 
 
-def _exchange_line(language: str, prompt: str, response: TargetResponse) -> str:
-    return (
-        json.dumps(
-            {
-                "record": EXCHANGE,
-                "language": language,
-                "prompt": prompt,
-                "response": response.to_dict(),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-        + "\n"
-    )
+def _exchange_line(
+    language: str,
+    prompt: str,
+    response: TargetResponse,
+    history: tuple[Exchange, ...] = (),
+) -> str:
+    entry: dict[str, object] = {
+        "record": EXCHANGE,
+        "language": language,
+        "prompt": prompt,
+        "response": response.to_dict(),
+    }
+    if history:
+        entry["history"] = [exchange.to_dict() for exchange in history]
+    return json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n"
 
 
 def body_sha256(lines: list[str]) -> str:
@@ -111,13 +133,37 @@ def _response_from(payload: object, where: str) -> TargetResponse:
             raise RecordingError(f"{where}: 'response.{name}' must be true or false")
         return raw
 
+    history_turns = payload.get("history_turns")
+    if history_turns is not None and (
+        isinstance(history_turns, bool) or not isinstance(history_turns, int) or history_turns < 0
+    ):
+        raise RecordingError(f"{where}: 'response.history_turns' must be a non-negative integer")
     return TargetResponse(
         text=text,
         citations=_strings("citations"),
         context_ids=_strings("context_ids"),
         refused=_flag("refused"),
         escalated=_flag("escalated"),
+        history_turns=history_turns,
     )
+
+
+def _history_from(raw: object, where: str) -> tuple[Exchange, ...]:
+    """The earlier turns an exchange line was answered after; empty for a lone prompt."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or not raw:
+        raise RecordingError(f"{where}: 'history' must be a non-empty list when present")
+    history: list[Exchange] = []
+    for item in raw:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"prompt", "text"}
+            or not all(isinstance(value, str) for value in item.values())
+        ):
+            raise RecordingError(f"{where}: each 'history' entry needs a string prompt and text")
+        history.append(Exchange(prompt=item["prompt"], text=item["text"]))
+    return tuple(history)
 
 
 @dataclass
@@ -134,6 +180,7 @@ class RecordingTarget:
     write_path: Path
     name: str = field(init=False)
     _lines: list[str] = field(default_factory=list)
+    _history_consulted: bool = False
 
     def __post_init__(self) -> None:
         self.name = self.inner.name
@@ -141,6 +188,17 @@ class RecordingTarget:
     def ask(self, prompt: str, language: str) -> TargetResponse:
         response = self.inner.ask(prompt, language)
         self._lines.append(_exchange_line(language, prompt, response))
+        return response
+
+    @property
+    def accepts_history(self) -> bool:
+        """Whether the recorded target can hold a conversation, noted for the header."""
+        self._history_consulted = True
+        return supports_history(self.inner)
+
+    def converse(self, prompt: str, language: str, history: tuple[Exchange, ...]) -> TargetResponse:
+        response = converse_with(self.inner, prompt, language, history)
+        self._lines.append(_exchange_line(language, prompt, response, history))
         return response
 
     @property
@@ -153,7 +211,7 @@ class RecordingTarget:
 
     def close(self) -> Path:
         """Write the recording: one header line, then every exchange."""
-        header = {
+        header: dict[str, object] = {
             "record": HEADER,
             "recording_schema_version": RECORDING_SCHEMA_VERSION,
             "target": self.inner.name,
@@ -161,6 +219,8 @@ class RecordingTarget:
             "body_sha256": body_sha256(self._lines),
             "provenance": dict(sorted(self.provenance().items())),
         }
+        if self._history_consulted:
+            header["accepts_history"] = supports_history(self.inner)
         self.write_path.parent.mkdir(parents=True, exist_ok=True)
         self.write_path.write_text(
             json.dumps(header, ensure_ascii=False, sort_keys=True) + "\n" + "".join(self._lines),
@@ -178,6 +238,8 @@ class Recording:
     exchanges: dict[str, TargetResponse]
     sha256: str
     path: Path
+    accepts_history: bool | None = None
+    """What the header says about conversations, or None when it says nothing."""
 
 
 def _verified_header(path: Path, lines: list[str]) -> dict[str, object]:
@@ -248,7 +310,7 @@ def load_recording(path: Path) -> Recording:
         if not isinstance(language, str) or not isinstance(prompt, str):
             raise RecordingError(f"{where}: 'language' and 'prompt' must both be strings")
         response = _response_from(entry.get("response"), where)
-        key = _key(language, prompt)
+        key = _key(language, prompt, _history_from(entry.get("history"), where))
         if key in exchanges and exchanges[key] != response:
             raise RecordingError(
                 f"{where}: the same prompt in {language!r} was answered two different ways "
@@ -256,9 +318,13 @@ def load_recording(path: Path) -> Recording:
             )
         exchanges[key] = response
 
+    accepts_history = header.get("accepts_history")
+    if accepts_history is not None and not isinstance(accepts_history, bool):
+        raise RecordingError(f"{path}: 'accepts_history' must be true or false when present")
     provenance = header.get("provenance")
     provenance = provenance if isinstance(provenance, dict) else {}
     return Recording(
+        accepts_history=accepts_history,
         target=str(header.get("target", "")),
         provenance={str(key): value for key, value in provenance.items() if isinstance(value, str)},
         exchanges=exchanges,
@@ -278,11 +344,34 @@ class ReplayTarget:
         self.name = self.recording.target
 
     def ask(self, prompt: str, language: str) -> TargetResponse:
-        key = _key(language, prompt)
-        response = self.recording.exchanges.get(key)
-        if response is None:
+        return self._answer(prompt, language, ())
+
+    @property
+    def accepts_history(self) -> bool:
+        """What the recording says, and a refusal when it says nothing.
+
+        A recording made without any multi-turn case cannot say whether the
+        target could hold a conversation, and guessing either way would score
+        the target on something nobody observed.
+        """
+        declared = self.recording.accepts_history
+        if declared is None:
             raise RecordingError(
-                f"this prompt in {language!r} is not in {self.recording.path.name}, so the "
+                f"{self.recording.path.name} was recorded without any multi-turn case, so it "
+                "cannot say whether the target accepted earlier turns. Re-record against the "
+                "current cases rather than replaying a recording made from a different set"
+            )
+        return declared
+
+    def converse(self, prompt: str, language: str, history: tuple[Exchange, ...]) -> TargetResponse:
+        return self._answer(prompt, language, history)
+
+    def _answer(self, prompt: str, language: str, history: tuple[Exchange, ...]) -> TargetResponse:
+        response = self.recording.exchanges.get(_key(language, prompt, history))
+        if response is None:
+            where = f"turn {len(history) + 1} of a conversation" if history else "this prompt"
+            raise RecordingError(
+                f"{where} in {language!r} is not in {self.recording.path.name}, so the "
                 "harness has no answer to grade. Re-record against the current cases rather "
                 "than replaying a recording made from a different set"
             )
