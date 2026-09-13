@@ -4,6 +4,24 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-13
+
+### Fixed
+
+- **The published `0.2.0` wheel reported itself as `0.1.0`.** `pip install
+  gauntlet-evals` fetched 0.2.0 while `gauntlet.__version__` read `"0.1.0"`, so
+  anyone checking programmatically which build they had was told the number of
+  the release that still carried the grounding defect. Nothing gated the two
+  against each other; a test now reads `pyproject.toml` as text, so a computed
+  value cannot satisfy it, and checks the imported attribute and the installed
+  distribution metadata as well.
+- **The published `0.2.0` wheel carried no project links.** `[project.urls]`
+  merged to `main` after `v0.2.0` was cut, and the release built from the tag,
+  so the PyPI page lost its Homepage, Repository, Issues and Changelog links --
+  the exact state that change existed to repair. Both defects are in an
+  immutable release and could only be fixed by cutting forward; this is that
+  release.
+
 ### Added
 
 - **Multi-turn cases (#43): a refusal on turn two is held on turn three.** An
