@@ -41,8 +41,9 @@ const NEEDS_A_RENDERER = new Set([
 async function checkPage(path) {
   const html = readFileSync(path, "utf8");
   // "outside-only" gives an eval to inject axe with, without ever running a script that
-  // came out of the page. These pages ship no script, and the checker should not start
-  // executing one if that ever changes.
+  // came out of the page. These pages ship no executable script -- the one script element
+  // in each head is an inert `application/ld+json` data block -- and the checker should
+  // not start executing one if that ever changes.
   // axe probes for a canvas to decide whether it can sample colours. jsdom has none, so
   // it reports that once per page. Everything else the page or axe says is forwarded.
   const console_ = new VirtualConsole();
