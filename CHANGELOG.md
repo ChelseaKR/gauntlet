@@ -4,6 +4,52 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Every documentation page now says what it is, in a form a crawler reads.**
+  Each page carries one `application/ld+json` block holding a schema.org graph
+  of four nodes: the site, the page, the share card, and the software the page
+  is about. Nothing in it is typed: the page node's name is the `<title>`, its
+  description is the `<meta name=description>`, its url is the canonical, the
+  card node's dimensions are read out of the committed PNG's IHDR chunk, and
+  the software node's name, sentence and links are the installed
+  distribution's own metadata. `tests/test_site.py` parses the built pages with
+  a parser that matches on the script element and its `type` attribute, and
+  holds every value against the tag, the file or the `pyproject.toml` table it
+  came from, so a node that stopped being derived fails even while it still
+  says something plausible.
+
+  There is no `Dataset` node, no `distribution`, and no DCAT vocabulary, and a
+  test forbids all of it permanently. A dataset descriptor is not a
+  description: it exists so that dataset search engines and state open-data
+  catalogs harvest what it names, and a catalog listing is far easier to
+  acquire than to withdraw. Whether an evaluation pack should solicit that is
+  an open question with an owner's name on it, and the test is there so it
+  stays a decision somebody makes rather than a line somebody adds. There is
+  no `softwareVersion` either: these pages are built from `main`, which carries
+  the version being prepared and not the one on the index, so the field would
+  announce a release that does not exist yet.
+
+### Changed
+
+- **The share card's width and height are read off the card instead of typed.**
+  `og:image:width` and `og:image:height` were the literals 1200 and 630. They
+  happened to be right, and nothing would have said so if the card were
+  re-rendered at another size: the pages would have gone on announcing the old
+  one with every check green. Both numbers now come from the PNG's own IHDR
+  chunk, and a build refuses a card it cannot read rather than stating a size
+  it guessed. `build_site` also refuses a missing card before it renders
+  anything, rather than after.
+
+- **The no-script check now counts what it was named for.** It asserted that
+  the pages carry no `<script>` element at all, which the data block above
+  would end. A script element whose type is not a script type is never
+  prepared and never executed, so "static pages, no runtime, nothing for a CSP
+  to have to allow" is unchanged; what replaces the old count is stricter
+  rather than looser, because it goes red for an inline script, a `src`, a
+  `type="module"` and a `type="text/javascript"` alike, none of which the old
+  assertion distinguished.
+
 ## [0.2.1] - 2026-09-13
 
 ### Fixed
