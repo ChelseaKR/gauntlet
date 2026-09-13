@@ -740,8 +740,8 @@ def test_the_software_node_states_no_version(heads: dict[str, Head], name: str) 
     """Deliberate, and the reason is on the record rather than in a commit.
 
     These pages are built from `main`, which carries the version being
-    prepared, not the one on the index: when this was written the published
-    wheel was 0.2.0 while the tree said 0.2.1. A `softwareVersion` here would
+    prepared; the index carries the last one released, and the two have
+    differed for most of this project's life. A `softwareVersion` here would
     announce a release that does not exist yet, to consumers that read
     structured data and to nobody in a position to see it was wrong. A number
     published where the real one was unavailable is the defect this harness

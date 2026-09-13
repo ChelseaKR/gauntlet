@@ -478,12 +478,12 @@ def structured_data(
 
     There is no `softwareVersion` either, though the installed metadata has
     one. These pages are built from `main` on every deploy, and `main` carries
-    the version being *prepared*, not the one on the index: at the time this
-    was written the published wheel was 0.2.0 while the tree said 0.2.1. A
-    version field here would therefore state, to every consumer that reads
-    structured data and to nobody who could see it was wrong, a release that
-    does not exist yet. A number published where the real one was unavailable
-    is the failure this harness exists to catch in other people's features.
+    the version being *prepared*; the index carries the last one released, and
+    the two have differed for most of this project's life. A version field here
+    would therefore state, to every consumer that reads structured data and to
+    nobody in a position to see it was wrong, a release that does not exist
+    yet. A number published where the real one was unavailable is the failure
+    this harness exists to catch in other people's features.
     """
     dist = package()
     website_id = SITE_URL + "#website"

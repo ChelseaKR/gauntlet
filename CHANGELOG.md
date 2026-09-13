@@ -27,8 +27,8 @@ All notable changes will be documented here.
   an open question with an owner's name on it, and the test is there so it
   stays a decision somebody makes rather than a line somebody adds. There is
   no `softwareVersion` either: these pages are built from `main`, which carries
-  the version being prepared and not the one on the index, so the field would
-  announce a release that does not exist yet.
+  the version being prepared, while the index carries the last one released, so
+  the field would announce a release that does not exist yet.
 
 ### Changed
 
@@ -50,7 +50,7 @@ All notable changes will be documented here.
   `type="module"` and a `type="text/javascript"` alike, none of which the old
   assertion distinguished.
 
-## [0.2.1] - 2026-09-13
+## [0.3.0] - 2026-09-13
 
 ### Fixed
 
