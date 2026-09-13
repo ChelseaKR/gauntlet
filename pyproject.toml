@@ -22,6 +22,15 @@ dependencies = [
   "pyyaml>=6",
 ]
 
+# The links PyPI shows beside the package. Without them the project page
+# carries no route to the source, the documentation or the issue tracker,
+# which is the only page a reader arriving from `pip` ever sees.
+[project.urls]
+Homepage = "https://chelseakr.github.io/gauntlet/"
+Repository = "https://github.com/ChelseaKR/gauntlet"
+Issues = "https://github.com/ChelseaKR/gauntlet/issues"
+Changelog = "https://github.com/ChelseaKR/gauntlet/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 # The judge gate reaches a model through the public anthropic SDK's Bedrock
 # client. Nothing else in the package imports it.
