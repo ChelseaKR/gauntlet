@@ -4,7 +4,7 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-09-13
+## [0.3.0] - 2026-09-13
 
 ### Fixed
 
