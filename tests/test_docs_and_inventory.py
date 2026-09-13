@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 import yaml
@@ -527,6 +527,52 @@ def test_the_sast_scope_covers_every_python_root() -> None:
         assert (ROOT / target).is_dir(), f"ci.yml scans {target!r}, which is not a directory"
 
 
+def _names_this_repository(reference: str) -> bool:
+    """Both forms of a reference to an action living in this repository.
+
+    `./path` reads the action off the runner's filesystem. `$/path` is
+    GitHub's self-repository syntax: the same action, resolved at the commit
+    the workflow is running rather than through the workspace, so a step that
+    checked something out earlier cannot decide which action runs. zizmor's
+    `self-repository` audit reports the first form and accepts the second, and
+    ci.yml uses `$/` for that reason.
+
+    Neither form names a remote repository, so neither can carry a commit SHA
+    and both are exempt from the pinning rule below. The exemption is only
+    safe while the path stays inside the repository: `./../elsewhere` escapes
+    it, and a bare `$` is not the self-repository form at all. Those fall
+    through to the assertions, which refuse them for having no `@<sha>`.
+    """
+    if reference[:2] not in ("./", "$/"):
+        return False
+    return ".." not in PurePosixPath(reference[2:]).parts
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "./../elsewhere",
+        "$/../elsewhere",
+        "$",
+        "./",
+        "$/",
+        "./subdir",
+        "$/subdir",
+    ],
+)
+def test_the_local_reference_exemption_admits_only_paths_inside_this_repository(
+    reference: str,
+) -> None:
+    """The exemption is the escape hatch in the rule above, so it gets its own
+    test rather than being exercised only through whatever ci.yml happens to
+    contain today. Widening it to accept `actions/checkout` with no pin would
+    otherwise leave the pinning rule green over a workflow that pins nothing.
+    """
+    expected = reference in ("./", "$/", "./subdir", "$/subdir")
+    assert _names_this_repository(reference) is expected
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: str(p.name))
 def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
     workflow = yaml.safe_load(path.read_text("utf-8"))
@@ -534,16 +580,16 @@ def test_workflow_pins_every_action_to_a_commit_sha(path: Path) -> None:
     for job in workflow["jobs"].values():
         for step in job.get("steps", []):
             reference = step.get("uses")
-            if reference is None or reference.startswith("./"):
+            if reference is None or _names_this_repository(reference):
                 continue
             _, _, pin = reference.partition("@")
             assert len(pin) == 40, f"{path.name}: {reference} is not pinned to a full commit SHA"
             assert all(char in "0123456789abcdef" for char in pin), f"{reference} is not a SHA"
             pinned += 1
     # The guard the sibling action test has and this one did not. A workflow
-    # with no steps, or whose every step is a local `uses: ./`, would otherwise
-    # check nothing and pass. ci.yml already has three local uses that take the
-    # `continue` branch above.
+    # with no steps, or whose every step referenced this repository, would
+    # otherwise check nothing and pass. ci.yml already has three such steps,
+    # which take the `continue` branch above.
     assert pinned, f"{path.name} pins no external action; the rule would be vacuous"
 
 

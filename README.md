@@ -409,8 +409,10 @@ tags here are never moved once pushed. There is no `@v1`: a movable major tag is
 a reference that changes what it points at after you have reviewed it, and this
 project does not publish one.
 [ADR 0002](docs/adr/0002-the-action-is-consumed-by-commit-sha.md) is the decision
-and the argument on both sides. The same steps also run from a local checkout
-with `uses: ./`.
+and the argument on both sides. From inside this repository the same steps run
+against this checkout with `uses: $/`, GitHub's self-repository syntax, which
+resolves at the commit the workflow is running rather than through the runner's
+filesystem.
 
 This repository has no branch ruleset and no branch protection, so the workflow
 above cannot block a merge here. It blocks a merge in a repository that makes the
