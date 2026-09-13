@@ -63,7 +63,7 @@ uv run gauntlet lint path/to/cases
 ```
 
 `gauntlet run` exits 1 when any gate misses its threshold, so it fails its job on
-its own — and blocks a merge in any repository that makes that job a required
+its own, and it blocks a merge in any repository that makes that job a required
 status check ([Using the GitHub Action](#using-the-github-action)). It does not
 block one here: this repository requires no status check. It exits 2 when the
 harness itself could not run, which is a different problem and is reported
@@ -814,7 +814,7 @@ row that records a gap says so rather than being left out.
 | AI Evaluation | Applies (this repository's own subject matter): the self-test doctrine is that every built-in gate must be shown able to fail: the toy target's defect switches remove real behaviour on purpose, and CI runs the deliberately broken target and the mute target to prove a failure blocks and that silence is not scored as a pass. `judge` is outside the doctrine, because the toy cannot exercise a gate that needs a model; it fails closed on its own terms instead |
 | Documentation | Applies: README, [SCOPE.md](SCOPE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), CHANGELOG, CITATION.cff, the ADR log under `docs/adr/`, and a generated documentation site. The gate table above is generated from the loaded suites, so it cannot drift from the harness |
 | Quality & Metrics | Applies: the floors that fail the run are the 90% branch-coverage gate, which measures the real-target adapters as well as the package, zero Ruff findings, zero strict-mypy errors, zero Semgrep findings over every Python directory in the tree and zero gitleaks findings, and the action self-tests. The gate inventory is counted, never typed. These floors fail `make verify` and the CI run; they do not block a merge in this repository, which requires no status check (measured 2026-09-13) |
-| AI Development Measurement | Applies: no tool-usage counter is collected and none gates a merge. `make verify` and the CI gates above are what a change is expected to clear regardless of how it was authored — by convention here, since no check is required on `main` |
+| AI Development Measurement | Applies: no tool-usage counter is collected and none gates a merge. `make verify` and the CI gates above are what a change is expected to clear regardless of how it was authored, by convention here, since no check is required on `main` |
 | Incident Response | Applies: no incident to date. Vulnerabilities go privately to the repository owner per [SECURITY.md](SECURITY.md), with real prompts, credentials, and evaluation data kept out of the report. A postmortem will be committed under `docs/incidents/` when there is one to write |
 | Data Governance | Applies: the case files, the toy target, and the site's evidence excerpts are all authored in-repo and hold no personal or production data. Nothing is collected from a run, and the harness makes no outbound request except to the target URL an operator supplies. An evidence pack from a real target carries that target's verbatim answers, so [SECURITY.md](SECURITY.md) says to treat a published pack the way you would treat production logs |
 
