@@ -8,7 +8,7 @@ compliance certification.
 from gauntlet.results import CaseResult, GateResult, RunResult
 from gauntlet.targets import Target, TargetResponse
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "CaseResult",

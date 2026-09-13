@@ -32,6 +32,27 @@ All notable changes will be documented here.
 
 ### Fixed
 
+- **The package reported a version it was not.** `pyproject.toml` said `0.2.0`
+  and `v0.2.0` is a signed tag on `main`, while `src/gauntlet/__init__.py` still
+  said `0.1.0`. `__version__` is exported in `__all__`, so every importer read
+  the wrong number, and the disagreement is in the tagged tree as well: a wheel
+  built from `v0.2.0` would have told `pip` it was `0.2.0` and `import gauntlet`
+  that it was `0.1.0`.
+
+  The version a consumer reads is how they say which behaviour they have --
+  whether `run --record` and `verify` exist, and whether an unverifiable
+  citation is still counted as grounded. Nothing checked the two declarations
+  against each other, which is how a release ships a version the repository
+  never tagged.
+
+  `tests/test_version_agreement.py` now holds them equal, reading the literal
+  out of the file rather than the imported attribute so a computed value cannot
+  satisfy it, and separately holds the imported attribute and the installed
+  distribution metadata to the same number so a stale environment is not
+  mistaken for agreement. The gate was run against the live defect before the
+  fix and failed on it, and against two sabotages afterwards: reverting
+  `__init__.py` to `0.1.0`, and bumping `pyproject.toml` alone to `0.3.0`.
+
 - **Twelve published artifacts recorded the scratchpad path of the machine that
   made them.** `real_targets/{fhir_scorecard,mrf_honest}` wrote
   `provenance.target_root` -- the absolute path of the checkout the run was
