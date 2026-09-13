@@ -4,6 +4,31 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The required `secret-scan` check read one commit of `main`'s 61.** The job
+  ran `gitleaks/gitleaks-action`, which picks its scan range from the event that
+  triggered the run: a push gets `--log-opts=--no-merges --first-parent
+  BASE^..HEAD`, a single-commit push gets `--log-opts=-1`, and a pull request
+  gets that range over its own commits. Only `schedule` and `workflow_dispatch`
+  runs are handed no range, and `ci.yml` declares neither, so every lane of this
+  check was one of the two the action narrows, and every squash merge into
+  `main` is a one-commit push. A credential added in one commit and deleted in
+  the next was invisible to a check named `secret-scan`.
+
+  `fetch-depth: 0` did not prevent that and could not: it decides how much
+  history `actions/checkout` puts on disk, not how much of it the scanner is
+  asked to read. The step is now a pinned, checksum-verified `gitleaks` 8.30.1
+  binary invoked as `gitleaks git .` with no range, which walks `git log
+  --full-history --all` on every event, so the count it reports is wider than
+  `main` rather than equal to it. `.gitleaks.toml` and `.gitleaksignore` are
+  still discovered from the repository root, so neither the pinned allowlist nor
+  the pinned fingerprint changes. Both downloads retry, because a transient
+  `curl` failure reads in the check list exactly like a finding;
+  `tests/test_secret_scan_reads_history.py` pins the invocation, reading the
+  workflow with its comments stripped so the comment naming the removed action
+  cannot satisfy the check that forbids it.
+
 ## [0.3.0] - 2026-09-13
 
 ### Fixed
