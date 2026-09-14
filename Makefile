@@ -45,6 +45,7 @@ demo:
 	uv run --locked gauntlet report demo-results.json --out demo-evidence.md
 	uv run --locked gauntlet report demo-results.json --format json --out demo-evidence.json
 	uv run --locked gauntlet report demo-results.json --baseline demo-results.json --out demo-evidence-drift.md
+	uv run --locked gauntlet report demo-results.json --format evalport --out demo-evalport
 
 inventory:
 	uv run --locked gauntlet inventory --update README.md

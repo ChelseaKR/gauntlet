@@ -45,6 +45,9 @@ uv run gauntlet run --out results.json
 uv run gauntlet report results.json --out evidence.md
 uv run gauntlet report results.json --format json --out evidence.json
 
+# The same run as EvalPort ResultSets, one per gate, for a tool that reads that schema.
+uv run gauntlet report results.json --format evalport --out evalport/
+
 # Whole-run drift against an earlier run.
 uv run gauntlet report results.json --baseline previous-results.json --out evidence.md
 
@@ -226,6 +229,53 @@ empty set of gates would otherwise produce.
 Each pack carries a `results_digest`: a sha256 over what the run observed, with
 the clock deliberately excluded. Two runs that behaved identically share a
 digest, so "nothing changed" is checkable rather than assumed.
+
+## Exporting a run as EvalPort
+
+[EvalPort](https://github.com/adhabnr-ux/evalport) is an open schema for making
+evaluation data portable between frameworks: one JSON shape a dashboard or a CI
+gate can read whichever tool produced it. `gauntlet report` writes it as a second
+export format, beside the Markdown document and the JSON pack.
+
+```sh
+uv run gauntlet report results.json --format evalport --out evalport/
+```
+
+It writes one EvalPort ResultSet per gate, because a ResultSet carries a single
+`suite_id` and a Gauntlet run puts one target through several suites at once. All
+of them share a `run_id`, which is derived from the run rather than generated, so
+re-exporting the same results file writes the same bytes. Beside them it writes a
+`MAPPING.md` generated from the documents themselves, listing every field the
+schema has no home for and what carries it instead.
+
+Three things about the mapping are worth knowing before reading the output.
+
+**No gate is exported as one of EvalPort's built-in graders.** It is tempting to
+call `must_contain` a `contains` grader and `expected` an `exact_match` one, and
+at the level of the string comparison that reading is right. It is wrong at the
+level of the gate, because every gate scores legibility before it scores content:
+a target that says nothing fails a Gauntlet case that a bare substring check would
+pass, and on the absence-phrased gates it would pass every one of them. EvalPort's
+type-openness rule covers exactly this, so each gate is declared under its own type
+with `params.handler` naming the function that produced the verdict.
+
+**Some things a Gauntlet results file records have no EvalPort field, and travel in
+`metadata` under a `gauntlet.` prefix**: the gate name, the suite's pass-rate
+threshold, a golden suite's key version, a judge gate's calibration record, each
+case's language, and the turns of a multi-turn case. `MAPPING.md` lists them, and
+the list is read off the export rather than typed beside it, so it cannot describe
+a key the export stopped writing.
+
+**A run whose verdict was withheld is not exported at all.** EvalPort scores each
+result on its own and has no ResultSet-level "this run has no verdict", so every
+available representation would assert a verdict the harness declined to reach. The
+command writes nothing and exits 4, the same code the run itself exits.
+
+The export is one-directional in the sense that matters for a consumer, and
+reversible in the sense that matters for trust: `gauntlet.evalport` can read a
+directory of these ResultSets back into the results payload it came from, and a
+test exports a real run, reads it back, and compares the bytes. What has no
+EvalPort field is carried, not dropped quietly.
 
 ## Recording a run, and grading the recording
 
