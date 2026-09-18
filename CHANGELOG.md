@@ -6,6 +6,22 @@ All notable changes will be documented here.
 
 ### Added
 
+- **Google Analytics 4 on the documentation site, and a privacy page.** Owner
+  decision 2026-09-17: GA4 on every public site, with privacy copy changed to
+  match. `src/gauntlet/analytics.py` holds the measurement ID
+  (`GA4_MEASUREMENT_ID`, `G-EHTXRQ49B6`) and the loader; every page `gauntlet
+  site` renders carries it and a footer "Opt out of analytics" control, and the
+  site gains `privacy.html`. An empty ID removes all of it. The loader does
+  nothing off `chelseakr.github.io` under `/gauntlet/`, under Global Privacy
+  Control or Do Not Track, or after an opt-out (localStorage
+  `gauntlet:analytics-opt-out`). Google signals and ad personalisation are off;
+  Consent Mode v2 denies the advertising signals everywhere and analytics
+  storage in the EEA, the UK and Switzerland. `tests/test_site.py` now allows
+  exactly that one script, matched by its whole text, and
+  `tests/test_analytics.py` executes it in Node and deletes each guard as a
+  negative control. `package.json`, `.htmlvalidate.mjs` and `tools/a11y.mjs` no
+  longer say the pages carry no script.
+
 - **Every documentation page now says what it is, in a form a crawler reads.**
   Each page carries one `application/ld+json` block holding a schema.org graph
   of four nodes: the site, the page, the share card, and the software the page
@@ -41,14 +57,39 @@ All notable changes will be documented here.
   it guessed. `build_site` also refuses a missing card before it renders
   anything, rather than after.
 
-- **The no-script check now counts what it was named for.** It asserted that
-  the pages carry no `<script>` element at all, which the data block above
-  would end. A script element whose type is not a script type is never
-  prepared and never executed, so "static pages, no runtime, nothing for a CSP
-  to have to allow" is unchanged; what replaces the old count is stricter
-  rather than looser, because it goes red for an inline script, a `src`, a
-  `type="module"` and a `type="text/javascript"` alike, none of which the old
-  assertion distinguished.
+- **The script check now counts the scripts that execute.** It allowed exactly
+  one `<script>` element, the GA4 loader, which the data block above would end.
+  A script element whose type is not a script type is never prepared and never
+  executed, so the check now counts executable scripts and still allows exactly
+  the loader. That is stricter rather than looser: it goes red for any other
+  inline script, a `src`, a `type="module"` and a `type="text/javascript"`
+  alike. `tests/test_analytics.py` leaves the data block out of its script
+  counts for the same reason.
+
+### Fixed
+
+- **The required `secret-scan` check read one commit of `main`'s 61.** The job
+  ran `gitleaks/gitleaks-action`, which picks its scan range from the event that
+  triggered the run: a push gets `--log-opts=--no-merges --first-parent
+  BASE^..HEAD`, a single-commit push gets `--log-opts=-1`, and a pull request
+  gets that range over its own commits. Only `schedule` and `workflow_dispatch`
+  runs are handed no range, and `ci.yml` declares neither, so every lane of this
+  check was one of the two the action narrows, and every squash merge into
+  `main` is a one-commit push. A credential added in one commit and deleted in
+  the next was invisible to a check named `secret-scan`.
+
+  `fetch-depth: 0` did not prevent that and could not: it decides how much
+  history `actions/checkout` puts on disk, not how much of it the scanner is
+  asked to read. The step is now a pinned, checksum-verified `gitleaks` 8.30.1
+  binary invoked as `gitleaks git .` with no range, which walks `git log
+  --full-history --all` on every event, so the count it reports is wider than
+  `main` rather than equal to it. `.gitleaks.toml` and `.gitleaksignore` are
+  still discovered from the repository root, so neither the pinned allowlist nor
+  the pinned fingerprint changes. Both downloads retry, because a transient
+  `curl` failure reads in the check list exactly like a finding;
+  `tests/test_secret_scan_reads_history.py` pins the invocation, reading the
+  workflow with its comments stripped so the comment naming the removed action
+  cannot satisfy the check that forbids it.
 
 ## [0.3.0] - 2026-09-13
 

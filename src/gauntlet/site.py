@@ -35,6 +35,7 @@ from pathlib import Path
 
 import yaml
 
+from gauntlet import analytics
 from gauntlet.cases import builtin_suites
 from gauntlet.drift import results_digest
 from gauntlet.evidence import (
@@ -161,6 +162,7 @@ PAGE_DESCRIPTIONS: dict[str, str] = {
         "copy, its inputs and its outputs, all read out of action.yml while this page "
         "was built."
     ),
+    "privacy.html": "What this site collects about visitors, and how to opt out.",
 }
 
 PACKAGE_NOTICE = (
@@ -293,6 +295,10 @@ pre code { background: none; padding: 0; font-size: 1em; }
 .cards p { font-size: .9rem; color: var(--ink-2); margin: 0; }
 footer.site { border-top: 1px solid var(--rule); margin-top: 3.4rem; padding-top: 1.4rem; font-size: .86rem; color: var(--ink-2); }
 footer.site p { max-width: 46rem; }
+.link-button {
+  font: inherit; color: var(--accent); background: none; border: 0; padding: 0;
+  text-decoration: underline; cursor: pointer;
+}
 """
 )
 
@@ -554,6 +560,7 @@ PAGES: tuple[tuple[str, str, str], ...] = (
     ("evidence.html", "Evidence pack", "evidence"),
     ("california.html", "California mapping", "california"),
     ("action.html", "GitHub Action", "action"),
+    ("privacy.html", "Privacy", "privacy"),
 )
 
 
@@ -565,6 +572,7 @@ def page(
     filename: str,
     description: str,
     generated: str = "",
+    ga4_id: str | None = analytics.GA4_MEASUREMENT_ID,
 ) -> str:
     # The page's own address, project path included. index.html is the
     # directory, so it is served at /gauntlet/ rather than /gauntlet/index.html
@@ -608,7 +616,7 @@ def page(
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{esc(SITE_IMAGE_URL)}">
 <script type="application/ld+json">{described}</script>
-<style>{STYLESHEET}</style>
+{analytics.head_snippet(ga4_id)}<style>{STYLESHEET}</style>
 </head>
 <body>
 <a class="skip-link" href="#content">Skip to the content</a>
@@ -624,6 +632,7 @@ def page(
 counts are counted from the suites that load, and the evidence excerpts are output from
 runs made while the pages were built. Source at
 <a href="{REPO_URL}">{esc(REPO_URL)}</a>. Apache-2.0.</p>
+{analytics.footer_note(ga4_id)}
 {built}
 </footer>
 </div>
@@ -1392,11 +1401,72 @@ def action_page(action: ActionMetadata) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Privacy
+# ---------------------------------------------------------------------------
+
+_HOSTING = """<h2>Hosting</h2>
+<p>GitHub Pages serves this site. Like any web host, GitHub receives each request,
+including your IP address; see the
+<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub
+General Privacy Statement</a>.</p>"""
+
+_HARNESS = """<p>This page is about this website only. The Gauntlet harness and the
+GitHub Action have no telemetry: they report nothing about their use to anyone.</p>"""
+
+
+def privacy_page(ga4_id: str | None = analytics.GA4_MEASUREMENT_ID) -> str:
+    """What this site collects about visitors, true for the build it is in."""
+    if analytics.measurement_id(ga4_id) is None:
+        return (
+            "<h1>Privacy</h1>\n<p>This site runs no analytics, loads no third-party script "
+            f"and sets no cookies.</p>\n{_HARNESS}\n{_HOSTING}"
+        )
+    return f"""<h1>Privacy</h1>
+<p>These pages count visits with Google Analytics 4, a service of Google LLC in the United
+States. Nothing else on them tracks you.</p>
+{_HARNESS}
+<h2>What Google Analytics records</h2>
+<p>For each page you open: the page address and the page you came from, the time, your
+browser, device and screen size, your language, and a rough location that Google works out
+from your IP address. Google Analytics 4 does not store the IP address itself. By default it
+also records scrolling and clicks on links that leave this site.</p>
+<h2>Cookies</h2>
+<p>Outside the places listed below, Google Analytics sets two cookies on
+chelseakr.github.io, named <code>_ga</code> and <code>_ga_</code> followed by an ID. They let
+it tell a returning browser from a new one, and last up to two years. In the European
+Economic Area, the United Kingdom and Switzerland it sets no analytics cookies. There,
+Google still receives a cookieless ping for each page.</p>
+<h2>Advertising features are off</h2>
+<p>Google signals and ad personalisation are both turned off, and the advertising storage,
+ad user data and ad personalisation consent signals are denied everywhere. Google keeps the
+event data for {esc(analytics.GA4_DATA_RETENTION)}. See
+<a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>
+<h2 id="opt-out">Opting out</h2>
+<ul>
+<li><strong>On this device:</strong> use &ldquo;Opt out of analytics&rdquo; at the bottom of
+any page. It stores <code>{esc(analytics.GA4_OPT_OUT_KEY)}</code> in this browser's local
+storage and sends it nowhere. From then on this site does not load Google Analytics in this
+browser. The same button then reads &ldquo;Opt back in&rdquo;, which removes the
+setting.</li>
+<li><strong>In any browser:</strong> turn on Global Privacy Control or Do Not Track. This
+site then never loads Google Analytics at all.</li>
+<li>Or install <a href="https://tools.google.com/dlpage/gaoptout">Google's Analytics opt-out
+browser add-on</a>.</li>
+</ul>
+{_HOSTING}"""
+
+
+# ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
 
 
-def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str]:
+def render_site(
+    action: ActionMetadata,
+    *,
+    generated: str = "",
+    ga4_id: str | None = analytics.GA4_MEASUREMENT_ID,
+) -> dict[str, str]:
     """Render every page. Pure: the same inputs give byte-identical output."""
     inventory = build_inventory(builtin_suites())
     bodies = {
@@ -1405,6 +1475,7 @@ def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str
         "evidence.html": ("The evidence pack: Gauntlet", evidence_page()),
         "california.html": ("The California mapping: Gauntlet", california_page()),
         "action.html": ("The GitHub Action: Gauntlet", action_page(action)),
+        "privacy.html": ("Privacy: Gauntlet", privacy_page(ga4_id)),
     }
     # A page named in PAGES with no description would otherwise render an empty
     # `content=""`, which reads as "described" to everything that looks. Fail
@@ -1420,6 +1491,7 @@ def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str
             filename=name,
             description=PAGE_DESCRIPTIONS[name],
             generated=generated,
+            ga4_id=ga4_id,
         )
         for name, _label, key in PAGES
         for title, body in [bodies[name]]

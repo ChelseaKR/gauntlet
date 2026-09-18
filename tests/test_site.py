@@ -41,6 +41,7 @@ from unittest import mock
 
 import pytest
 
+from gauntlet import analytics
 from gauntlet.cases import builtin_suites
 from gauntlet.cli import main
 from gauntlet.evidence import (
@@ -438,27 +439,31 @@ def test_the_pages_that_carry_tables_carry_them(built: Path) -> None:
 
 
 @pytest.mark.parametrize("name", PAGE_NAMES)
-def test_the_page_ships_no_executable_script_and_no_inline_style(built: Path, name: str) -> None:
-    """Static pages, no runtime, nothing for a CSP to have to allow.
+def test_the_page_ships_only_the_ga4_loader_and_no_inline_style(built: Path, name: str) -> None:
+    """Static pages whose one executable script is the Google Analytics 4 loader.
 
-    This asserted `scripts == 0` until the pages began carrying a
-    `application/ld+json` block saying what each page is about. That block is
-    not a narrowing of the promise dressed up as one: a script element whose
-    type is not a script type is a *data block*, which the HTML spec never
-    prepares and never executes, and which `script-src` therefore has no say
-    over -- so "no runtime, nothing for a CSP to have to allow" is still the
-    whole of it.
+    Owner decision 2026-09-17: GA4 on every public site. The loader is matched by its whole
+    text and taken out before anything else is counted, so a second executable script, or the
+    loader edited by one byte, still fails here. tests/test_analytics.py holds what it does.
 
-    The count that replaced it is the stricter of the two. `scripts == 0` was
-    satisfied by the absence of the element; this is satisfied only by the
-    absence of anything executable, and it goes red for an inline script, a
-    `src`, a `type="module"` and a `type="text/javascript"` alike, none of
-    which the old assertion distinguished because none of them could occur.
-    The structured-data section below asserts the one data block is there,
-    is exactly one, and says what the rest of the head says.
+    The other script element each page carries is an `application/ld+json` block saying what
+    the page is about. A script element whose type is not a script type is a *data block*,
+    which the HTML spec never prepares and never executes, and which `script-src` therefore
+    has no say over. So what is counted is the executable scripts, which goes red for an
+    inline script, a `src`, a `type="module"` and a `type="text/javascript"` alike. The
+    structured-data section below asserts the one data block is there, is exactly one, and
+    says what the rest of the head says.
     """
+    text = (built / name).read_text(encoding="utf-8")
+    loader = analytics.head_snippet(analytics.GA4_MEASUREMENT_ID)
+    assert loader
+    assert text.count(loader) == 1, "the page does not carry the loader exactly once"
     doc = parse(built / name)
-    assert doc.executable_scripts == 0
+    assert doc.executable_scripts == 1
+    rest = Document()
+    rest.feed(text.replace(loader, ""))
+    assert rest.executable_scripts == 0
+    assert rest.scripts == 1, "the one script left once the loader is out is the data block"
     assert doc.inline_styles == 0
 
 
@@ -1122,7 +1127,11 @@ STANDALONE_NUMBER = re.compile(r"(?<![\w.\-/])\d+(?![\w.\-/])")
 REVIEWED_NUMBERS: dict[str, str] = {
     "1": "the exit code gauntlet run uses for a failed gate",
     "2": "the exit code gauntlet run uses when the harness itself could not run",
-    "4": "the exit code gauntlet run uses when the run cannot be scored",
+    "4": (
+        "the exit code gauntlet run uses when the run cannot be scored, and the 4 in "
+        "Google Analytics 4, the product privacy.html names"
+    ),
+    "14": "the event-data retention in months privacy.html states, analytics.GA4_DATA_RETENTION",
     "4986": "the SAM 4986 series, named while explaining the correction made by reading",
     "0002": "the ADR number the action page cites for how the action is meant to be pinned",
 }
