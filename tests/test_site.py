@@ -748,9 +748,9 @@ def test_a_generated_date_appears_only_when_one_is_given(tmp_path: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def relative_luminance(colour: str) -> float:
-    """WCAG relative luminance of an sRGB hex colour."""
-    raw = colour.lstrip("#")
+def relative_luminance(color: str) -> float:
+    """WCAG relative luminance of an sRGB hex color."""
+    raw = color.lstrip("#")
     channels = [int(raw[index : index + 2], 16) / 255 for index in (0, 2, 4)]
     linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
@@ -813,7 +813,7 @@ def test_boundaries_meet_wcag_non_text_contrast(theme: str, pair: tuple[str, str
 
 
 def test_both_palettes_define_exactly_the_same_tokens() -> None:
-    """A token defined in one theme only leaves a colour inherited from the host."""
+    """A token defined in one theme only leaves a color inherited from the host."""
     assert set(LIGHT) == set(DARK)
 
 
@@ -833,18 +833,18 @@ _FOREGROUND_IN_CSS = re.compile(r"(?<!-)\bcolor:\s*var\(--([a-z0-9-]+)\)")
 _BACKGROUND_IN_CSS = re.compile(r"background(?:-color)?:\s*var\(--([a-z0-9-]+)\)")
 
 
-def test_every_colour_the_stylesheet_pairs_is_actually_measured() -> None:
+def test_every_color_the_stylesheet_pairs_is_actually_measured() -> None:
     """Close the loop the other way: from the stylesheet back to the pair lists.
 
     ``TEXT_PAIRS`` says it is "every foreground and background the stylesheet
     puts together", but the tuple is written by hand and nothing checked it
-    against the stylesheet, so a new colour pairing added to the CSS was
+    against the stylesheet, so a new color pairing added to the CSS was
     silently unmeasured and no test went red. ``test_every_token_is_used_by_the
     _stylesheet`` already closes this loop for the token definitions; this does
     it for the pairings.
 
-    What this settles is that no colour the stylesheet paints text with, and no
-    colour it paints behind text, is missing from the measured set. What it
+    What this settles is that no color the stylesheet paints text with, and no
+    color it paints behind text, is missing from the measured set. What it
     cannot settle is whether the specific pairings are the ones the cascade
     actually produces: that needs a renderer, and README.md says so.
     """
@@ -853,7 +853,7 @@ def test_every_colour_the_stylesheet_pairs_is_actually_measured() -> None:
 
     foregrounds = set(_FOREGROUND_IN_CSS.findall(STYLESHEET))
     backgrounds = set(_BACKGROUND_IN_CSS.findall(STYLESHEET))
-    assert foregrounds, "no text colour was found in the stylesheet; the rule would be vacuous"
+    assert foregrounds, "no text color was found in the stylesheet; the rule would be vacuous"
     assert backgrounds, "no background was found in the stylesheet; the rule would be vacuous"
 
     assert foregrounds <= measured_foregrounds, (
@@ -866,7 +866,7 @@ def test_every_colour_the_stylesheet_pairs_is_actually_measured() -> None:
     )
 
     # And nothing measured has dropped out of the stylesheet, so a pair list
-    # cannot quietly accumulate colours the site no longer uses.
+    # cannot quietly accumulate colors the site no longer uses.
     for token in measured_foregrounds | measured_backgrounds:
         assert f"var(--{token})" in STYLESHEET, f"--{token} is measured but no longer used"
 
@@ -876,7 +876,7 @@ def test_every_colour_the_stylesheet_pairs_is_actually_measured() -> None:
     assert not unaccounted, f"{sorted(unaccounted)} is neither measured nor recorded as decorative"
 
 
-def test_the_stylesheet_defines_both_themes_and_honours_an_explicit_choice() -> None:
+def test_the_stylesheet_defines_both_themes_and_honors_an_explicit_choice() -> None:
     assert "@media (prefers-color-scheme: dark)" in STYLESHEET
     assert ':root:not([data-theme="light"])' in STYLESHEET
     assert ':root[data-theme="dark"]' in STYLESHEET
@@ -884,7 +884,7 @@ def test_the_stylesheet_defines_both_themes_and_honours_an_explicit_choice() -> 
 
 
 def test_a_known_contrast_is_computed_correctly() -> None:
-    """Anchor the arithmetic: black on white is 21:1, and a colour on itself is 1:1."""
+    """Anchor the arithmetic: black on white is 21:1, and a color on itself is 1:1."""
     assert round(contrast("#000000", "#ffffff"), 2) == 21.0
     assert round(contrast("#14509c", "#14509c"), 2) == 1.0
 

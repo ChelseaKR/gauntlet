@@ -103,7 +103,7 @@ def supports_history(target: object) -> bool:
     A target declares it by exposing ``converse``. A wrapper that may or may not
     be able to (a callable target, a recording) says so with a boolean
     ``accepts_history``, which wins over the mere existence of the method:
-    a wrapper always has the method and cannot always honour it.
+    a wrapper always has the method and cannot always honor it.
     """
     declared = getattr(target, "accepts_history", None)
     if isinstance(declared, bool):

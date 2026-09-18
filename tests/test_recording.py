@@ -3,7 +3,7 @@
 Three properties are held here.
 
 **A replay is faithful.** Recording a run and replaying it produces the same
-``results_digest`` -- the behaviour fingerprint, which excludes the clock, so
+``results_digest`` -- the behavior fingerprint, which excludes the clock, so
 this is a real comparison and not a tautology.
 
 **A replay is honest about being one.** The recorded provenance travels inside

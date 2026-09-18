@@ -13,7 +13,7 @@ in Node against a stubbed ``window``, ``navigator``, ``document`` and ``localSto
 the production host or outside this project's path, under Global Privacy Control, under any
 of the Do Not Track spellings, or after the footer opt-out, it creates no ``dataLayer`` and
 requests nothing. Otherwise it sets both Consent Mode defaults before ``config``, turns
-Google signals and ad personalisation off, and appends gtag.js once.
+Google signals and ad personalization off, and appends gtag.js once.
 
 **Negative controls.** Each guard is deleted from the script in turn. Every control first
 asserts that the deletion landed (the guard occurred exactly once before and not at all
@@ -251,7 +251,7 @@ def test_every_page_links_the_privacy_page_and_the_opt_out(built: Path) -> None:
         "<code>_ga</code>",
         "European\nEconomic Area, the United Kingdom and Switzerland",
         "cookieless ping",
-        "Google signals and ad personalisation are both turned off",
+        "Google signals and ad personalization are both turned off",
         "14 months",
         "Global Privacy Control",
         "Do Not Track",

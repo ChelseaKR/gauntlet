@@ -20,7 +20,7 @@ like drift and is arithmetic on a moved denominator. Those steps are reported
 as not comparable and take no part in any streak.
 
 **An edited ledger is detectable.** Each entry carries the SHA-256 of the
-entry before it, over a canonical serialisation of that entry. Editing any
+entry before it, over a canonical serialization of that entry. Editing any
 field of any past entry breaks the link at the next entry, and the reader
 refuses the whole ledger naming the entry whose link broke. A ledger is
 evidence only if a changed number can be told from an original one.

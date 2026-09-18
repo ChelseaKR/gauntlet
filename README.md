@@ -356,7 +356,7 @@ same reason a gate a run never loaded reads `not run` in the comparison matrix,
 never `0 / 0`.
 
 **An edited ledger is detectable.** Each entry carries the SHA-256 of the entry
-before it, over a canonical serialisation. Editing any field of any past entry
+before it, over a canonical serialization. Editing any field of any past entry
 breaks the link at the next one, and the reader refuses the whole ledger naming
 where the chain broke and exits 2, the code that means the harness could not
 run rather than the one that means a gate failed. A ledger is evidence only if a
@@ -549,7 +549,7 @@ A declared language with no cases and no exception fails to load. A declaration
 is a claim about what the gate scores, and a run must not reach a verdict over a
 language it never exercised. `coverage_exceptions` is the way to say "declared,
 knowingly not covered, here is why", and the reason is required: `gauntlet lint`
-prints every exception it honours, and the generated inventory block states it
+prints every exception it honors, and the generated inventory block states it
 beside the table, because a zero in a language column otherwise reads the same
 whether nobody wrote those cases or somebody decided not to.
 
@@ -596,7 +596,7 @@ and gives the same answer every time.
 
 Errors exit 1. Warnings are reported and do not change the exit code: a suite
 with more English than Spanish cases, a suite that asks the same prompt in two
-cases, and an honoured `coverage_exceptions` entry are worth seeing and are not
+cases, and an honored `coverage_exceptions` entry are worth seeing and are not
 reasons to block a commit. A suite with no cases in one of its declared
 languages is an error, not a warning, because a suite's declared languages are
 peers.
@@ -714,7 +714,7 @@ geometry jsdom does not compute and is discarded. What this gate settles about
 WCAG 2.2 today is nothing. A configured tag that selects no rule at all fails
 the gate rather than passing silently.
 
-Colour contrast is measured once, not twice. `color-contrast` is discarded for
+Color contrast is measured once, not twice. `color-contrast` is discarded for
 the same reason `target-size` is: jsdom paints no pixels, and a rule that could
 not run must not be reported as a rule that passed. Contrast is measured in
 [`tests/test_site.py`](tests/test_site.py), as arithmetic over both palettes,
@@ -741,7 +741,7 @@ browser sends Global Privacy Control or Do Not Track, or after the visitor uses
 the footer's "Opt out of analytics" button, remembered in local storage as
 `gauntlet:analytics-opt-out` (a key that names this project, because every
 `chelseakr.github.io` site shares one origin). Google signals and ad
-personalisation are off, the advertising consent signals are denied everywhere,
+personalization are off, the advertising consent signals are denied everywhere,
 and analytics cookies are denied in the EEA, the UK and Switzerland.
 [`tests/test_analytics.py`](tests/test_analytics.py) runs the built loader in
 Node against each of those cases and deletes each guard in turn to prove the
@@ -830,7 +830,7 @@ row that records a gap says so rather than being left out.
 | Performance | Applies (scoped): the documentation site is deterministically generated static HTML built from the harness itself, with no network call at build time and no data fetch at view time; its one script, the Google Analytics 4 loader, appends gtag.js asynchronously on the production host and blocks nothing. No transfer-size or timing budget is enforced in CI and none is claimed |
 | Accessibility | Applies: the built pages are checked two ways on every pull request, html-validate for HTML conformance and the markup-level rules, and axe-core in a headless DOM over the `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` and `best-practice` tags. Two of the rules those tags select need a renderer jsdom does not provide and are discarded rather than reported as passes, `color-contrast` and `target-size`, so contrast is measured once and not twice: as arithmetic over both palettes in `make verify`. Structure is checked in both. No human assistive-technology review has been done, and the site says so |
 | Internationalization | Applies: the built-in gate suites run in English and Spanish, and a report renders whatever language the cases are written in. The CLI's own operator output is English only and there is no message catalog. No declaration has been recorded either way |
-| AI Evaluation | Applies (this repository's own subject matter): the self-test doctrine is that every built-in gate must be shown able to fail: the toy target's defect switches remove real behaviour on purpose, and CI runs the deliberately broken target and the mute target to prove a failure blocks and that silence is not scored as a pass. `judge` is outside the doctrine, because the toy cannot exercise a gate that needs a model; it fails closed on its own terms instead |
+| AI Evaluation | Applies (this repository's own subject matter): the self-test doctrine is that every built-in gate must be shown able to fail: the toy target's defect switches remove real behavior on purpose, and CI runs the deliberately broken target and the mute target to prove a failure blocks and that silence is not scored as a pass. `judge` is outside the doctrine, because the toy cannot exercise a gate that needs a model; it fails closed on its own terms instead |
 | Documentation | Applies: README, [SCOPE.md](SCOPE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), CHANGELOG, CITATION.cff, the ADR log under `docs/adr/`, and a generated documentation site. The gate table above is generated from the loaded suites, so it cannot drift from the harness |
 | Quality & Metrics | Applies: the floors that fail the run are the 90% branch-coverage gate, which measures the real-target adapters as well as the package, zero Ruff findings, zero strict-mypy errors, zero Semgrep findings over every Python directory in the tree and zero gitleaks findings, and the action self-tests. The gate inventory is counted, never typed. These floors fail `make verify` and the CI run; they do not block a merge in this repository, which requires no status check (measured 2026-09-13) |
 | AI Development Measurement | Applies: no tool-usage counter is collected and none gates a merge. `make verify` and the CI gates above are what a change is expected to clear regardless of how it was authored, by convention here, since no check is required on `main` |

@@ -145,7 +145,7 @@ def _load_callable_target(spec: str) -> Target:
         raise ValueError(f"{spec} did not produce a target with .ask and .name")
     # ``supports_history`` rather than "has a converse method": a factory may hand
     # back a wrapper that always has the method and says, in ``accepts_history``,
-    # that it cannot honour it. Wrapping that as conversational would put turn two
+    # that it cannot honor it. Wrapping that as conversational would put turn two
     # to a target that raises, and report a harness failure instead of the case.
     return CallableTarget(
         fn=produced.ask,
@@ -520,7 +520,7 @@ def _calibrate_agreement(args: argparse.Namespace, calibration_set: CalibrationS
     people, and it is measured here rather than asserted anywhere.
 
     ``--min-kappa`` is required and has no default. A floor of 0.6 or 0.8 would
-    be this harness inventing the threshold, and the number is a judgement
+    be this harness inventing the threshold, and the number is a judgment
     about how much disagreement the rubric can carry before the labels stop
     describing one thing. It belongs to whoever set it, so it is typed at the
     command line and printed back in the verdict.
@@ -532,7 +532,7 @@ def _calibrate_agreement(args: argparse.Namespace, calibration_set: CalibrationS
         )
     if args.min_kappa is None:
         raise ValueError(
-            "--agreement needs --min-kappa, and it has no default: the floor is a judgement "
+            "--agreement needs --min-kappa, and it has no default: the floor is a judgment "
             "about how much disagreement the rubric can carry, and this harness will not "
             "invent one on your behalf"
         )

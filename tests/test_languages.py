@@ -348,7 +348,7 @@ def test_lint_still_warns_on_imbalance_across_three_languages(tmp_path: Path) ->
     assert report.ok
 
 
-def test_lint_reports_every_exception_it_honours(tmp_path: Path) -> None:
+def test_lint_reports_every_exception_it_honors(tmp_path: Path) -> None:
     _write(
         tmp_path,
         "grounding.yaml",
@@ -363,9 +363,9 @@ def test_lint_reports_every_exception_it_honours(tmp_path: Path) -> None:
         ),
     )
     report = lint_directory(tmp_path)
-    honoured = [item for item in report.findings if item.code == "language_excepted"]
-    assert [item.severity for item in honoured] == [WARNING]
-    assert "no Arabic reviewer yet" in honoured[0].message
+    honored = [item for item in report.findings if item.code == "language_excepted"]
+    assert [item.severity for item in honored] == [WARNING]
+    assert "no Arabic reviewer yet" in honored[0].message
     assert not [item for item in report.findings if item.code == "missing_language"]
 
 

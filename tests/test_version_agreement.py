@@ -10,7 +10,7 @@ release built from it would have declared itself `0.2.0` to `pip` and `0.1.0`
 to `import gauntlet`.
 
 A wrong version is not a cosmetic defect here. It is the single field a
-consumer uses to say which behaviour they have: whether `run --record` exists,
+consumer uses to say which behavior they have: whether `run --record` exists,
 whether `verify` exists, and whether an unverifiable citation is still counted
 as grounded. Reporting a version the code is not is the same failure this
 repository's gates exist to catch elsewhere, a value published where the real
@@ -72,7 +72,7 @@ def test_package_version_matches_pyproject() -> None:
     assert exported == declared, (
         f"version drift: pyproject.toml says {declared!r} and "
         f"src/gauntlet/__init__.py says {exported!r}. A release built from this tree "
-        f"would ship a wheel labelled {declared!r} whose `gauntlet.__version__` reads "
+        f"would ship a wheel labeled {declared!r} whose `gauntlet.__version__` reads "
         f"{exported!r}. Set both to the version being released."
     )
 
