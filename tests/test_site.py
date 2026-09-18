@@ -28,9 +28,12 @@ real screen reader need a person.
 
 from __future__ import annotations
 
+import json
 import re
+import tomllib
 from collections import Counter
 from dataclasses import dataclass, replace
+from email.message import Message
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -113,6 +116,7 @@ class Document(HTMLParser):
         self.th_scopes: list[str | None] = []
         self.hrefs: list[str] = []
         self.scripts = 0
+        self.executable_scripts = 0
         self.inline_styles = 0
         self.lang: str | None = None
         self.title = ""
@@ -138,6 +142,12 @@ class Document(HTMLParser):
             self.landmarks[tag] += 1
         elif tag == "script":
             self.scripts += 1
+            # A `<script>` whose type is not a script type is a data block: the
+            # HTML parser hands its contents to nothing and the browser never
+            # prepares it, so it is markup rather than runtime. The count that
+            # matters is the other one.
+            if attr.get("type", "").strip() != "application/ld+json":
+                self.executable_scripts += 1
         else:
             self._note_head(tag, attr)
             self._note_table(tag, attr)
@@ -430,21 +440,30 @@ def test_the_pages_that_carry_tables_carry_them(built: Path) -> None:
 
 @pytest.mark.parametrize("name", PAGE_NAMES)
 def test_the_page_ships_only_the_ga4_loader_and_no_inline_style(built: Path, name: str) -> None:
-    """Static pages whose one script is the Google Analytics 4 loader.
+    """Static pages whose one executable script is the Google Analytics 4 loader.
 
     Owner decision 2026-09-17: GA4 on every public site. The loader is matched by its whole
-    text and taken out before anything else is counted, so a second script, or the loader
-    edited by one byte, still fails here. tests/test_analytics.py holds what it does.
+    text and taken out before anything else is counted, so a second executable script, or the
+    loader edited by one byte, still fails here. tests/test_analytics.py holds what it does.
+
+    The other script element each page carries is an `application/ld+json` block saying what
+    the page is about. A script element whose type is not a script type is a *data block*,
+    which the HTML spec never prepares and never executes, and which `script-src` therefore
+    has no say over. So what is counted is the executable scripts, which goes red for an
+    inline script, a `src`, a `type="module"` and a `type="text/javascript"` alike. The
+    structured-data section below asserts the one data block is there, is exactly one, and
+    says what the rest of the head says.
     """
     text = (built / name).read_text(encoding="utf-8")
     loader = analytics.head_snippet(analytics.GA4_MEASUREMENT_ID)
     assert loader
     assert text.count(loader) == 1, "the page does not carry the loader exactly once"
     doc = parse(built / name)
-    assert doc.scripts == 1
+    assert doc.executable_scripts == 1
     rest = Document()
     rest.feed(text.replace(loader, ""))
-    assert rest.scripts == 0
+    assert rest.executable_scripts == 0
+    assert rest.scripts == 1, "the one script left once the loader is out is the data block"
     assert doc.inline_styles == 0
 
 
@@ -453,6 +472,431 @@ def test_the_page_carries_no_em_dash_or_en_dash(built: Path, name: str) -> None:
     text = (built / name).read_text(encoding="utf-8")
     assert chr(0x2014) not in text
     assert chr(0x2013) not in text
+
+
+# ---------------------------------------------------------------------------
+# What the page says it is about
+#
+# Each page states what it is twice: once in tags a person's browser renders,
+# and once in a schema.org graph only a crawler reads. The second is the half
+# nobody looks at, which makes it the half that rots -- a title changed in the
+# template and not in the node publishes two different answers to "what is this
+# page", and the wrong one is the one a search result shows.
+#
+# So nothing below asserts a literal. Each check reads a value out of the graph
+# and holds it against the tag, the file or the packaging metadata the value is
+# supposed to have come from. A node that stopped being derived fails here even
+# while it still says something plausible, which is the only failure worth
+# catching: a node that is merely wrong is rare, and a node that is quietly
+# stale is the normal outcome.
+#
+# Nothing in this section reads `gauntlet.site` for an expected value either.
+# Asking the generator what the answer is cannot catch a generator that
+# fabricates. `PAGE_NAMES` is used to enumerate the pages, and only because
+# `test_the_build_writes_every_declared_page` holds it equal to what was built.
+# ---------------------------------------------------------------------------
+
+
+class Head(HTMLParser):
+    """The head, read as elements rather than as a string.
+
+    Every value the structured data claims is also stated in an ordinary tag,
+    so each check is an equality between the two. Reading them with a parser
+    rather than a regular expression is not fastidiousness: the portfolio audit
+    that asked for this markup scored a sibling project as carrying structured
+    data because the string `application/ld+json` occurred on its page, and the
+    one occurrence turned out to be the `accept` attribute of a file picker. A
+    count of a string scores an upload widget as a schema.org node and misses a
+    real one written with unusual spacing. This matches on the element and its
+    `type` attribute, and on nothing else.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.lang = ""
+        self.title = ""
+        self.canonical = ""
+        self.meta: dict[str, str] = {}
+        self.ld_blocks: list[str] = []
+        self._in_title = False
+        self._in_ld = False
+        self._buffer: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        at = {key.lower(): (value or "") for key, value in attrs}
+        if tag == "html":
+            self.lang = at.get("lang", "")
+        elif tag == "title":
+            self._in_title = True
+            self._buffer = []
+        elif tag == "meta":
+            key = at.get("name") or at.get("property")
+            if key:
+                self.meta[key] = at.get("content", "")
+        elif tag == "link" and at.get("rel") == "canonical":
+            self.canonical = at.get("href", "")
+        elif tag == "script" and at.get("type", "").strip() == "application/ld+json":
+            self._in_ld = True
+            self._buffer = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title" and self._in_title:
+            self.title = "".join(self._buffer)
+            self._in_title = False
+        elif tag == "script" and self._in_ld:
+            self.ld_blocks.append("".join(self._buffer))
+            self._in_ld = False
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title or self._in_ld:
+            self._buffer.append(data)
+
+
+PYPROJECT = ROOT / "pyproject.toml"
+
+# The nodes a page of this site must carry. A page describing itself and not
+# what it is about, or the other way round, is the half-done case this names.
+DESCRIBED_AS = frozenset({"WebSite", "WebPage", "ImageObject", "SoftwareApplication"})
+
+# Harvest vocabulary. See test_it_solicits_no_dataset_harvest for why none of
+# it may appear, and test_the_harvest_scan_rejects_the_vocabulary_it_names for
+# the demonstration that the scan bites.
+HARVEST_TYPES = frozenset({"Dataset", "DataCatalog", "DataDownload", "DataFeed"})
+HARVEST_WORDS = ("dcat:", "dct:", "void:", "distribution", "dataset")
+
+
+@pytest.fixture(scope="module")
+def heads(built: Path) -> dict[str, Head]:
+    parsed: dict[str, Head] = {}
+    for name in PAGE_NAMES:
+        head = Head()
+        head.feed((built / name).read_text(encoding="utf-8"))
+        parsed[name] = head
+    return parsed
+
+
+@pytest.fixture(scope="module")
+def project() -> dict[str, object]:
+    """The `[project]` table, read from the file the packaging metadata is built from.
+
+    The generator reads the *installed* distribution's metadata, because
+    `gauntlet site` has to work from a wheel. Reading the source table here
+    rather than the same installed metadata is the point: the two agree only
+    when the environment was synced from this tree, so a stale install shows up
+    as a failing comparison instead of an older sentence on a published page.
+    """
+    table = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
+    assert isinstance(table, dict)
+    return table
+
+
+def graph_of(heads: dict[str, Head], name: str) -> dict[str, dict[str, object]]:
+    """Every node of one page's single JSON-LD block, keyed by `@id`."""
+    blocks = heads[name].ld_blocks
+    assert len(blocks) == 1, f"{name} carries {len(blocks)} ld+json blocks, expected 1"
+    payload = json.loads(blocks[0])
+    assert payload.get("@context") == "https://schema.org", name
+    nodes = payload.get("@graph")
+    assert isinstance(nodes, list) and nodes, name
+    by_id: dict[str, dict[str, object]] = {}
+    for node in nodes:
+        assert isinstance(node, dict), name
+        assert node.get("@id"), f"{name}: a node with no @id cannot be referred to"
+        assert node.get("@type"), f"{name}: a node with no @type describes nothing"
+        by_id[str(node["@id"])] = node
+    assert len(by_id) == len(nodes), f"{name}: two nodes share an @id"
+    return by_id
+
+
+def node_of(heads: dict[str, Head], name: str, type_: str) -> dict[str, object]:
+    found = [node for node in graph_of(heads, name).values() if node["@type"] == type_]
+    assert len(found) == 1, f"{name} carries {len(found)} {type_} nodes, expected 1"
+    return found[0]
+
+
+def test_there_are_pages_to_examine(built: Path, heads: dict[str, Head]) -> None:
+    """The examinable set, named so it cannot silently go empty.
+
+    Every check below is parametrized over `PAGE_NAMES`. If that tuple ever
+    emptied, or if the build stopped writing the files it names, each of them
+    would pass having read nothing at all -- a gate that cannot fail, which is
+    the defect this repository spends most of its effort on elsewhere.
+    """
+    on_disk = sorted(path.name for path in built.glob("*.html"))
+    assert on_disk, "the build wrote no HTML, so there is nothing to examine"
+    assert on_disk == sorted(PAGE_NAMES)
+    assert sorted(heads) == sorted(PAGE_NAMES)
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_every_published_page_says_what_it_is(heads: dict[str, Head], name: str) -> None:
+    """The point of the gate: a page that should describe itself and does not."""
+    assert len(heads[name].ld_blocks) == 1
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_graph_describes_the_page_the_site_and_the_software(
+    heads: dict[str, Head], name: str
+) -> None:
+    types = {str(node["@type"]) for node in graph_of(heads, name).values()}
+    assert types == set(DESCRIBED_AS)
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_no_node_points_at_an_id_the_graph_does_not_define(
+    heads: dict[str, Head], name: str
+) -> None:
+    """A reference to nothing reads as a described page and is an empty one.
+
+    `"about": {"@id": ...}` naming a node the graph does not carry is dropped
+    by every consumer silently rather than complained about, so the page goes
+    on looking described while saying nothing about what it is about.
+    """
+    nodes = graph_of(heads, name)
+    for node in nodes.values():
+        for key, value in node.items():
+            if isinstance(value, dict) and "@id" in value:
+                assert value["@id"] in nodes, (
+                    f"{name}: {node['@type']}.{key} points at an undefined @id"
+                )
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_no_property_is_empty(heads: dict[str, Head], name: str) -> None:
+    """An empty string reads as "stated" to everything that looks at it."""
+    for node in graph_of(heads, name).values():
+        for key, value in node.items():
+            assert value != "", f"{name}: {node['@type']}.{key} is an empty string"
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_page_node_repeats_the_pages_own_head(heads: dict[str, Head], name: str) -> None:
+    head = heads[name]
+    webpage = node_of(heads, name, "WebPage")
+    assert webpage["name"] == head.title
+    assert webpage["description"] == head.meta["description"]
+    assert webpage["url"] == head.canonical
+    assert webpage["url"] == head.meta["og:url"]
+    assert webpage["inLanguage"] == head.lang
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_site_node_repeats_what_the_head_calls_the_site(
+    heads: dict[str, Head], name: str
+) -> None:
+    head = heads[name]
+    website = node_of(heads, name, "WebSite")
+    assert website["name"] == head.meta["og:site_name"]
+    assert website["inLanguage"] == head.lang
+    # Every page's site node names the site, not the page, so all five agree
+    # and none of them is the page's own canonical except the front page's.
+    assert website["url"] == PUBLISHED_AT
+    assert node_of(heads, name, "WebPage")["isPartOf"] == {"@id": website["@id"]}
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_image_node_repeats_the_card_the_head_names(heads: dict[str, Head], name: str) -> None:
+    head = heads[name]
+    image = node_of(heads, name, "ImageObject")
+    assert image["url"] == head.meta["og:image"]
+    assert image["caption"] == head.meta["og:image:alt"]
+    assert str(image["width"]) == head.meta["og:image:width"]
+    assert str(image["height"]) == head.meta["og:image:height"]
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_image_nodes_dimensions_are_the_published_pngs_own(
+    built: Path, heads: dict[str, Head], name: str
+) -> None:
+    """The other half of the same claim.
+
+    The tags and the node can agree with each other and both be wrong about the
+    file, which is what they were while 1200 and 630 were typed into the
+    template: re-render the card at another size and every page would have gone
+    on announcing the old one with nothing red. IHDR is the first chunk of
+    every PNG; its width and height are big-endian 32-bit fields at offsets 16
+    and 20.
+    """
+    header = (built / heads[name].meta["og:image"].rsplit("/", 1)[-1]).read_bytes()[:24]
+    assert header[:8] == b"\x89PNG\r\n\x1a\n"
+    image = node_of(heads, name, "ImageObject")
+    assert (image["width"], image["height"]) == (
+        int.from_bytes(header[16:20], "big"),
+        int.from_bytes(header[20:24], "big"),
+    )
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_software_node_repeats_the_packaging_metadata(
+    heads: dict[str, Head], project: dict[str, object], name: str
+) -> None:
+    urls = project["urls"]
+    assert isinstance(urls, dict)
+    software = node_of(heads, name, "SoftwareApplication")
+    assert software["alternateName"] == project["name"]
+    assert software["description"] == project["description"]
+    assert software["url"] == urls["Homepage"]
+    assert software["codeRepository"] == urls["Repository"]
+    assert node_of(heads, name, "WebPage")["about"] == {"@id": software["@id"]}
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_the_software_node_states_no_version(heads: dict[str, Head], name: str) -> None:
+    """Deliberate, and the reason is on the record rather than in a commit.
+
+    These pages are built from `main`, which carries the version being
+    prepared; the index carries the last one released, and the two have
+    differed for most of this project's life. A `softwareVersion` here would
+    announce a release that does not exist yet, to consumers that read
+    structured data and to nobody in a position to see it was wrong. A number
+    published where the real one was unavailable is the defect this harness
+    exists to catch in other people's features.
+    """
+    assert "softwareVersion" not in node_of(heads, name, "SoftwareApplication")
+
+
+def test_the_page_and_the_packaging_agree_on_where_this_project_lives(
+    heads: dict[str, Head], project: dict[str, object]
+) -> None:
+    """Three files now state this project's two addresses; they are held equal.
+
+    `pyproject.toml` states them for the PyPI page, the generator states them
+    for the canonical and the footer link, and the graph states them again.
+    They were already two copies before any of this, so the node is not what
+    made them capable of drifting -- but it is the occasion to stop them.
+    """
+    urls = project["urls"]
+    assert isinstance(urls, dict)
+    assert heads["index.html"].canonical == urls["Homepage"]
+    for name in PAGE_NAMES:
+        assert heads[name].canonical.startswith(str(urls["Homepage"]))
+
+
+def _assert_no_harvest(blocks: str, types: set[str], where: str) -> None:
+    lowered = blocks.casefold()
+    for word in HARVEST_WORDS:
+        assert word not in lowered, f"{where} carries the harvest term {word!r}"
+    solicited = types & set(HARVEST_TYPES)
+    assert not solicited, f"{where} carries the harvest node type {sorted(solicited)}"
+
+
+@pytest.mark.parametrize("name", PAGE_NAMES)
+def test_it_solicits_no_dataset_harvest(heads: dict[str, Head], name: str) -> None:
+    """Deliberate and permanent, not an oversight to be filled in later.
+
+    A `Dataset` node, or DCAT beside it, is not a description: it is an
+    invitation. It exists so that dataset search engines and state open-data
+    catalogs harvest the thing it names and list it as a dataset of record, and
+    a catalog listing is far easier to acquire than to withdraw. This project
+    emits evaluation packs about somebody's deployed feature and cross-
+    references them to a published state framework; whether any of that should
+    solicit that indexing is an open question with an owner's name on it, and
+    the answer is not "whatever the last person to edit the template assumed".
+
+    Saying "this page is about a piece of software" asks for none of it. This
+    test is here so the difference stays a decision somebody makes rather than
+    a line somebody adds.
+    """
+    types = {str(node["@type"]) for node in graph_of(heads, name).values()}
+    _assert_no_harvest("".join(heads[name].ld_blocks), types, name)
+
+
+@pytest.mark.parametrize("term", HARVEST_WORDS + tuple(sorted(HARVEST_TYPES)))
+def test_the_harvest_scan_rejects_the_vocabulary_it_names(term: str) -> None:
+    """The demonstration the scan above would otherwise never get.
+
+    It passes because the words are simply not in the graph, and it would go on
+    passing if `HARVEST_WORDS` were emptied, if the `casefold()` were dropped,
+    or if `PAGE_NAMES` went stale. This is the rule with the most at stake on
+    the page, so each term is run through the same scanner in the shape a real
+    node would carry it.
+    """
+    with pytest.raises(AssertionError, match="harvest"):
+        _assert_no_harvest(json.dumps({"@type": term, term: term}), {term}, "synthetic.html")
+
+
+def _installed(name: str = "", summary: str = "", urls: tuple[str, ...] = ()) -> Message:
+    """A stand-in for the installed distribution's metadata.
+
+    `importlib.metadata` hands back an `email.message.Message`, whose
+    `__getitem__` answers `None` for a header that is not there rather than
+    raising. That is the whole reason the generator guards these reads, so the
+    stand-in has to behave the same way: a dict would raise and the tests below
+    would be checking a failure mode the real thing does not have.
+    """
+    message = Message()
+    if name:
+        message["Name"] = name
+    if summary:
+        message["Summary"] = summary
+    for url in urls:
+        message["Project-URL"] = url
+    return message
+
+
+LIVE_URLS = (
+    "Homepage, https://chelseakr.github.io/gauntlet/",
+    "Repository, https://github.com/ChelseaKR/gauntlet",
+)
+
+
+@pytest.mark.parametrize(
+    ("installed", "missing"),
+    [
+        (_installed(summary="A sentence.", urls=LIVE_URLS), "Name"),
+        (_installed(name="gauntlet-evals", urls=LIVE_URLS), "Summary"),
+        (_installed(name="gauntlet-evals", summary="A sentence.", urls=LIVE_URLS[1:]), "Homepage"),
+        (
+            _installed(name="gauntlet-evals", summary="A sentence.", urls=LIVE_URLS[:1]),
+            "Repository",
+        ),
+    ],
+)
+def test_packaging_metadata_that_states_nothing_is_refused(
+    installed: Message, missing: str
+) -> None:
+    """A field that is not there must stop the build, not become the word "None".
+
+    `Message.__getitem__` answers `None` for an absent header, so an unguarded
+    read renders the string "None" into the page as this project's description
+    or its address: a value invented because the real one was unavailable,
+    which is the defect class this harness exists to catch elsewhere. The
+    refusal names the field and says how to fix the environment.
+    """
+    with (
+        mock.patch("gauntlet.site.distribution_metadata", return_value=installed),
+        pytest.raises(LookupError, match=missing),
+    ):
+        render_site(load_action(ACTION))
+
+
+def test_a_render_with_no_card_to_read_refuses(tmp_path: Path) -> None:
+    """The head cannot state a size it could not read.
+
+    `build_site` refuses a missing card before it renders anything, but
+    `render_site` is a public entry point of its own and would otherwise reach
+    the PNG read with nothing to read.
+    """
+    with (
+        mock.patch("gauntlet.site.ASSETS", tmp_path / "not-here"),
+        pytest.raises(FileNotFoundError, match=re.escape("social-card.png")),
+    ):
+        render_site(load_action(ACTION))
+
+
+def test_a_card_that_is_not_a_png_refuses(tmp_path: Path) -> None:
+    """The offsets IHDR is read at mean nothing in another format.
+
+    Reading bytes 16 to 24 of an arbitrary file yields two plausible integers
+    rather than an error, so the pages would announce a size that is not a size
+    at all. The signature is checked first for that reason.
+    """
+    (tmp_path / "social-card.png").write_bytes(b"GIF89a" + bytes(64))
+    with (
+        mock.patch("gauntlet.site.ASSETS", tmp_path),
+        pytest.raises(ValueError, match=re.escape("is not a PNG")),
+    ):
+        render_site(load_action(ACTION))
 
 
 # ---------------------------------------------------------------------------

@@ -153,6 +153,20 @@ def built(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return out
 
 
+def executable_scripts(html: str) -> list[str]:
+    """Every ``<script>`` start tag in ``html`` except ``application/ld+json`` data blocks.
+
+    A script element whose type is not a script type is a data block the browser never
+    prepares or executes. Each page carries one saying what the page is about, and it is
+    not analytics, so it is left out of every count here.
+    """
+    return [
+        tag
+        for tag in re.findall(r"<script\b[^>]*>", html)
+        if 'type="application/ld+json"' not in tag
+    ]
+
+
 def loader(page: Path) -> str:
     """The inline script in a built page's ``<head>``, exactly as it would be served."""
     head = page.read_text(encoding="utf-8").split("</head>", 1)[0]
@@ -201,7 +215,7 @@ def test_no_id_means_no_analytics_on_any_page(empty: str | None) -> None:
     pages = render_site(load_action(ACTION), ga4_id=empty)
     assert set(pages) == set(PAGE_NAMES)
     for name, page in pages.items():
-        assert "<script" not in page, name
+        assert executable_scripts(page) == [], name
         assert "googletagmanager" not in page, name
         assert "Google Analytics" not in page, name
         assert "Opt out of analytics" not in page, name
@@ -222,8 +236,8 @@ def test_every_page_carries_one_loader_with_the_committed_id(built: Path) -> Non
     assert analytics.GA4_MEASUREMENT_ID == ID
     for name in PAGE_NAMES:
         source = (built / name).read_text(encoding="utf-8")
-        assert source.count("<script") == 1, name
-        assert "<script" not in source.split("</head>", 1)[1], name
+        assert len(executable_scripts(source)) == 1, name
+        assert executable_scripts(source.split("</head>", 1)[1]) == [], name
         script = loader(built / name)
         assert json.dumps(ID) in script
         assert json.dumps(GTAG_SRC) in script
