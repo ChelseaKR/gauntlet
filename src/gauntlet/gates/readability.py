@@ -25,7 +25,7 @@ import unicodedata
 
 from gauntlet.targets import TargetResponse
 
-# Bracketed spans and parenthesised "source:" spans are how targets carry
+# Bracketed spans and parenthesized "source:" spans are how targets carry
 # citation markers. A response made only of those is a marker with no answer
 # attached, which is the shape the first attempt at this fix let through.
 _CITATION_MARKER = re.compile(r"\[[^\[\]]*\]|\([^()]*?sources?\s*:[^()]*\)", re.IGNORECASE)

@@ -22,6 +22,7 @@ parse.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,7 +75,17 @@ class LintReport:
     findings: tuple[Finding, ...]
     suites_loaded: int
     cases_loaded: int
-    scoreability_analysed: bool
+    scoreability_analyzed: bool
+
+    @property
+    def scoreability_analysed(self) -> bool:
+        """Deprecated British-spelling alias of ``scoreability_analyzed``."""
+        warnings.warn(
+            "LintReport.scoreability_analysed is deprecated; use scoreability_analyzed",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.scoreability_analyzed
 
     @property
     def errors(self) -> tuple[Finding, ...]:
@@ -94,7 +105,8 @@ class LintReport:
             "directory": self.directory,
             "suites_loaded": self.suites_loaded,
             "cases_loaded": self.cases_loaded,
-            "scoreability_analysed": self.scoreability_analysed,
+            # Published `gauntlet lint --json` key; British spelling kept so consumers do not break.
+            "scoreability_analysed": self.scoreability_analyzed,
             "errors": len(self.errors),
             "warnings": len(self.warnings),
             "findings": [item.to_dict() for item in self.findings],
@@ -301,13 +313,13 @@ def lint_directory(directory: Path) -> LintReport:
             findings=(_error("directory_missing", str(directory), "case directory not found"),),
             suites_loaded=0,
             cases_loaded=0,
-            scoreability_analysed=False,
+            scoreability_analyzed=False,
         )
     findings = _extension_findings(directory)
     paths = sorted(directory.glob("*.yaml"))
     if not paths:
         findings.append(_error("no_case_files", str(directory), "no *.yaml case files"))
-        return _report(directory, findings, [], scoreability_analysed=False)
+        return _report(directory, findings, [], scoreability_analyzed=False)
     suites, load_findings = _load_findings(paths)
     findings += load_findings
     findings += _duplicate_gate_findings(suites)
@@ -317,10 +329,10 @@ def lint_directory(directory: Path) -> LintReport:
     # Scoreability is a statement about the whole directory. A file that did not
     # load might have been the golden suite that makes the rest scoreable, so
     # the analysis is withheld rather than run over what happened to parse.
-    analysed = not load_findings
-    if analysed:
+    analyzed = not load_findings
+    if analyzed:
         findings += _scoreability_findings(suites)
-    return _report(directory, findings, suites, scoreability_analysed=analysed)
+    return _report(directory, findings, suites, scoreability_analyzed=analyzed)
 
 
 def _report(
@@ -328,14 +340,14 @@ def _report(
     findings: list[Finding],
     suites: list[Suite],
     *,
-    scoreability_analysed: bool,
+    scoreability_analyzed: bool,
 ) -> LintReport:
     return LintReport(
         directory=str(directory),
         findings=tuple(sorted(findings, key=lambda item: item.sort_key)),
         suites_loaded=len(suites),
         cases_loaded=sum(len(suite.cases) for suite in suites),
-        scoreability_analysed=scoreability_analysed,
+        scoreability_analyzed=scoreability_analyzed,
     )
 
 
@@ -352,9 +364,9 @@ def render_lint_text(report: LintReport) -> str:
         f"{_plural(len(report.errors), 'error')}, "
         f"{_plural(len(report.warnings), 'warning')}."
     )
-    if not report.scoreability_analysed:
+    if not report.scoreability_analyzed:
         lines.append(
-            "scoreability was not analysed, because not every case file loaded. "
+            "scoreability was not analyzed, because not every case file loaded. "
             "Fix the errors above and lint again."
         )
     return "\n".join(lines) + "\n"

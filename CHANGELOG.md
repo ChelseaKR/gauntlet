@@ -14,7 +14,7 @@ All notable changes will be documented here.
   site gains `privacy.html`. An empty ID removes all of it. The loader does
   nothing off `chelseakr.github.io` under `/gauntlet/`, under Global Privacy
   Control or Do Not Track, or after an opt-out (localStorage
-  `gauntlet:analytics-opt-out`). Google signals and ad personalisation are off;
+  `gauntlet:analytics-opt-out`). Google signals and ad personalization are off;
   Consent Mode v2 denies the advertising signals everywhere and analytics
   storage in the EEA, the UK and Switzerland. `tests/test_site.py` now allows
   exactly that one script, matched by its whole text, and
@@ -144,7 +144,7 @@ All notable changes will be documented here.
   built from `v0.2.0` would have told `pip` it was `0.2.0` and `import gauntlet`
   that it was `0.1.0`.
 
-  The version a consumer reads is how they say which behaviour they have --
+  The version a consumer reads is how they say which behavior they have --
   whether `run --record` and `verify` exist, and whether an unverifiable
   citation is still counted as grounded. Nothing checked the two declarations
   against each other, which is how a release ships a version the repository
@@ -258,7 +258,7 @@ All notable changes will be documented here.
 
   **`--min-kappa` is required and has no default.** A shipped 0.6 or 0.8 would
   be this harness deciding how much disagreement a rubric may carry, which is a
-  judgement about the rubric. The number is typed at the command line and
+  judgment about the rubric. The number is typed at the command line and
   printed back in the verdict, so it stays the reviewer's.
 
   **Three outcomes, not two, and the third one is the point.** Kappa is
@@ -401,7 +401,7 @@ reference target.
 
 - **The release workflow refuses to publish from a tag the maintainer did not
   sign.** Nothing checked before this. A published Release, or a
-  `workflow_dispatch` from any branch, built a wheel labelled `gauntlet-evals`
+  `workflow_dispatch` from any branch, built a wheel labeled `gauntlet-evals`
   and uploaded it to PyPI, and the only thing between an arbitrary ref and the
   public index was that nobody had dispatched one. A `verify-tag` job now runs
   first and gates both later jobs: it resolves the tag from the event, requires
@@ -470,7 +470,7 @@ reference target.
   resolves, because the tagged tree contains `action.yml`, and the site said
   "no release tag is implied" while a usable one existed. No `@v1` will be
   published, and no tag was created by this change. Closes #33.
-- **A share of any documentation page rendered as a blank grey box, and the
+- **A share of any documentation page rendered as a blank gray box, and the
   README never named the pages at all.** The head carried `og:title`,
   `og:description` and `og:url` but no image, so `twitter:card` was correctly
   held at `summary` and the card had nothing to show. `gauntlet site` now emits
@@ -675,7 +675,7 @@ reference target.
     `2026-08-22-raw.jsonl` and `2026-08-22-results.json` by
     `tests/test_real_target_packs.py`, including the arithmetic: a breakdown
     that does not add up to its own total fails.
-  - The README said page structure and colour contrast were measured "again" in
+  - The README said page structure and color contrast were measured "again" in
     pytest. `tools/a11y.mjs` discards `color-contrast`, because jsdom paints no
     pixels and a rule that could not run must not be reported as one that
     passed. Contrast is measured once, off the palette. Said plainly now, and
@@ -855,7 +855,7 @@ after the tag and is genuinely unreleased.
   network, no clock unless a date is passed, byte-identical on rebuild.
 - An accessibility gate over the built pages (`make pages`): html-validate for
   HTML conformance and the markup-level rules, axe-core in a headless DOM for
-  the WCAG 2.0/2.1/2.2 A and AA rule sets, plus structure and two-theme colour
+  the WCAG 2.0/2.1/2.2 A and AA rule sets, plus structure and two-theme color
   contrast measured in pytest so `make verify` keeps a floor with no node
   toolchain. A CI job runs all of it and proves the build is reproducible.
 - A GitHub Pages workflow (`.github/workflows/pages.yml`) that publishes the

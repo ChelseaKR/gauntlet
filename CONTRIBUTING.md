@@ -68,7 +68,7 @@ GitHub Action the way an external consumer would.
   in site prose that no run produced fails a test unless it is added, with a
   reason, to the reviewed list in `tests/test_site.py`.
 - **The site stays accessible.** New markup has to pass html-validate and
-  axe-core in `make pages`, and any new colour has to be a token in both palettes
+  axe-core in `make pages`, and any new color has to be a token in both palettes
   with its contrast pair measured in `tests/test_site.py`.
 - **No network in tests.** The toy runs locally; the HTTP adapter is tested
   against a loopback stub; the real-target adapters are tested against stubs

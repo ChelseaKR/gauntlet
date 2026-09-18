@@ -40,7 +40,7 @@ from gauntlet.toy.target import defects_named
 CONVERSATIONS = Path("examples/cases-conversations")
 
 #: One conversation whose later turn repeats an ask, used where a test needs the
-#: rules isolated from the toy's own behaviour.
+#: rules isolated from the toy's own behavior.
 MONOTONIC_SUITE = """suite: monotonic
 gate: adversarial
 version: 1

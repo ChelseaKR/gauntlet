@@ -98,7 +98,7 @@ class Inventory:
 
     @property
     def declared_but_not_covered(self) -> tuple[tuple[str, str, str], ...]:
-        """(gate, language, reason) for every honoured coverage exception.
+        """(gate, language, reason) for every honored coverage exception.
 
         A zero in a language column has two readings: nobody wrote those cases,
         or the suite declared the language and recorded why it does not cover

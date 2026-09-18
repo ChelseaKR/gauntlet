@@ -29,7 +29,7 @@ __all__ = [
 def render_json(pack: dict[str, object]) -> str:
     """The machine-readable form, exactly as ``gauntlet report --format json`` writes it.
 
-    The CLI calls this rather than serialising inline, so the one place that
+    The CLI calls this rather than serializing inline, so the one place that
     decides the bytes of a committed evidence pack is the one place a gate can
     render against. See tests/test_real_target_packs.py.
     """

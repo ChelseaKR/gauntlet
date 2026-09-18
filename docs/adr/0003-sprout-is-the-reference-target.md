@@ -133,7 +133,7 @@ sprout's repository and recorded in
 **A failing gate stays a finding.** The committed pack is `FAIL`, on purpose and
 for that one case. Editing the key to record what the target does today, rather
 than what it promises, would be a test asserting the defect as intended
-behaviour.
+behavior.
 
 **What this decision does not settle.** It does not merge the repositories, and
 it does not decide anything about sprout's release path. sprout renamed its

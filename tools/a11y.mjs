@@ -10,8 +10,8 @@
 // difference is in the output rather than in a sentence somebody typed.
 //
 // It is not a substitute for a person looking at the pages: jsdom does no layout and
-// computes no colours, so rules that depend on rendered geometry or on painted pixels
-// cannot fire here. Colour contrast is measured once, off the palette itself, in
+// computes no colors, so rules that depend on rendered geometry or on painted pixels
+// cannot fire here. Color contrast is measured once, off the palette itself, in
 // tests/test_site.py, and what still needs a person is named in README.md.
 //
 // Usage: node tools/a11y.mjs <directory-of-html-files>
@@ -44,7 +44,7 @@ async function checkPage(path) {
   // came out of the page. The pages' one executable script is the Google Analytics 4
   // loader (the other script element is an inert `application/ld+json` data block), and the
   // checker should not execute it; off the production host it would load nothing anyway.
-  // axe probes for a canvas to decide whether it can sample colours. jsdom has none, so
+  // axe probes for a canvas to decide whether it can sample colors. jsdom has none, so
   // it reports that once per page. Everything else the page or axe says is forwarded.
   const console_ = new VirtualConsole();
   console_.forwardTo(console, { jsdomErrors: "none" });

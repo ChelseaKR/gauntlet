@@ -5,7 +5,7 @@ Two separate problems, and they need opposite treatments.
 **Isolation.** A Markdown table cell holding Arabic or Hebrew is laid out by the
 Unicode bidirectional algorithm together with everything around it, so an RTL
 run adjacent to a ``|`` delimiter or a Latin gate name can visually swap places
-with its neighbours. The reader sees a row whose columns are in a different
+with its neighbors. The reader sees a row whose columns are in a different
 order than the file. :func:`isolate` wraps such a run in FIRST STRONG ISOLATE /
 POP DIRECTIONAL ISOLATE, which tells the algorithm to resolve the run's
 direction on its own and place it as one unit. Text with no strong RTL
