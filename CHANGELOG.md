@@ -4,6 +4,24 @@ All notable changes will be documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Google Analytics 4 on the documentation site, and a privacy page.** Owner
+  decision 2026-09-17: GA4 on every public site, with privacy copy changed to
+  match. `src/gauntlet/analytics.py` holds the measurement ID
+  (`GA4_MEASUREMENT_ID`, `G-EHTXRQ49B6`) and the loader; every page `gauntlet
+  site` renders carries it and a footer "Opt out of analytics" control, and the
+  site gains `privacy.html`. An empty ID removes all of it. The loader does
+  nothing off `chelseakr.github.io` under `/gauntlet/`, under Global Privacy
+  Control or Do Not Track, or after an opt-out (localStorage
+  `gauntlet:analytics-opt-out`). Google signals and ad personalisation are off;
+  Consent Mode v2 denies the advertising signals everywhere and analytics
+  storage in the EEA, the UK and Switzerland. `tests/test_site.py` now allows
+  exactly that one script, matched by its whole text, and
+  `tests/test_analytics.py` executes it in Node and deletes each guard as a
+  negative control. `package.json`, `.htmlvalidate.mjs` and `tools/a11y.mjs` no
+  longer say the pages carry no script.
+
 ### Fixed
 
 - **The required `secret-scan` check read one commit of `main`'s 61.** The job

@@ -38,6 +38,7 @@ from unittest import mock
 
 import pytest
 
+from gauntlet import analytics
 from gauntlet.cases import builtin_suites
 from gauntlet.cli import main
 from gauntlet.evidence import (
@@ -428,10 +429,22 @@ def test_the_pages_that_carry_tables_carry_them(built: Path) -> None:
 
 
 @pytest.mark.parametrize("name", PAGE_NAMES)
-def test_the_page_ships_no_script_and_no_inline_style(built: Path, name: str) -> None:
-    """Static pages, no runtime, nothing for a CSP to have to allow."""
+def test_the_page_ships_only_the_ga4_loader_and_no_inline_style(built: Path, name: str) -> None:
+    """Static pages whose one script is the Google Analytics 4 loader.
+
+    Owner decision 2026-09-17: GA4 on every public site. The loader is matched by its whole
+    text and taken out before anything else is counted, so a second script, or the loader
+    edited by one byte, still fails here. tests/test_analytics.py holds what it does.
+    """
+    text = (built / name).read_text(encoding="utf-8")
+    loader = analytics.head_snippet(analytics.GA4_MEASUREMENT_ID)
+    assert loader
+    assert text.count(loader) == 1, "the page does not carry the loader exactly once"
     doc = parse(built / name)
-    assert doc.scripts == 0
+    assert doc.scripts == 1
+    rest = Document()
+    rest.feed(text.replace(loader, ""))
+    assert rest.scripts == 0
     assert doc.inline_styles == 0
 
 
@@ -670,7 +683,11 @@ STANDALONE_NUMBER = re.compile(r"(?<![\w.\-/])\d+(?![\w.\-/])")
 REVIEWED_NUMBERS: dict[str, str] = {
     "1": "the exit code gauntlet run uses for a failed gate",
     "2": "the exit code gauntlet run uses when the harness itself could not run",
-    "4": "the exit code gauntlet run uses when the run cannot be scored",
+    "4": (
+        "the exit code gauntlet run uses when the run cannot be scored, and the 4 in "
+        "Google Analytics 4, the product privacy.html names"
+    ),
+    "14": "the event-data retention in months privacy.html states, analytics.GA4_DATA_RETENTION",
     "4986": "the SAM 4986 series, named while explaining the correction made by reading",
     "0002": "the ADR number the action page cites for how the action is meant to be pinned",
 }

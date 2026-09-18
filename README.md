@@ -685,7 +685,8 @@ Its limits are equally narrow, and they are enforced rather than promised:
 
 `gauntlet site` renders a small static documentation site: what the harness is
 and what it is not, the quickstart, the gate inventory, the evidence pack, the
-California mapping, the GitHub Action, and the self-test doctrine.
+California mapping, the GitHub Action, the self-test doctrine, and a privacy
+page.
 
 ```sh
 make site   # render the pages into site/
@@ -727,6 +728,24 @@ reader are not settled by any check here.
 The site is a build artifact and is not committed.
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes it from
 `main` once the repository's Pages source is set to GitHub Actions.
+
+The site runs Google Analytics 4 (owner decision 2026-09-17: GA4 on every
+public site, with privacy copy changed to match), and its privacy page,
+linked from every footer, says what that means for a visitor. The measurement
+ID is `GA4_MEASUREMENT_ID` in `src/gauntlet/analytics.py`; setting it to `""`
+removes the loader, the footer's opt-out control and every reference to Google
+from every page. The loader loads nothing unless the page is served from
+`chelseakr.github.io` under `/gauntlet/`, so `make site` output, the CI checks
+and any other copy never report to the property. It also loads nothing when the
+browser sends Global Privacy Control or Do Not Track, or after the visitor uses
+the footer's "Opt out of analytics" button, remembered in local storage as
+`gauntlet:analytics-opt-out` (a key that names this project, because every
+`chelseakr.github.io` site shares one origin). Google signals and ad
+personalisation are off, the advertising consent signals are denied everywhere,
+and analytics cookies are denied in the EEA, the UK and Switzerland.
+[`tests/test_analytics.py`](tests/test_analytics.py) runs the built loader in
+Node against each of those cases and deletes each guard in turn to prove the
+test notices. The harness and the GitHub Action have no telemetry.
 
 ## Development
 
@@ -807,8 +826,8 @@ row that records a gap says so rather than being left out.
 | Security & Supply-Chain | Applies: every action pinned to a full commit SHA, least-privilege workflow permissions, gitleaks, Semgrep `p/python` over every top-level directory holding Python (a test derives that set from the tree, so a new one is a failure rather than a directory nothing scans), strict pip-audit over the exported runtime set, and `npm audit` at high for the site toolchain. Nothing is muted and no scanner is dispatch-only. The trust boundaries, including the ones the harness does not defend, are enumerated in [SECURITY.md](SECURITY.md) |
 | CI/CD | Applies: `ci.yml` runs the same `make` targets a contributor runs, then proves the published composite action from an external-consumer checkout, including that a failing gate blocks and that an unscoreable run fails rather than reporting a pass. The site build must produce byte-identical output twice |
 | Release & Versioning | Applies: SemVer, `v0.1.0` and `v0.2.0` tagged; `0.3.0` is recorded in CHANGELOG.md and its tag is not cut yet. The changelog is Keep-a-Changelog: CHANGELOG.md carries a dated section per release, each holding what its tag held, with `## [Unreleased]` above them for what landed afterwards. It did not until 2026-09-05, when a single `## [Unreleased]` heading covered `main` and the `v0.1.0` tag alike and the release that shipped was still filed as unreleased; a test asserts the claim in this row exactly when a release section exists, in both directions. `release.yml` builds once, re-runs the gates before anything is uploaded, and hands the verified artifacts to a separate publish job that uses PyPI Trusted Publishing, so no token exists. **`gauntlet-evals` 0.2.0 is on PyPI**, uploaded 2026-09-13 from the `v0.2.0` tag when its GitHub Release was published; 0.1.0 preceded it and the Status section above records the refused first attempt. That upload ran with **no approval gate** -- the `pypi` environment carried no protection rules at the time, so nothing paused once the Release was pressed; it now requires a reviewer, which is a confirmation prompt for a solo maintainer rather than a second pair of eyes. Two defects shipped in that wheel and neither is repairable in place, because a published release on PyPI is immutable: it reports `__version__ = "0.1.0"`, and it carries no `Project-URL` metadata because `[project.urls]` merged after the tag was cut. `0.3.0` exists to deliver both fixes, and it is a minor bump rather than a patch because the same range adds a multi-turn conversation gate and `calibrate --agreement`: eight further pull requests landed on `main` between `v0.2.0` and it, so a patch number would have understated what the release contains. A `v0.2.1` tag was cut for this and deleted unreleased, before any GitHub Release or upload existed, which is the only point at which a version number is still free to correct. `release.yml` triggers on `release: published` and on dispatch, never on a tag push, so a tag existing uploads nothing on its own. The GitHub Action is not on any registry and is pinned by commit SHA, which [docs/adr/0002](docs/adr/0002-the-action-is-consumed-by-commit-sha.md) decides and gives the reasons for |
-| Observability | Applies (scoped): a single-run CLI and a CI action, not a hosted service. The observable output is the exit code, the versioned JSON pack, and the rendered evidence document, all reproducible from the commit. No tracing, metrics, or SLO surface exists, and none is claimed |
-| Performance | Applies (scoped): the documentation site is deterministically generated static HTML built from the harness itself, with no network call and no data fetch at build or view time. No transfer-size or timing budget is enforced in CI and none is claimed |
+| Observability | Applies (scoped): a single-run CLI and a CI action, not a hosted service. The observable output is the exit code, the versioned JSON pack, and the rendered evidence document, all reproducible from the commit. No tracing, metrics, or SLO surface exists, and none is claimed. The documentation site counts visits with Google Analytics 4; that observes readers of the site, not the harness |
+| Performance | Applies (scoped): the documentation site is deterministically generated static HTML built from the harness itself, with no network call at build time and no data fetch at view time; its one script, the Google Analytics 4 loader, appends gtag.js asynchronously on the production host and blocks nothing. No transfer-size or timing budget is enforced in CI and none is claimed |
 | Accessibility | Applies: the built pages are checked two ways on every pull request, html-validate for HTML conformance and the markup-level rules, and axe-core in a headless DOM over the `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa` and `best-practice` tags. Two of the rules those tags select need a renderer jsdom does not provide and are discarded rather than reported as passes, `color-contrast` and `target-size`, so contrast is measured once and not twice: as arithmetic over both palettes in `make verify`. Structure is checked in both. No human assistive-technology review has been done, and the site says so |
 | Internationalization | Applies: the built-in gate suites run in English and Spanish, and a report renders whatever language the cases are written in. The CLI's own operator output is English only and there is no message catalog. No declaration has been recorded either way |
 | AI Evaluation | Applies (this repository's own subject matter): the self-test doctrine is that every built-in gate must be shown able to fail: the toy target's defect switches remove real behaviour on purpose, and CI runs the deliberately broken target and the mute target to prove a failure blocks and that silence is not scored as a pass. `judge` is outside the doctrine, because the toy cannot exercise a gate that needs a model; it fails closed on its own terms instead |
