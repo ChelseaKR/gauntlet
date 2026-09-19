@@ -243,7 +243,7 @@ def test_quote_checks_off_grounds_nothing(monkeypatch: pytest.MonkeyPatch) -> No
 def test_an_abstention_is_unaffected_by_quote_verification() -> None:
     """A response with no citations has nothing to verify, and still scores.
 
-    Without this, "exclude everything unverified" could be read as a licence to
+    Without this, "exclude everything unverified" could be read as a license to
     fail every grounding case, which would be its own check that cannot fail.
     """
     abstention = Case(id="q-abs", language="en", prompt="who wins?", expect_grounded=False)

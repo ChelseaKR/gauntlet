@@ -569,7 +569,7 @@ def test_a_pack_with_no_gate_list_at_all_is_reported(pack_dir: Path) -> None:
     pack["gates"] = "not a list"
     pack["totals"] = "not a dict"
     details = _failed_details(check_pack(pack))
-    # Every gate row is gone, so the language rows and the behavioural digest
+    # Every gate row is gone, so the language rows and the behavioral digest
     # no longer follow from what is left. A pack with nothing in it must not
     # read as a pack that agrees with itself.
     assert "counts_by_language" in details

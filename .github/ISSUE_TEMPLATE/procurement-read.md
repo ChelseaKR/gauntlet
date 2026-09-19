@@ -68,9 +68,9 @@ leave open?
 
 ## How you want to be credited
 
-- **Name, handle, or organisation to record:**
+- **Name, handle, or organization to record:**
 - [ ] Record me by name
-- [ ] Record a handle or an organisation instead
+- [ ] Record a handle or an organization instead
 - [ ] Do not record me; treat this as an anonymous read
 
 <!-- A named read is worth more than an anonymous one here, because the whole

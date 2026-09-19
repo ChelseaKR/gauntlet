@@ -26,13 +26,16 @@ passed in, and the same commit renders byte-identical pages.
 from __future__ import annotations
 
 import html
+import json
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from importlib.metadata import metadata as distribution_metadata
 from pathlib import Path
 
 import yaml
 
+from gauntlet import analytics
 from gauntlet.cases import builtin_suites
 from gauntlet.drift import results_digest
 from gauntlet.evidence import (
@@ -69,6 +72,25 @@ REPO_URL = "https://github.com/ChelseaKR/gauntlet"
 SITE_URL = "https://chelseakr.github.io/gauntlet/"
 
 SITE_NAME = "Gauntlet"
+
+# The language these pages are written in. Named once because it is now stated
+# twice about the same document -- on the root element, where a screen reader
+# reads it, and in the structured data, where a crawler does -- and a page that
+# answers "what language is this" two different ways has answered nothing.
+PAGE_LANG = "en"
+
+# The name of the distribution this package is installed as.
+#
+# The structured data's software node reads its name, its one-line description
+# and its links out of that installed distribution rather than restating them,
+# because pyproject.toml already says all three for the benefit of the PyPI
+# page and a second copy here is a second thing to keep in step. Read from the
+# installed metadata rather than from pyproject.toml for the reason ASSETS is
+# a package path: `gauntlet site` has to work from a wheel, where there is no
+# repository to read a source file out of. tests/test_site.py holds the
+# installed metadata against pyproject.toml, so a stale environment is a
+# failure rather than a quietly older sentence on the published page.
+DISTRIBUTION = "gauntlet-evals"
 
 # The card a share of any of these pages unfurls into.
 #
@@ -140,6 +162,7 @@ PAGE_DESCRIPTIONS: dict[str, str] = {
         "copy, its inputs and its outputs, all read out of action.yml while this page "
         "was built."
     ),
+    "privacy.html": "What this site collects about visitors, and how to opt out.",
 }
 
 PACKAGE_NOTICE = (
@@ -272,6 +295,10 @@ pre code { background: none; padding: 0; font-size: 1em; }
 .cards p { font-size: .9rem; color: var(--ink-2); margin: 0; }
 footer.site { border-top: 1px solid var(--rule); margin-top: 3.4rem; padding-top: 1.4rem; font-size: .86rem; color: var(--ink-2); }
 footer.site p { max-width: 46rem; }
+.link-button {
+  font: inherit; color: var(--accent); background: none; border: 0; padding: 0;
+  text-decoration: underline; cursor: pointer;
+}
 """
 )
 
@@ -349,6 +376,181 @@ def notice(label: str, *texts: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# What the page is, said once more for a reader that is not a person
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Package:
+    """What the installed distribution says about itself."""
+
+    name: str
+    description: str
+    homepage: str
+    repository: str
+
+
+def package() -> Package:
+    """The installed distribution's own metadata.
+
+    `importlib.metadata` reads the metadata the build backend wrote out of
+    `[project]`, so this is pyproject.toml speaking through the install rather
+    than a paraphrase of it, and it works from a wheel where the source file is
+    not there to read.
+
+    Absent fields are refused rather than rendered. `Message.__getitem__`
+    returns `None` for a header that is not there, so an unguarded read would
+    publish the string "None" as this project's description: a value invented
+    to fill a slot, which is the defect this repository exists to complain
+    about. A build that cannot say what the package is fails here instead.
+    """
+    meta = distribution_metadata(DISTRIBUTION)
+    stated: dict[str, str] = {}
+    for field in ("Name", "Summary"):
+        value = meta[field]
+        if not value:
+            raise LookupError(
+                f"the installed {DISTRIBUTION} metadata states no {field}, so the pages "
+                f"cannot say what this package is without inventing it; re-run `uv sync`"
+            )
+        stated[field] = str(value)
+    urls: dict[str, str] = {}
+    for entry in meta.get_all("Project-URL") or []:
+        label, _, url = str(entry).partition(",")
+        urls[label.strip()] = url.strip()
+    for label in ("Homepage", "Repository"):
+        if not urls.get(label):
+            raise LookupError(
+                f"the installed {DISTRIBUTION} metadata states no {label} project URL, "
+                f"so the pages cannot say where this package lives; re-run `uv sync`"
+            )
+    return Package(
+        name=stated["Name"],
+        description=stated["Summary"],
+        homepage=urls["Homepage"],
+        repository=urls["Repository"],
+    )
+
+
+def card_dimensions() -> tuple[int, int]:
+    """The card's width and height, read out of the PNG's own IHDR chunk.
+
+    The head states the card's size so a preview consumer can reserve space
+    before the image arrives, and the image node in the structured data states
+    it again. Both numbers used to be typed into the template, which made them
+    a claim *about* a file rather than a reading *of* it: re-render the card at
+    another size and every page would go on announcing the old one, with
+    nothing red. Reading the file is the same statement with nothing left to
+    keep in step.
+
+    IHDR is the first chunk of every PNG, and its width and height are
+    big-endian 32-bit fields at fixed offsets 16 and 20.
+    """
+    source = ASSETS / SITE_IMAGE
+    if not source.is_file():
+        raise FileNotFoundError(
+            f"{source} is missing, so every page would name a card that is not published"
+        )
+    header = source.read_bytes()[:24]
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"{source} is not a PNG, so the head cannot state its size")
+    return int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
+
+
+def structured_data(
+    *, canonical: str, title: str, description: str, card_width: int, card_height: int
+) -> str:
+    """A schema.org description of what this page is and what it is about.
+
+    Nothing here is typed twice. Every value is read back out of the same
+    constant, tag or file that renders the visible head, so the claim a crawler
+    reads and the claim a person reads cannot disagree: the page node's `name`
+    is the `<title>`, its `description` is the `<meta name=description>`, its
+    `url` is the canonical, the image node's dimensions are the ones read off
+    the committed PNG, and the software node's name, sentence and links are the
+    installed distribution's own metadata.
+
+    What is deliberately absent is as much the point as what is here. There is
+    no `Dataset` node, no `distribution`, and no DCAT vocabulary. A dataset
+    descriptor is not a description, it is an invitation: it exists so that
+    dataset search engines and open-data catalogs harvest the thing it names
+    and list it as a dataset of record, and a catalog listing is far easier to
+    acquire than to withdraw. This project emits evaluation packs about a
+    project's own deployed feature and cross-references them to a published
+    state framework; whether any of that should solicit that indexing is an
+    open question with an owner's name on it, and it is not answered by adding
+    the markup quietly. Saying "this page is about a piece of software" asks
+    for none of it, and needs no such decision.
+
+    There is no `softwareVersion` either, though the installed metadata has
+    one. These pages are built from `main` on every deploy, and `main` carries
+    the version being *prepared*; the index carries the last one released, and
+    the two have differed for most of this project's life. A version field here
+    would therefore state, to every consumer that reads structured data and to
+    nobody in a position to see it was wrong, a release that does not exist
+    yet. A number published where the real one was unavailable is the failure
+    this harness exists to catch in other people's features.
+    """
+    dist = package()
+    website_id = SITE_URL + "#website"
+    image_id = SITE_IMAGE_URL
+    software_id = REPO_URL + "#software"
+    payload = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": website_id,
+                "url": SITE_URL,
+                "name": SITE_NAME,
+                "description": SITE_DESCRIPTION,
+                "inLanguage": PAGE_LANG,
+            },
+            {
+                "@type": "WebPage",
+                "@id": canonical + "#webpage",
+                "url": canonical,
+                "name": title,
+                "description": description,
+                "inLanguage": PAGE_LANG,
+                "isPartOf": {"@id": website_id},
+                "primaryImageOfPage": {"@id": image_id},
+                "about": {"@id": software_id},
+            },
+            {
+                "@type": "ImageObject",
+                "@id": image_id,
+                "url": SITE_IMAGE_URL,
+                "width": card_width,
+                "height": card_height,
+                "caption": SITE_IMAGE_ALT,
+            },
+            {
+                "@type": "SoftwareApplication",
+                "@id": software_id,
+                "name": SITE_NAME,
+                "alternateName": dist.name,
+                "description": dist.description,
+                "applicationCategory": "DeveloperApplication",
+                "url": dist.homepage,
+                "codeRepository": dist.repository,
+                "inLanguage": PAGE_LANG,
+            },
+        ],
+    }
+    # `</script` inside a JSON string ends the element as far as an HTML parser
+    # is concerned, whatever JSON thinks. Escaping the three characters that can
+    # begin markup keeps the block inert without changing what it decodes to,
+    # which is all any consumer of this actually reads.
+    return (
+        json.dumps(payload, ensure_ascii=False, indent=2)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
+# ---------------------------------------------------------------------------
 # The page skeleton
 # ---------------------------------------------------------------------------
 
@@ -358,6 +560,7 @@ PAGES: tuple[tuple[str, str, str], ...] = (
     ("evidence.html", "Evidence pack", "evidence"),
     ("california.html", "California mapping", "california"),
     ("action.html", "GitHub Action", "action"),
+    ("privacy.html", "Privacy", "privacy"),
 )
 
 
@@ -369,6 +572,7 @@ def page(
     filename: str,
     description: str,
     generated: str = "",
+    ga4_id: str | None = analytics.GA4_MEASUREMENT_ID,
 ) -> str:
     # The page's own address, project path included. index.html is the
     # directory, so it is served at /gauntlet/ rather than /gauntlet/index.html
@@ -384,8 +588,16 @@ def page(
         if generated
         else ""
     )
+    card_width, card_height = card_dimensions()
+    described = structured_data(
+        canonical=canonical,
+        title=title,
+        description=description,
+        card_width=card_width,
+        card_height=card_height,
+    )
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{PAGE_LANG}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -398,12 +610,13 @@ def page(
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(description)}">
 <meta property="og:image" content="{esc(SITE_IMAGE_URL)}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:width" content="{card_width}">
+<meta property="og:image:height" content="{card_height}">
 <meta property="og:image:alt" content="{esc(SITE_IMAGE_ALT)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{esc(SITE_IMAGE_URL)}">
-<style>{STYLESHEET}</style>
+<script type="application/ld+json">{described}</script>
+{analytics.head_snippet(ga4_id)}<style>{STYLESHEET}</style>
 </head>
 <body>
 <a class="skip-link" href="#content">Skip to the content</a>
@@ -419,6 +632,7 @@ def page(
 counts are counted from the suites that load, and the evidence excerpts are output from
 runs made while the pages were built. Source at
 <a href="{REPO_URL}">{esc(REPO_URL)}</a>. Apache-2.0.</p>
+{analytics.footer_note(ga4_id)}
 {built}
 </footer>
 </div>
@@ -1187,11 +1401,72 @@ def action_page(action: ActionMetadata) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Privacy
+# ---------------------------------------------------------------------------
+
+_HOSTING = """<h2>Hosting</h2>
+<p>GitHub Pages serves this site. Like any web host, GitHub receives each request,
+including your IP address; see the
+<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub
+General Privacy Statement</a>.</p>"""
+
+_HARNESS = """<p>This page is about this website only. The Gauntlet harness and the
+GitHub Action have no telemetry: they report nothing about their use to anyone.</p>"""
+
+
+def privacy_page(ga4_id: str | None = analytics.GA4_MEASUREMENT_ID) -> str:
+    """What this site collects about visitors, true for the build it is in."""
+    if analytics.measurement_id(ga4_id) is None:
+        return (
+            "<h1>Privacy</h1>\n<p>This site runs no analytics, loads no third-party script "
+            f"and sets no cookies.</p>\n{_HARNESS}\n{_HOSTING}"
+        )
+    return f"""<h1>Privacy</h1>
+<p>These pages count visits with Google Analytics 4, a service of Google LLC in the United
+States. Nothing else on them tracks you.</p>
+{_HARNESS}
+<h2>What Google Analytics records</h2>
+<p>For each page you open: the page address and the page you came from, the time, your
+browser, device and screen size, your language, and a rough location that Google works out
+from your IP address. Google Analytics 4 does not store the IP address itself. By default it
+also records scrolling and clicks on links that leave this site.</p>
+<h2>Cookies</h2>
+<p>Outside the places listed below, Google Analytics sets two cookies on
+chelseakr.github.io, named <code>_ga</code> and <code>_ga_</code> followed by an ID. They let
+it tell a returning browser from a new one, and last up to two years. In the European
+Economic Area, the United Kingdom and Switzerland it sets no analytics cookies. There,
+Google still receives a cookieless ping for each page.</p>
+<h2>Advertising features are off</h2>
+<p>Google signals and ad personalization are both turned off, and the advertising storage,
+ad user data and ad personalization consent signals are denied everywhere. Google keeps the
+event data for {esc(analytics.GA4_DATA_RETENTION)}. See
+<a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>
+<h2 id="opt-out">Opting out</h2>
+<ul>
+<li><strong>On this device:</strong> use &ldquo;Opt out of analytics&rdquo; at the bottom of
+any page. It stores <code>{esc(analytics.GA4_OPT_OUT_KEY)}</code> in this browser's local
+storage and sends it nowhere. From then on this site does not load Google Analytics in this
+browser. The same button then reads &ldquo;Opt back in&rdquo;, which removes the
+setting.</li>
+<li><strong>In any browser:</strong> turn on Global Privacy Control or Do Not Track. This
+site then never loads Google Analytics at all.</li>
+<li>Or install <a href="https://tools.google.com/dlpage/gaoptout">Google's Analytics opt-out
+browser add-on</a>.</li>
+</ul>
+{_HOSTING}"""
+
+
+# ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
 
 
-def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str]:
+def render_site(
+    action: ActionMetadata,
+    *,
+    generated: str = "",
+    ga4_id: str | None = analytics.GA4_MEASUREMENT_ID,
+) -> dict[str, str]:
     """Render every page. Pure: the same inputs give byte-identical output."""
     inventory = build_inventory(builtin_suites())
     bodies = {
@@ -1200,6 +1475,7 @@ def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str
         "evidence.html": ("The evidence pack: Gauntlet", evidence_page()),
         "california.html": ("The California mapping: Gauntlet", california_page()),
         "action.html": ("The GitHub Action: Gauntlet", action_page(action)),
+        "privacy.html": ("Privacy: Gauntlet", privacy_page(ga4_id)),
     }
     # A page named in PAGES with no description would otherwise render an empty
     # `content=""`, which reads as "described" to everything that looks. Fail
@@ -1215,6 +1491,7 @@ def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str
             filename=name,
             description=PAGE_DESCRIPTIONS[name],
             generated=generated,
+            ga4_id=ga4_id,
         )
         for name, _label, key in PAGES
         for title, body in [bodies[name]]
@@ -1223,6 +1500,18 @@ def render_site(action: ActionMetadata, *, generated: str = "") -> dict[str, str
 
 def build_site(out_dir: Path, *, action_file: Path, generated: str = "") -> tuple[Path, ...]:
     """Write the documentation site to ``out_dir`` and return what was written."""
+    # Every page names the card in its head and states its size in both the
+    # share tags and the structured data, so a build that renders the pages and
+    # does not emit the file publishes five heads pointing at a 404 and nothing
+    # goes red: the deploy succeeds, the pages are correct, and the share
+    # renders blank. The copy is part of the build for that reason, and a
+    # missing source refuses here, before anything is rendered, rather than at
+    # the far end of a link.
+    source = ASSETS / SITE_IMAGE
+    if not source.is_file():
+        raise FileNotFoundError(
+            f"{source} is missing, so every page would name a card that is not published"
+        )
     pages = render_site(load_action(action_file), generated=generated)
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
@@ -1230,16 +1519,6 @@ def build_site(out_dir: Path, *, action_file: Path, generated: str = "") -> tupl
         path = out_dir / name
         path.write_text(document, encoding="utf-8")
         written.append(path)
-    # Every page names the card in its head, so a build that renders the pages
-    # and does not emit the file publishes five heads pointing at a 404 and
-    # nothing goes red: the deploy succeeds, the pages are correct, and the
-    # share renders blank. The copy is part of the build for that reason, and
-    # a missing source refuses here rather than at the far end of a link.
-    source = ASSETS / SITE_IMAGE
-    if not source.is_file():
-        raise FileNotFoundError(
-            f"{source} is missing, so every page would name a card that is not published"
-        )
     card = out_dir / SITE_IMAGE
     shutil.copyfile(source, card)
     written.append(card)

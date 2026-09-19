@@ -88,7 +88,7 @@ def test_the_committed_suites_lint_clean(directory: Path) -> None:
 
     assert report.findings == (), [item.message for item in report.findings]
     assert report.ok
-    assert report.scoreability_analysed
+    assert report.scoreability_analyzed
     assert report.suites_loaded > 0
     assert report.cases_loaded > 0
 
@@ -300,7 +300,7 @@ def test_a_missing_directory_is_reported_rather_than_raised(tmp_path: Path) -> N
 
     assert [item.code for item in report.findings] == ["directory_missing"]
     assert not report.ok
-    assert not report.scoreability_analysed
+    assert not report.scoreability_analyzed
 
 
 def test_an_empty_directory_is_reported(tmp_path: Path) -> None:
@@ -423,21 +423,35 @@ def test_scoreability_is_withheld_when_a_case_file_did_not_load(tmp_path: Path) 
     write(tmp_path, "golden.yaml", "suite: broken\ngate: golden\nversion: [")
     report = lint_directory(tmp_path)
 
-    assert not report.scoreability_analysed
+    assert not report.scoreability_analyzed
     assert "unscoreable" not in [item.code for item in report.findings]
     assert "schema" in [item.code for item in report.findings]
-    assert "scoreability was not analysed" in render_lint_text(report)
+    assert "scoreability was not analyzed" in render_lint_text(report)
 
 
-def test_scoreability_is_analysed_when_every_file_loads(tmp_path: Path) -> None:
+def test_scoreability_is_analyzed_when_every_file_loads(tmp_path: Path) -> None:
     """Pins the other side, so the check above cannot pass on a linter that
-    never analyses scoreability at all."""
+    never analyzes scoreability at all."""
     write(tmp_path, "adversarial.yaml", ADVERSARIAL_SUITE)
     report = lint_directory(tmp_path)
 
-    assert report.scoreability_analysed
+    assert report.scoreability_analyzed
     assert "unscoreable" in [item.code for item in report.findings]
-    assert "scoreability was not analysed" not in render_lint_text(report)
+    assert "scoreability was not analyzed" not in render_lint_text(report)
+
+
+def test_the_british_spelling_survives_where_it_is_published(tmp_path: Path) -> None:
+    """``scoreability_analysed`` is a ``gauntlet lint --json`` key and was a public
+    attribute of the released package. The attribute moved to American spelling;
+    the JSON key and a deprecated alias keep existing consumers working."""
+    write(tmp_path, "adversarial.yaml", ADVERSARIAL_SUITE)
+    report = lint_directory(tmp_path)
+
+    document = report.to_dict()
+    assert document["scoreability_analysed"] is True
+    assert "scoreability_analyzed" not in document
+    with pytest.warns(DeprecationWarning, match="scoreability_analyzed"):
+        assert report.scoreability_analysed is True
 
 
 # ---------------------------------------------------------------------------

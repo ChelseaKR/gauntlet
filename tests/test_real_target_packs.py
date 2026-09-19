@@ -533,7 +533,7 @@ def _account_text() -> str:
 
 
 def _withheld_by_reason(recording: Path) -> collections.Counter[str]:
-    """Every withheld claim in a recording, labelled by the reason it carries."""
+    """Every withheld claim in a recording, labeled by the reason it carries."""
     tally: collections.Counter[str] = collections.Counter()
     for line in recording.read_text(encoding="utf-8").splitlines():
         payload = json.loads(line).get("payload")

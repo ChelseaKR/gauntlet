@@ -5,7 +5,7 @@
 # Nothing runs until `verify-tag` says the tag naming this release is one the
 # maintainer signed. That check did not exist here until 2026-09-06: a
 # published Release, or a `workflow_dispatch` from any branch, built a wheel
-# labelled `gauntlet-evals` and uploaded it, and the only thing standing
+# labeled `gauntlet-evals` and uploaded it, and the only thing standing
 # between an arbitrary ref and PyPI was that nobody had dispatched one. The
 # signature is checked against `.github/allowed_signers`, a public key
 # committed in this repository and read at the ref being verified, so trusting

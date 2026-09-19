@@ -22,8 +22,12 @@ export default {
     // the row is about, and a cell read out without its row header is the failure this
     // catches.
     "wcag/h63": ["error", { strict: true }],
-    // The pages ship no script and no inline style attribute. Both stay errors, which is
-    // the default; they are named here so a future page cannot quietly introduce either.
+    // The pages ship no inline style attribute. It stays an error, which is the default;
+    // it is named here so a future page cannot quietly introduce one. Each page carries two
+    // script elements: the Google Analytics 4 loader, which tests/test_site.py matches by its
+    // whole text, and a `type="application/ld+json"` data block saying what the page is
+    // about. The HTML spec never prepares a script element whose type is not a script type,
+    // so the data block is markup rather than runtime and `script-src` has no say over it.
     "no-inline-style": "error",
   },
 };

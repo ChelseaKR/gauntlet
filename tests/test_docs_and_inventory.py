@@ -273,7 +273,7 @@ def test_inventory_totals_match_the_suites_themselves() -> None:
 def test_inventory_describes_each_gate_from_the_mapping() -> None:
     """Every loaded gate carries a description the inventory can render.
 
-    Two neighbouring assertions were removed from this test on 2026-08-28
+    Two neighboring assertions were removed from this test on 2026-08-28
     because neither could fail. ``suite_version >= 1`` restates what the loader
     enforces before ``build_inventory`` sees a suite at all, and the
     ``key_version``/``golden`` equality restates what the loader sets
@@ -994,8 +994,8 @@ def test_the_contrast_claim_matches_what_axe_is_allowed_to_report() -> None:
     for rule in discarded:
         assert f"`{rule}`" in readme, f"README does not name the discarded rule {rule}"
     if "color-contrast" in discarded:
-        assert "Colour contrast is measured once, not twice." in readme
-        assert "colour contrast in both themes are measured again" not in readme.casefold()
+        assert "Color contrast is measured once, not twice." in readme
+        assert "color contrast in both themes are measured again" not in readme.casefold()
         assert "structure and contrast checked again in `make verify`" not in readme.casefold()
     else:
         assert "measured once, not twice" not in readme

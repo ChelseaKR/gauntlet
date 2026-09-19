@@ -72,7 +72,7 @@ anything, and neither will be described as one.
 
 ## What you get
 
-- **Your name, handle, or organisation recorded** against the read or the
+- **Your name, handle, or organization recorded** against the read or the
   session, at your choice, in a committed file in a public repository. Both
   templates offer an anonymous option and nobody will push you off it.
 - **A dated, citable artifact.** This repository has a `CITATION.cff`. "I

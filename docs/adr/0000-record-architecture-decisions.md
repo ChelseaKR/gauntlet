@@ -41,7 +41,7 @@ old record keeps its text. Accepted history is not rewritten to make the current
 design look inevitable.
 
 No decision is backfilled. The existing prose stays where it is and remains the
-description of current behaviour; ADRs start from here and cover decisions made
+description of current behavior; ADRs start from here and cover decisions made
 from this point on. A backfilled ADR would be a reconstruction, and this log is
 worth less if some of its entries are reconstructions that read like records.
 
@@ -52,5 +52,5 @@ worth less if some of its entries are reconstructions that read like records.
 - New load-bearing decisions carry their reasoning and their date.
 - The log starts nearly empty and stays that way until there is a real decision
   to record. That is the honest state, not a gap to fill.
-- Decisions predating this file remain documented only as current behaviour in
+- Decisions predating this file remain documented only as current behavior in
   the prose above, without a dated record of the alternatives.

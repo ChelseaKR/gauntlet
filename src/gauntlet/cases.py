@@ -15,7 +15,7 @@ Two rules keep the declaration honest, and they are deliberately asymmetric:
 
 * A case whose language is outside its suite's declared set is rejected. This
   is the same check that used to compare against the module constant, so a
-  suite that declares nothing keeps exactly the behaviour it had.
+  suite that declares nothing keeps exactly the behavior it had.
 * A **declared** language with no cases and no ``coverage_exceptions`` entry is
   rejected at load. A declaration is a claim, and a run must not reach a verdict
   over a claim it did not exercise. A suite that declares nothing makes no such
@@ -26,7 +26,7 @@ Two rules keep the declaration honest, and they are deliberately asymmetric:
 The escape hatch is not silent. ``coverage_exceptions`` needs a written reason,
 may not name a language the suite does not declare, and may not name one the
 suite does cover: a stale exception is an off switch nobody can see. ``gauntlet
-lint`` reports every exception it honours.
+lint`` reports every exception it honors.
 """
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ concurrency:
   #
   # The discriminator below gives each pushed commit its own slot while leaving
   # pull-request runs grouped per PR, so a superseded PR commit is still
-  # cancelled. `cancel-in-progress` is deliberately unchanged.
+  # canceled. `cancel-in-progress` is deliberately unchanged.
   group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -218,15 +218,55 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: read # gitleaks-action lists the PR's commits
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Puts the whole history on disk. Necessary, and on its own not
+          # sufficient: how much of that history is read is decided by how the
+          # scanner is invoked, in the step below, not by how much was fetched.
           fetch-depth: 0
           persist-credentials: false
-      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Secret scan (gitleaks, full history)
+        # This step used to be `gitleaks/gitleaks-action`, which picks its scan
+        # range from the triggering event. Read at the pinned SHA, its
+        # `Scan()` builds `gitleaks detect` and then, for a push, appends
+        # `--log-opts=--no-merges --first-parent BASE^..HEAD` -- or, when the
+        # push carries a single commit, `--log-opts=-1`, i.e. exactly one
+        # commit. A pull_request run gets that same range over the PR's own
+        # commits. Only `schedule` and `workflow_dispatch` runs are handed no
+        # range at all, and this workflow declares neither trigger, so no lane
+        # here ever read more than one commit of `main`'s 61. A credential
+        # added in one commit and deleted in the next was invisible to it.
+        #
+        # `fetch-depth: 0` above did not prevent that and could not: it governs
+        # what `actions/checkout` fetches, not what the scanner is asked to
+        # read.
+        #
+        # A pinned, checksum-verified binary invoked as `gitleaks git .` with
+        # no `--log-opts` walks `git log --full-history --all`, on every event.
+        # That is wider than `main` alone, so the commit count this step prints
+        # is expected to exceed 61 rather than match it.
+        run: |
+          set -euo pipefail
+          GL=8.30.1
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${GL}"
+          ARCHIVE="gitleaks_${GL}_linux_x64.tar.gz"
+          # --retry retries the DOWNLOAD, never the verdict. Elsewhere in this
+          # portfolio a transient `curl: (35) Recv failure` from github.com
+          # turned this check red having read zero commits, which reads in the
+          # check list exactly like a real finding. `curl -f` plus the
+          # `set -euo pipefail` above still fail the job if every attempt
+          # fails, and the scan itself is run once.
+          curl -sSfL --retry 3 --retry-all-errors --retry-delay 2 \
+            -o "/tmp/${ARCHIVE}" "${BASE}/${ARCHIVE}"
+          curl -sSfL --retry 3 --retry-all-errors --retry-delay 2 \
+            -o /tmp/gitleaks_checksums.txt "${BASE}/gitleaks_${GL}_checksums.txt"
+          (cd /tmp && grep "  ${ARCHIVE}$" gitleaks_checksums.txt | sha256sum --check --strict)
+          tar -xzf "/tmp/${ARCHIVE}" -C /tmp gitleaks
+          # `.gitleaks.toml` and `.gitleaksignore` sit at the repository root
+          # and are discovered from the scan path; no --config is passed, so
+          # neither the pinned allowlist nor the pinned fingerprint changes.
+          /tmp/gitleaks git . --no-banner --redact --exit-code 1
 
   sast:
     runs-on: ubuntu-latest

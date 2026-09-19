@@ -860,7 +860,7 @@ def test_the_agreement_flags_refuse_every_misuse(
 
     The floor especially: a default of 0.6 or 0.8 would be this harness
     choosing how much disagreement a rubric may carry, which is the reviewer's
-    judgement and is printed back in the verdict precisely so it stays theirs.
+    judgment and is printed back in the verdict precisely so it stays theirs.
     """
     for name in ("a.jsonl", "b.jsonl"):
         _worksheet(tmp_path, name, _reading())

@@ -74,9 +74,9 @@ as passed; the same applies to a check you could not actually make.
 
 ## How you want to be credited
 
-- **Name, handle, or organisation to record:**
+- **Name, handle, or organization to record:**
 - [ ] Record me by name
-- [ ] Record a handle or an organisation instead
+- [ ] Record a handle or an organization instead
 - [ ] Do not record me
 
 <!-- Nobody will push you to be named. See docs/HELP-WANTED.md for the open

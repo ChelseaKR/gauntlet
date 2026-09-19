@@ -35,6 +35,111 @@ All notable changes will be documented here.
   development dependency. Neither is imported by the package, so the export runs on
   a plain install.
 
+- **Google Analytics 4 on the documentation site, and a privacy page.** Owner
+  decision 2026-09-17: GA4 on every public site, with privacy copy changed to
+  match. `src/gauntlet/analytics.py` holds the measurement ID
+  (`GA4_MEASUREMENT_ID`, `G-EHTXRQ49B6`) and the loader; every page `gauntlet
+  site` renders carries it and a footer "Opt out of analytics" control, and the
+  site gains `privacy.html`. An empty ID removes all of it. The loader does
+  nothing off `chelseakr.github.io` under `/gauntlet/`, under Global Privacy
+  Control or Do Not Track, or after an opt-out (localStorage
+  `gauntlet:analytics-opt-out`). Google signals and ad personalization are off;
+  Consent Mode v2 denies the advertising signals everywhere and analytics
+  storage in the EEA, the UK and Switzerland. `tests/test_site.py` now allows
+  exactly that one script, matched by its whole text, and
+  `tests/test_analytics.py` executes it in Node and deletes each guard as a
+  negative control. `package.json`, `.htmlvalidate.mjs` and `tools/a11y.mjs` no
+  longer say the pages carry no script.
+
+- **Every documentation page now says what it is, in a form a crawler reads.**
+  Each page carries one `application/ld+json` block holding a schema.org graph
+  of four nodes: the site, the page, the share card, and the software the page
+  is about. Nothing in it is typed: the page node's name is the `<title>`, its
+  description is the `<meta name=description>`, its url is the canonical, the
+  card node's dimensions are read out of the committed PNG's IHDR chunk, and
+  the software node's name, sentence and links are the installed
+  distribution's own metadata. `tests/test_site.py` parses the built pages with
+  a parser that matches on the script element and its `type` attribute, and
+  holds every value against the tag, the file or the `pyproject.toml` table it
+  came from, so a node that stopped being derived fails even while it still
+  says something plausible.
+
+  There is no `Dataset` node, no `distribution`, and no DCAT vocabulary, and a
+  test forbids all of it permanently. A dataset descriptor is not a
+  description: it exists so that dataset search engines and state open-data
+  catalogs harvest what it names, and a catalog listing is far easier to
+  acquire than to withdraw. Whether an evaluation pack should solicit that is
+  an open question with an owner's name on it, and the test is there so it
+  stays a decision somebody makes rather than a line somebody adds. There is
+  no `softwareVersion` either: these pages are built from `main`, which carries
+  the version being prepared, while the index carries the last one released, so
+  the field would announce a release that does not exist yet.
+
+### Changed
+
+- **The share card's width and height are read off the card instead of typed.**
+  `og:image:width` and `og:image:height` were the literals 1200 and 630. They
+  happened to be right, and nothing would have said so if the card were
+  re-rendered at another size: the pages would have gone on announcing the old
+  one with every check green. Both numbers now come from the PNG's own IHDR
+  chunk, and a build refuses a card it cannot read rather than stating a size
+  it guessed. `build_site` also refuses a missing card before it renders
+  anything, rather than after.
+
+- **The script check now counts the scripts that execute.** It allowed exactly
+  one `<script>` element, the GA4 loader, which the data block above would end.
+  A script element whose type is not a script type is never prepared and never
+  executed, so the check now counts executable scripts and still allows exactly
+  the loader. That is stricter rather than looser: it goes red for any other
+  inline script, a `src`, a `type="module"` and a `type="text/javascript"`
+  alike. `tests/test_analytics.py` leaves the data block out of its script
+  counts for the same reason.
+
+### Fixed
+
+- **The required `secret-scan` check read one commit of `main`'s 61.** The job
+  ran `gitleaks/gitleaks-action`, which picks its scan range from the event that
+  triggered the run: a push gets `--log-opts=--no-merges --first-parent
+  BASE^..HEAD`, a single-commit push gets `--log-opts=-1`, and a pull request
+  gets that range over its own commits. Only `schedule` and `workflow_dispatch`
+  runs are handed no range, and `ci.yml` declares neither, so every lane of this
+  check was one of the two the action narrows, and every squash merge into
+  `main` is a one-commit push. A credential added in one commit and deleted in
+  the next was invisible to a check named `secret-scan`.
+
+  `fetch-depth: 0` did not prevent that and could not: it decides how much
+  history `actions/checkout` puts on disk, not how much of it the scanner is
+  asked to read. The step is now a pinned, checksum-verified `gitleaks` 8.30.1
+  binary invoked as `gitleaks git .` with no range, which walks `git log
+  --full-history --all` on every event, so the count it reports is wider than
+  `main` rather than equal to it. `.gitleaks.toml` and `.gitleaksignore` are
+  still discovered from the repository root, so neither the pinned allowlist nor
+  the pinned fingerprint changes. Both downloads retry, because a transient
+  `curl` failure reads in the check list exactly like a finding;
+  `tests/test_secret_scan_reads_history.py` pins the invocation, reading the
+  workflow with its comments stripped so the comment naming the removed action
+  cannot satisfy the check that forbids it.
+
+## [0.3.0] - 2026-09-13
+
+### Fixed
+
+- **The published `0.2.0` wheel reported itself as `0.1.0`.** `pip install
+  gauntlet-evals` fetched 0.2.0 while `gauntlet.__version__` read `"0.1.0"`, so
+  anyone checking programmatically which build they had was told the number of
+  the release that still carried the grounding defect. Nothing gated the two
+  against each other; a test now reads `pyproject.toml` as text, so a computed
+  value cannot satisfy it, and checks the imported attribute and the installed
+  distribution metadata as well.
+- **The published `0.2.0` wheel carried no project links.** `[project.urls]`
+  merged to `main` after `v0.2.0` was cut, and the release built from the tag,
+  so the PyPI page lost its Homepage, Repository, Issues and Changelog links --
+  the exact state that change existed to repair. Both defects are in an
+  immutable release and could only be fixed by cutting forward; this is that
+  release.
+
+### Added
+
 - **Multi-turn cases (#43): a refusal on turn two is held on turn three.** An
   `adversarial` or `refusal` case may carry `turns` in place of `prompt`. Every
   turn is scored with its gate's own rule, an `ask` id holds the target to its
@@ -60,6 +165,27 @@ All notable changes will be documented here.
   recordings, digests and evidence packs are byte for byte what they were.
 
 ### Fixed
+
+- **The package reported a version it was not.** `pyproject.toml` said `0.2.0`
+  and `v0.2.0` is a signed tag on `main`, while `src/gauntlet/__init__.py` still
+  said `0.1.0`. `__version__` is exported in `__all__`, so every importer read
+  the wrong number, and the disagreement is in the tagged tree as well: a wheel
+  built from `v0.2.0` would have told `pip` it was `0.2.0` and `import gauntlet`
+  that it was `0.1.0`.
+
+  The version a consumer reads is how they say which behavior they have --
+  whether `run --record` and `verify` exist, and whether an unverifiable
+  citation is still counted as grounded. Nothing checked the two declarations
+  against each other, which is how a release ships a version the repository
+  never tagged.
+
+  `tests/test_version_agreement.py` now holds them equal, reading the literal
+  out of the file rather than the imported attribute so a computed value cannot
+  satisfy it, and separately holds the imported attribute and the installed
+  distribution metadata to the same number so a stale environment is not
+  mistaken for agreement. The gate was run against the live defect before the
+  fix and failed on it, and against two sabotages afterwards: reverting
+  `__init__.py` to `0.1.0`, and bumping `pyproject.toml` alone to `0.3.0`.
 
 - **Twelve published artifacts recorded the scratchpad path of the machine that
   made them.** `real_targets/{fhir_scorecard,mrf_honest}` wrote
@@ -161,7 +287,7 @@ All notable changes will be documented here.
 
   **`--min-kappa` is required and has no default.** A shipped 0.6 or 0.8 would
   be this harness deciding how much disagreement a rubric may carry, which is a
-  judgement about the rubric. The number is typed at the command line and
+  judgment about the rubric. The number is typed at the command line and
   printed back in the verdict, so it stays the reviewer's.
 
   **Three outcomes, not two, and the third one is the point.** Kappa is
@@ -304,7 +430,7 @@ reference target.
 
 - **The release workflow refuses to publish from a tag the maintainer did not
   sign.** Nothing checked before this. A published Release, or a
-  `workflow_dispatch` from any branch, built a wheel labelled `gauntlet-evals`
+  `workflow_dispatch` from any branch, built a wheel labeled `gauntlet-evals`
   and uploaded it to PyPI, and the only thing between an arbitrary ref and the
   public index was that nobody had dispatched one. A `verify-tag` job now runs
   first and gates both later jobs: it resolves the tag from the event, requires
@@ -373,7 +499,7 @@ reference target.
   resolves, because the tagged tree contains `action.yml`, and the site said
   "no release tag is implied" while a usable one existed. No `@v1` will be
   published, and no tag was created by this change. Closes #33.
-- **A share of any documentation page rendered as a blank grey box, and the
+- **A share of any documentation page rendered as a blank gray box, and the
   README never named the pages at all.** The head carried `og:title`,
   `og:description` and `og:url` but no image, so `twitter:card` was correctly
   held at `summary` and the card had nothing to show. `gauntlet site` now emits
@@ -578,7 +704,7 @@ reference target.
     `2026-08-22-raw.jsonl` and `2026-08-22-results.json` by
     `tests/test_real_target_packs.py`, including the arithmetic: a breakdown
     that does not add up to its own total fails.
-  - The README said page structure and colour contrast were measured "again" in
+  - The README said page structure and color contrast were measured "again" in
     pytest. `tools/a11y.mjs` discards `color-contrast`, because jsdom paints no
     pixels and a rule that could not run must not be reported as one that
     passed. Contrast is measured once, off the palette. Said plainly now, and
@@ -758,7 +884,7 @@ after the tag and is genuinely unreleased.
   network, no clock unless a date is passed, byte-identical on rebuild.
 - An accessibility gate over the built pages (`make pages`): html-validate for
   HTML conformance and the markup-level rules, axe-core in a headless DOM for
-  the WCAG 2.0/2.1/2.2 A and AA rule sets, plus structure and two-theme colour
+  the WCAG 2.0/2.1/2.2 A and AA rule sets, plus structure and two-theme color
   contrast measured in pytest so `make verify` keeps a floor with no node
   toolchain. A CI job runs all of it and proves the build is reproducible.
 - A GitHub Pages workflow (`.github/workflows/pages.yml`) that publishes the
