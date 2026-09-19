@@ -59,6 +59,8 @@ from gauntlet.calibrate import (
     write_calibration,
 )
 from gauntlet.cases import Suite, builtin_suites, load_suites
+from gauntlet.evalport import WithheldVerdict
+from gauntlet.evalport import export as evalport_export
 from gauntlet.evidence import build_evidence_pack, github_output_lines
 from gauntlet.gates import judge_withheld_reason, run_suite, unscoreable_reason
 from gauntlet.history import (
@@ -315,6 +317,8 @@ def _print_run_summary(run: RunResult, verdict: str | None = None) -> None:
 
 def _cmd_report(args: argparse.Namespace) -> int:
     run = load_run_dict(Path(args.results))
+    if args.format == "evalport":
+        return _write_evalport(run, args)
     baseline = load_run_dict(Path(args.baseline)) if args.baseline else None
     history = None
     if args.ledger:
@@ -328,6 +332,30 @@ def _cmd_report(args: argparse.Namespace) -> int:
         print(rendered)
     if args.github_output:
         _append_github_output(Path(args.github_output), pack)
+    return 0
+
+
+def _write_evalport(run: dict[str, object], args: argparse.Namespace) -> int:
+    """Write the run as EvalPort documents, or say why it has none.
+
+    A withheld verdict leaves by way of exit 4, the code the run itself exits,
+    rather than exit 2. The harness ran; it declined to score what it saw, and
+    that is what the reader is told here too.
+    """
+    if not args.out:
+        raise ValueError(
+            "--format evalport writes several documents, so it needs a directory: pass --out DIR"
+        )
+    try:
+        files = evalport_export(run)
+    except WithheldVerdict as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_UNSCOREABLE
+    directory = Path(args.out)
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, text in files.items():
+        (directory / name).write_text(text, encoding="utf-8")
+    print(f"wrote {len(files)} EvalPort files to {directory}")
     return 0
 
 
@@ -681,9 +709,11 @@ def _add_report_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser])
     )
     report_parser.add_argument(
         "--format",
-        choices=("md", "json"),
+        choices=("md", "json", "evalport"),
         default="md",
-        help="md for the human-readable document, json for the machine-readable pack",
+        help="md for the human-readable document, json for the machine-readable pack, "
+        "evalport for EvalPort ResultSets, one per gate, written into --out as a "
+        "directory alongside a MAPPING.md naming what the schema has no field for",
     )
     report_parser.add_argument("--out", help="write the evidence pack to this path")
     report_parser.add_argument(

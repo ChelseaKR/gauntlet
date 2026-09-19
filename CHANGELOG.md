@@ -6,6 +6,35 @@ All notable changes will be documented here.
 
 ### Added
 
+- **A second export format: `gauntlet report --format evalport`.** EvalPort is an
+  open schema for making evaluation data portable between frameworks. The new
+  format writes one EvalPort ResultSet per gate into `--out` as a directory, all
+  of them sharing a `run_id` derived from the run rather than generated, so
+  re-exporting the same results file writes the same bytes. Beside them it writes
+  a `MAPPING.md` generated from the documents themselves.
+
+  **No gate is declared as one of EvalPort's built-in graders.** Reading
+  `must_contain` as a `contains` grader is right about the string comparison and
+  wrong about the gate, because every gate scores legibility before it scores
+  content: a mute target fails a Gauntlet case that a bare substring check would
+  pass, and on the absence-phrased gates it would pass all of them. Each gate is
+  declared under its own type with `params.handler` naming the function that
+  produced the verdict, which is what EvalPort's type-openness rule is for.
+
+  **A run whose verdict was withheld is not exported.** EvalPort has no
+  ResultSet-level "this run has no verdict", so the command writes nothing and
+  exits 4 rather than rendering a withheld verdict as a set of results.
+
+  What EvalPort has no field for travels in `metadata` under a `gauntlet.` prefix
+  and is listed in `MAPPING.md`; what a results file never recorded is named there
+  too. `gauntlet.evalport.run_dict_from_result_sets` reads the documents back, and
+  a test exports a real run, reads it back, and compares the bytes. Conformance is
+  checked against EvalPort rather than against a reading of it: the published JSON
+  Schemas, vendored under `tests/fixtures/evalport/` and pinned by their upstream
+  blob hashes, and `evalport-sdk`, EvalPort's own reference validator, added as a
+  development dependency. Neither is imported by the package, so the export runs on
+  a plain install.
+
 - **Google Analytics 4 on the documentation site, and a privacy page.** Owner
   decision 2026-09-17: GA4 on every public site, with privacy copy changed to
   match. `src/gauntlet/analytics.py` holds the measurement ID
