@@ -29,7 +29,7 @@ would pass, and for the absence-phrased gates it would pass perfectly. Declaring
 ``contains`` would describe a check this harness does not run. EvalPort's
 type-openness rule exists for exactly this: any non-empty type string is valid
 and is treated like ``custom``, requiring ``params.handler`` so a runner that
-does not recognise it skips rather than guesses. The handler named here is the
+does not recognize it skips rather than guesses. The handler named here is the
 dotted path to the function that produced the verdict, so an integrator resolves
 the real predicate instead of a paraphrase of it.
 

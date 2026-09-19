@@ -12,7 +12,7 @@ against the published specification with no network call in the test run.
 | Upstream commit | `694fee3533997c2e75834fd6c8bb56b4903475c0` (2026-09-11) |
 | Upstream path | `spec/schemas/` |
 | Specification version these schemas carry | `1.0.0-rc.5` |
-| Licence | Apache License 2.0, the same licence this repository uses |
+| License | Apache License 2.0, the same license this repository uses |
 
 ## Provenance, checkable offline
 
