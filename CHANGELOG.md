@@ -6,6 +6,11 @@ All notable changes will be documented here.
 
 ### Added
 
+- **OpenSSF Scorecard (`.github/workflows/scorecard.yml`).** Runs on every push to
+  `main`, weekly and on dispatch, and publishes to the public Scorecard API that the
+  new README badge reads. The SARIF is kept as a build artifact rather than uploaded,
+  because code scanning is not set up on this repository.
+
 - **A second export format: `gauntlet report --format evalport`.** EvalPort is an
   open schema for making evaluation data portable between frameworks. The new
   format writes one EvalPort ResultSet per gate into `--out` as a directory, all
